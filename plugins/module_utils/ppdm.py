@@ -54,6 +54,7 @@ class PpdmClient:
         self.opener = opener
         self.sleep = sleep
         self.token = None
+        self.last_status = None
 
     def _scrub(self, value):
         # Never let the password reach error text or body, whatever the server echoes.
@@ -88,6 +89,7 @@ class PpdmClient:
             )
             raw = resp.read()
             status = getattr(resp, "status", None) or resp.getcode()
+            self.last_status = status
         except HTTPError as e:
             raw = e.read()
             try:
@@ -107,20 +109,15 @@ class PpdmClient:
         except ValueError:
             raise PpdmError("%s %s failed: HTTP %s response is not valid JSON" % (method, path, status), status=status)
 
-    def list_all(self, resource, filter=None, order_by=None):
-        path = ROUTES[resource]["base"]
+    def get_all(self, path, query=None):
+        """GET path; a {content, page} envelope is paged to the end and returned as a list, anything else as is."""
         items = []
         page = 1
         while True:
-            query = {"page": page, "pageSize": PAGE_SIZE}
-            if filter:
-                query["filter"] = filter
-            if order_by:
-                query["orderby"] = order_by
-            data = self.request("GET", path, query=query)
-            if not isinstance(data, dict):
-                raise PpdmError("GET %s failed: unexpected response" % path)
-            content = data.get("content") or []
+            data = self.request("GET", path, query=dict(query or {}, page=page, pageSize=PAGE_SIZE))
+            if not isinstance(data, dict) or "content" not in data:
+                return data if page == 1 else items
+            content = data["content"] or []
             items.extend(content)
             if "page" not in data:
                 if content:
@@ -129,6 +126,20 @@ class PpdmClient:
             if page >= data["page"].get("totalPages", 0):
                 return items
             page += 1
+
+    def list_all(self, resource, filter=None, order_by=None):
+        path = ROUTES[resource]["base"]
+        query = {}
+        if filter:
+            query["filter"] = filter
+        if order_by:
+            query["orderby"] = order_by
+        data = self.get_all(path, query)
+        if isinstance(data, dict):  # envelope-less object: no items, as before
+            return []
+        if not isinstance(data, list):
+            raise PpdmError("GET %s failed: unexpected response" % path)
+        return data
 
     def find_one(self, resource, key, value):
         found = self.list_all(resource, filter='%s eq "%s"' % (key, value))

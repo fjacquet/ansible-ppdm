@@ -3,4 +3,5 @@ requires_ansible: ">=2.20.0"
 # Every module under plugins/modules/ must be listed (checked by tests/unit/test_runtime_groups.py).
 # Usable as: module_defaults: {group/fjacquet.ppdm.ppdm: {hostname: ...}}
 action_groups:
-  ppdm: []
+  ppdm:
+    - api

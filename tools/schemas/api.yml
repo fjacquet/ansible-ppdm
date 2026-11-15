@@ -1,0 +1,74 @@
+module: api
+resource: activities       # unused for a raw-API module; any valid slug
+kind: action
+short_description: Call any PowerProtect Data Manager REST endpoint
+description:
+  - Escape hatch for endpoints without a dedicated module.
+  - GET requests never change anything. Any other method always reports C(changed=true).
+  - In check mode non-GET requests are not sent.
+options:
+  method:
+    type: str
+    choices: [GET, POST, PUT, PATCH, DELETE]
+    default: GET
+    description: HTTP method.
+  path:
+    type: str
+    required: true
+    description: Request path, must start with C(/api/), for example C(/api/v3/alerts).
+  query:
+    type: dict
+    description: Query string parameters.
+  body:
+    type: dict
+    description: JSON request body.
+  all_pages:
+    type: bool
+    default: true
+    description:
+      - For GET, fetch every page when the response is a paginated C(content)/C(page) envelope.
+      - The result is then the concatenated C(content) list.
+  wait:
+    type: bool
+    default: false
+    description:
+      - When the response contains an C(activityId), wait for that activity to complete.
+      - Fails unless the activity C(result.status) is C(OK) or C(OK_WITH_ERRORS) (the latter only warns).
+  wait_timeout:
+    type: int
+    default: 600
+    description: Seconds to wait for the activity when I(wait=true).
+examples: |
+  - name: List all alerts
+    fjacquet.ppdm.api:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      path: /api/v3/alerts
+
+  - name: Run a call and wait for its activity
+    fjacquet.ppdm.api:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      method: POST
+      path: /api/v3/activities/abc/interventions
+      body: {}
+      wait: true
+return: |
+  status:
+    description: HTTP status code of the response (null in check mode for non-GET).
+    returned: always
+    type: int
+  result:
+    description: Parsed JSON response, or the concatenated C(content) list for paginated GETs.
+    returned: always
+    type: raw
+  skipped_write:
+    description: True when a non-GET request was not sent because of check mode.
+    returned: when check mode skipped a write
+    type: bool
+  activity:
+    description: Final activity when I(wait=true) and the response carried an C(activityId).
+    returned: when waited
+    type: dict
