@@ -15,6 +15,11 @@
       password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
       port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
   tasks:
+    - name: Check that the change was confirmed
+      ansible.builtin.assert:
+        that: certificate_trust_confirm | bool
+        fail_msg: Set certificate_trust_confirm to true, this adds a root certificate to the PPDM trust store and is not idempotent.
+
     - name: Add the root certificate chain
       fjacquet.ppdm.api:
         method: POST

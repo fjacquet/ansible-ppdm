@@ -15,6 +15,11 @@
       password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
       port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
   tasks:
+    - name: Check that the change was confirmed
+      ansible.builtin.assert:
+        that: inventory_update_confirm | bool
+        fail_msg: Set inventory_update_confirm to true, this replaces the whole inventory source object.
+
     - name: Get the Kubernetes inventory source
       fjacquet.ppdm.inventory_source_info:
         name: "{{ k8s_hostname }}"

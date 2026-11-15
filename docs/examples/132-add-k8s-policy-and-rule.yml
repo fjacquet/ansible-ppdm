@@ -16,6 +16,11 @@
       password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
       port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
   tasks:
+    - name: Check that the change was confirmed
+      ansible.builtin.assert:
+        that: rule_exec_confirm | bool
+        fail_msg: Set rule_exec_confirm to true, running the protection rules moves every matching Kubernetes asset to its policy.
+
     - name: Get the policy of that name
       fjacquet.ppdm.api:
         path: /api/v3/protection-policies
@@ -33,6 +38,13 @@
         that: policy_storage_system.storage_systems | length == 1
         fail_msg: No storage system named {{ ddve_hostname }}.
 
+    - name: Check that the Data Domain has a preferred interface
+      ansible.builtin.assert:
+        that: >-
+          preferred_interface_id is defined or
+          (policy_storage_system.storage_systems[0].details.dataDomain.preferredInterfaces | default([]) | length > 0)
+        fail_msg: The Data Domain has no preferred interface; set preferred_interface_id explicitly.
+
     - name: Create the Kubernetes protection policy
       fjacquet.ppdm.api:
         method: POST
@@ -47,7 +59,8 @@
               type: BACKUP
               target:
                 storageContainerId: "{{ policy_storage_system.storage_systems[0].id }}"
-                preferredInterfaceId: "{{ policy_storage_system.storage_systems[0].details.dataDomain.preferredInterfaces[0].networkName }}"
+                preferredInterfaceId: "{{ preferred_interface_id if preferred_interface_id is defined else
+                  policy_storage_system.storage_systems[0].details.dataDomain.preferredInterfaces[0].networkName }}"
               operations:
                 - backupLevel: FULL
                   triggerType: ON_SCHEDULE

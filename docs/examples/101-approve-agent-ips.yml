@@ -16,6 +16,11 @@
       password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
       port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
   tasks:
+    - name: Check that the change was confirmed
+      ansible.builtin.assert:
+        that: whitelist_approve_confirm | bool
+        fail_msg: Set whitelist_approve_confirm to true, approving an address lets that host register as an agent.
+
     - name: Get the whitelist
       fjacquet.ppdm.api:
         path: /api/v2/whitelist

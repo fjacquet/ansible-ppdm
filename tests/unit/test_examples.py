@@ -138,12 +138,20 @@ DESTRUCTIVE = {
     "50-disable-cloud-dr-component.yml": "cloud_dr_confirm",
     "53-deploy-cloud-dr-server.yml": "cloud_dr_confirm",
     "55-delete-cloud-dr-server.yml": "cloud_dr_confirm",
+    "89-set-local-user-setting.yml": "local_user_setting_confirm",
     "90-replace-certificate.yml": "cert_confirm",
     "91-set-license.yml": "license_confirm",
     "94-install-update-package.yml": "update_confirm",
     "95-delete-update-package.yml": "update_confirm",
+    "101-approve-agent-ips.yml": "whitelist_approve_confirm",
     "102-delete-whitelist-entries.yml": "whitelist_confirm",
+    "104-approve-agents-by-hostname.yml": "whitelist_approve_confirm",
+    "132-add-k8s-policy-and-rule.yml": "rule_exec_confirm",
+    "134-trust-kubernetes-root-certificate.yml": "certificate_trust_confirm",
+    "135-set-kubernetes-controller-config.yml": "inventory_update_confirm",
 }
+# Writing examples left without a confirm guard on purpose; the README gives the reason.
+NOT_GUARDED = {"24", "27", "51", "111"}
 SECRET_RE = re.compile(r"password|token|license_key|privatekey|secretkey|userkey|secret|\"key\":", re.I)
 
 
@@ -215,13 +223,34 @@ def test_disclaimer_only_in_readme():
         assert "pre-release" not in path.read_text().lower(), path.name
 
 
+def _readme_rows():
+    converted_part, skipped_part = README.split("## Converted")[1].split("## Not converted")
+    converted = re.findall(r"^\| \[([^\]]+)\]\([^)]*\) \|.*\| ([^|]+?) \| converted \|$", converted_part, re.M)
+    skipped = re.findall(r"^\| ([^|]+?) \| [^|]+ \|$", skipped_part, re.M)[1:]
+    return converted, skipped
+
+
 def test_readme_indexes_every_example_and_source_file():
-    for path in FILES:
-        assert path.name in README, path.name
+    converted, skipped = _readme_rows()
     assert len(ALL_SOURCES) == 90
+    seen = [name for _, sources in converted for name in sources.split(", ")]
+    seen += [name for row in skipped for name in row.split(", ")]
     for name in ALL_SOURCES:
-        assert name in README, name
+        assert seen.count(name) == 1, f"{name} is in {seen.count(name)} table rows, expected exactly one"
+    assert set(seen) == set(ALL_SOURCES), set(seen) ^ set(ALL_SOURCES)
+    listed = {example for example, _ in converted}
+    for path in FILES:
+        assert path.name in listed, f"{path.name} is not in the converted table"
     assert "NOTICE" in README
+
+
+def test_readme_lists_exactly_the_unguarded_examples():
+    match = re.search(r"are not guarded \(([\d, ]+)\)", README)
+    assert match
+    assert {n.strip() for n in match.group(1).split(",")} == NOT_GUARDED
+    for path in FILES:
+        number = path.name.split("-")[0]
+        assert not (number in NOT_GUARDED and path.name in DESTRUCTIVE), path.name
 
 
 def test_at_least_70_source_files_are_converted_and_credited():

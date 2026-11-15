@@ -43,6 +43,11 @@ update_confirm: false
 cert_confirm: false
 license_confirm: false
 whitelist_confirm: false
+whitelist_approve_confirm: false
+rule_exec_confirm: false
+inventory_update_confirm: false
+local_user_setting_confirm: false
+certificate_trust_confirm: false
 
 sdr_short_name: ppdm
 csm_tenant: tenant-0000

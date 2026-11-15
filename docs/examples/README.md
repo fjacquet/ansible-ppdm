@@ -33,9 +33,13 @@ export PPDM_HOSTNAME=ppdm.example.com PPDM_USERNAME=admin PPDM_PASSWORD=...
 ansible-playbook -i localhost, docs/examples/20-add-data-domain.yml
 ```
 
-Examples that change something destructive or service affecting (40, 41, 50, 53, 55, 90, 91, 94, 95, 102) refuse to
-run until their confirm variable (`restore_confirm`, `cloud_dr_confirm`, `cert_confirm`, `license_confirm`,
-`update_confirm`, `whitelist_confirm`) is set to true. 94 also accepts the product and telemetry EULAs and trusts the package certificate when confirmed.
+Examples that change something destructive or service affecting (40, 41, 50, 53, 55, 89, 90, 91, 94, 95, 101, 102, 104, 132, 134, 135) refuse to
+run until their confirm variable (`restore_confirm`, `cloud_dr_confirm`, `local_user_setting_confirm`, `cert_confirm`,
+`license_confirm`, `update_confirm`, `whitelist_approve_confirm`, `whitelist_confirm`, `rule_exec_confirm`,
+`certificate_trust_confirm`, `inventory_update_confirm`) is set to true. 94 also accepts the product and telemetry EULAs and trusts the package certificate when confirmed.
+
+Other examples that write are not guarded (24, 27, 51, 111): 24, 27 and 51 are idempotent updates of settings the
+example itself creates or documents, and 111 starts one backup of an existing policy without changing any state.
 
 ## Unverified details
 
@@ -54,6 +58,8 @@ Besides the disclaimer above, these points are known guesses:
 - 120, 121, 122, 132: policies are built from the `/api/v3` schema (objectives, operations, retentions), not from the
   original templates. `storageContainerId` is set to the Data Domain storage system id and the objective id is a
   generated UUID: both are assumptions. The spec lists no endpoint to read storage containers.
+- 120, 121, 122, 132: `preferredInterfaceId` is the first preferred interface of the Data Domain; the example stops
+  with an assert when there is none, and `preferred_interface_id` overrides the derived value.
 - 134: `POST /api/v2/certificates` is used as in the original workflow; it is not idempotent.
 - 101, 104: the whitelist `expiresAt` value is built from the controller clock.
 
@@ -70,7 +76,7 @@ Every original file is listed in exactly one of the two tables below.
 
 | Example | What it does | Modules | Original bottkars files | Status |
 |---------|--------------|---------|-------------------------|--------|
-| [bootstrap.yml](bootstrap.yml) | Bootstrap a new appliance with the bootstrap role: EULA, initial configuration, wait for it to finish. | `bootstrap role` | 1.0-playbook_configure_ppdm.yml, 1.0-playbook_wait_ready.yml | converted |
+| [bootstrap.yml](bootstrap.yml) | Bootstrap a new appliance with the bootstrap role: EULA, initial configuration, wait for it to finish. | `bootstrap role` | 1.0-playbook_configure_ppdm.yml | converted |
 | [10-wait-for-api.yml](10-wait-for-api.yml) | Retry a read until the REST API answers and the login works (the bootstrap role does the same before configuring). | `api` | 1.0-playbook_wait_ready.yml | converted |
 | [11-get-configuration.yml](11-get-configuration.yml) | Read the appliance configuration (read-only). | `api` | 1.1-playbook_get_ppdm_config.yml | converted |
 | [12-test-login.yml](12-test-login.yml) | Log in and read the credentials: a failure here means the address, port or login is wrong. | `credential_info` | 2.0-playbook_test_credentials.yml | converted |
@@ -121,7 +127,7 @@ Every original file is listed in exactly one of the two tables below.
 | [121-add-mssql-policy.yml](121-add-mssql-policy.yml) | Create the OS credential and a daily full plus hourly log policy unless one of that name exists. | `api`, `credential`, `storage_system_info` | 120.1_playbook_add_mssql_policy.yaml | converted |
 | [122-add-exchange-policy.yml](122-add-exchange-policy.yml) | Create the OS credential and a daily synthetic full policy unless one of that name exists. | `api`, `credential`, `storage_system_info` | 120.1_playbook_add_exchange_policy.yaml | converted |
 | [123-assign-assets-to-policy.yml](123-assign-assets-to-policy.yml) | Assign the assets matching a filter to a policy (the body is a JSON array of asset ids). | `api` | 120.2_playbook_add_assets_to_policy.yaml | converted |
-| [130-add-kubernetes.yml](130-add-kubernetes.yml) | Trust the API server certificate, store the discovery token and add the cluster as an inventory source. | `certificate`, `credential`, `inventory_source` | 130.1_playbook_rbac_add_k8s_to_ppdm.yaml, playbook_add_k8s.yml, playbook_rbac_add_k8s_to_ppdm.yml, playbook_rbac_add_k8s_to_ppdm_reg_cred.yml, playbook_rbac_add_k8s_to_ppdm_reg_cred_assetsource_enable.yml | converted |
+| [130-add-kubernetes.yml](130-add-kubernetes.yml) | Trust the API server certificate, store the discovery token and add the cluster as an inventory source. | `certificate`, `credential`, `inventory_source` | playbook_add_k8s.yml, playbook_rbac_add_k8s_to_ppdm.yml, playbook_rbac_add_k8s_to_ppdm_reg_cred.yml, playbook_rbac_add_k8s_to_ppdm_reg_cred_assetsource_enable.yml | converted |
 | [131-run-discovery.yml](131-run-discovery.yml) | Start a discovery on the Kubernetes inventory source (change k8s_hostname for another source). | `api`, `inventory_source_info` | 130.3_playbook_start_k8s_discoveries_by_query.yaml, 130.4_playbook_start_k8s_discoveries.yaml, playbook_start_k8s_discoveries.yml | converted |
 | [132-add-k8s-policy-and-rule.yml](132-add-k8s-policy-and-rule.yml) | Create a Kubernetes policy, a rule moving namespaces with a label to it, and run the rules. | `api`, `storage_system_info` | 130.2_playbook_add_k8s_policy_and_rule.yaml | converted |
 | [133-add-kubernetes-with-vcenter.yml](133-add-kubernetes-with-vcenter.yml) | Add the cluster with its vCenter (CSI drivers as a process): trust, credential, inventory source with k8s details. | `certificate`, `credential`, `inventory_source`, `inventory_source_info` | 130.1_playbook_rbac_add_k8s_to_ppdm.yaml | converted |
