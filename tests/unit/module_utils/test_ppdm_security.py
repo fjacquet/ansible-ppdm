@@ -84,7 +84,10 @@ def test_scrub_http_error_json_body(pw):
     with pytest.raises(PpdmError) as e:
         c.request("POST", "/api/v2/login", body={"password": pw})
     assert e.value.status == 401
-    k = lambda t: t.replace(pw, "********")  # noqa: E731  dict keys are scrubbed too
+
+    def k(t):  # dict keys are scrubbed too
+        return t.replace(pw, "********")
+
     assert isinstance(e.value.body, dict) and e.value.body[k("status")] == 401
     assert e.value.body[k("message")] == ("bad login for admin: %s" % pw).replace(pw, "********")
     assert e.value.body[k("detail")] == {"x": ["********", 1, None]}
