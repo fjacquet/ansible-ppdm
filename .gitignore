@@ -6,3 +6,6 @@ __pycache__/
 .ansible_collections/
 .ansible/
 .ruff_cache/
+
+# local tooling
+bin/
