@@ -22,6 +22,14 @@ Lab checklist before 1.0.0:
 - `certificate` `state=absent` lists with `nocache=true`: confirm it still finds the stored trust-store entry.
 - Bootstrap readiness: confirm how a 401/403 is handled while the appliance is still starting (the wait stops at the first one).
 - Bootstrap config-status poll: confirm when PPDM switches to the new admin password (the poll uses it from the first try and stops on the first 401/403).
+- `protection_policy` update uses PATCH: confirm that whole-list `objectives` and `overrides` replace the existing lists and that stripping the read-only fields is enough for PPDM to accept the body.
+- Protection policy names are not enforced unique by the API: confirm the behaviour on a duplicate name (the module fails and lists the ids).
+- `protection_policy_assets` idempotence reads `GET /api/v2/protection-policies/<id>/asset-assignments`: confirm it returns Asset objects with an `id`, as the module assumes.
+- Activity results: confirm the `result.status` values (`OK`, `OK_WITH_ERRORS`, `FAILED`) and that the 202 bodies of `/api/v3/protections` and `/api/v2/discoveries` are not activities (`activityId` and `taskId` are polled).
+- `protection_policy` `overrides`: confirm whether GET returns an empty `overrides` list or omits it, since an empty list removes all overrides.
+- `protection_policy` compares reordered `objectives` by index: confirm PPDM keeps the order of the objectives it stores.
+- The v2 protection rule API is deprecated since PPDM 20.2 and removed in 20.6: `protection_rule` and `protection_rule_run` will move to v3.
+- `protection_rule_run` with only `inventory_source_type` (no `rules`) is unverified.
 
 ## Requirements
 
@@ -70,8 +78,16 @@ To share explicit values across tasks, use the `ppdm` action group:
 | `fjacquet.ppdm.credential_info` | Get credentials |
 | `fjacquet.ppdm.credential` | Create, update or delete credentials |
 | `fjacquet.ppdm.eula` | Accept an end user license agreement |
+| `fjacquet.ppdm.discovery` | Start a discovery on an inventory source |
 | `fjacquet.ppdm.inventory_source_info` | Get inventory sources |
 | `fjacquet.ppdm.inventory_source` | Create, update or delete inventory sources |
+| `fjacquet.ppdm.protection_policy_info` | Get protection policies |
+| `fjacquet.ppdm.protection_policy` | Create, update or delete protection policies |
+| `fjacquet.ppdm.protection_policy_assets` | Assign or unassign assets to a protection policy |
+| `fjacquet.ppdm.protection_policy_run` | Run a protection policy now |
+| `fjacquet.ppdm.protection_rule_info` | Get protection rules |
+| `fjacquet.ppdm.protection_rule` | Create, update or delete protection rules |
+| `fjacquet.ppdm.protection_rule_run` | Run protection rules or preview their conflicts |
 | `fjacquet.ppdm.storage_system_info` | Get storage systems |
 | `fjacquet.ppdm.storage_system` | Update a storage system |
 
@@ -84,7 +100,7 @@ Run `ansible-doc fjacquet.ppdm.<module>` for the options and examples.
 
 ## Playbooks
 
-58 playbooks grouped by use case (bootstrap, sources, protection, assets, agents, kubernetes, clouddr, maintenance) ship with
+63 playbooks grouped by use case (bootstrap, sources, protection, assets, agents, kubernetes, clouddr, maintenance) ship with
 the collection and run by name, for example:
 
 ```

@@ -1,0 +1,29 @@
+---
+# Create a rule moving the VMs with a tag to a protection policy, or update it when it differs (idempotent).
+# The v2 protection rule API is deprecated since PPDM 20.2 and removed in 20.6; the modules will move to v3.
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Create a protection rule
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Ensure the protection rule
+      fjacquet.ppdm.protection_rule:
+        name: "{{ rule_name }}"
+        action: MOVE_TO_GROUP
+        inventory_source_type: VMWARE_VIRTUAL_MACHINE
+        priority: 10
+        policy: "{{ vm_policy_name }}"
+        conditions:
+          - assetAttributeName: tag
+            operator: EQUALS
+            assetAttributeValues:
+              - "{{ rule_tag }}"

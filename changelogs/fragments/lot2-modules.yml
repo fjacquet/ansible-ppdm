@@ -1,0 +1,5 @@
+---
+release_summary: Adds the protection modules ``protection_policy``, ``protection_policy_info``,
+  ``protection_policy_assets``, ``protection_policy_run``, ``discovery``, ``protection_rule``,
+  ``protection_rule_info`` and ``protection_rule_run``, and five protection playbooks (63 in total).
+  The rule modules use the v2 rule API, which PPDM deprecated in 20.2 and removes in 20.6.

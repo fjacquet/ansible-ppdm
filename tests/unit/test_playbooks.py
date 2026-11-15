@@ -162,13 +162,16 @@ DESTRUCTIVE = {
     "kubernetes.add_policy_and_rule": "rule_exec_confirm",
     "kubernetes.trust_root_certificate": "certificate_trust_confirm",
     "kubernetes.set_controller_config": "inventory_update_confirm",
+    "protection.assign_assets_to_policy": "assign_confirm",
+    "protection.run_policy": "policy_run_confirm",
+    "protection.run_discovery": "discovery_confirm",
+    "protection.run_rule": "rule_run_confirm",
 }
 # Writing playbooks left without a confirm guard on purpose; the README gives the reason.
 NOT_GUARDED = {
     "bootstrap.configure_smtp",
     "bootstrap.set_sdr_existing_unit",
     "clouddr.configure_account",
-    "protection.run_policy",
 }
 SECRET_RE = re.compile(r"password|token|license_key|privatekey|secretkey|userkey|secret|\"key\":", re.I)
 
@@ -195,11 +198,25 @@ def _header(path):
     return path.read_text().split("\n- name:")[0]
 
 
+CURATED_WRITES = {
+    "fjacquet.ppdm.protection_policy_assets",
+    "fjacquet.ppdm.protection_policy_run",
+    "fjacquet.ppdm.discovery",
+    "fjacquet.ppdm.protection_rule_run",
+}
+
+
 def _is_write(task):
-    if "ansible.builtin.import_role" in task:
+    if "ansible.builtin.import_role" in task or CURATED_WRITES & task.keys():
         return True
     api = task.get("fjacquet.ppdm.api")
     return api is not None and str(api.get("method", "GET")).upper() != "GET"
+
+
+def _new():
+    # Playbooks with no bottkars source carry "-" as original file in the README.
+    converted, _unused = _readme_rows()
+    return {fqcn for fqcn, _unused, sources in converted if sources == "-"}
 
 
 def test_playbooks_exist_and_parse():
@@ -231,9 +248,11 @@ def test_no_literal_secrets():
 def test_header_has_credit_line_and_no_disclaimer():
     for path in FILES:
         header = _header(path)
+        assert "PPDM_" in header, _short(path)
+        if _fqcn(path) in _new():
+            continue
         assert "# Inspired by bottkars/ansible_ppdm `" in header, _short(path)
         assert "(workflow only; rewritten for fjacquet.ppdm)" in header, _short(path)
-        assert "PPDM_" in header, _short(path)
 
 
 def test_disclaimer_only_in_readme():
@@ -247,7 +266,8 @@ def test_disclaimer_only_in_readme():
 
 def _readme_rows():
     converted_part, skipped_part = README.split("## Index")[1].split("## Not converted")
-    converted = re.findall(r"^\| \[([^\]]+)\]\(([^)]*)\) \|.*\| ([^|]+?) \| converted \|$", converted_part, re.M)
+    row = r"^\| \[([^\]]+)\]\(([^)]*)\) \|.*\| ([^|]+?) \| (?:converted|new) \|$"
+    converted = re.findall(row, converted_part, re.M)
     skipped = re.findall(r"^\| ([^|]+?) \| [^|]+ \|$", skipped_part, re.M)[1:]
     return converted, skipped
 
@@ -255,7 +275,7 @@ def _readme_rows():
 def test_readme_indexes_every_example_and_source_file():
     converted, skipped = _readme_rows()
     assert len(ALL_SOURCES) == 90
-    seen = [name for _unused, _unused, sources in converted for name in sources.split(", ")]
+    seen = [name for _unused, _unused, sources in converted for name in sources.split(", ") if name != "-"]
     seen += [name for row in skipped for name in row.split(", ")]
     for name in ALL_SOURCES:
         assert seen.count(name) == 1, f"{name} is in {seen.count(name)} table rows, expected exactly one"
@@ -294,6 +314,8 @@ def test_header_credits_match_the_readme_row_of_each_example():
     converted, _unused = _readme_rows()
     row = {fqcn: set(sources.split(", ")) for fqcn, _unused, sources in converted}
     for path in FILES:
+        if _fqcn(path) in _new():
+            continue
         text = path.read_text()
         credit = text[text.index("Inspired by") : text.index("(workflow only")]
         header = set(re.findall(r"`([^`]+)`", credit))
