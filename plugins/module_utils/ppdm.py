@@ -15,6 +15,8 @@ from ansible.module_utils.urls import open_url
 from ansible_collections.fjacquet.ppdm.plugins.module_utils._routes import ROUTES
 
 PAGE_SIZE = 100
+MAX_PAGES = 10000  # the OpenAPI maximum of the `page` query parameter
+REDIRECT_CODES = frozenset([301, 302, 303, 307, 308])
 MASK = "VALUE_SPECIFIED_IN_NO_LOG_PARAMETER"
 # OpenAPI 20.3.0 Activity.state: QUEUED/RUNNING/PENDING_CANCELLATION|CANCELING/RETRYING/COMPLETED.
 # COMPLETED is the only terminal state; success/failure is in result.status (OK, FAILED, CANCELED, ...).
@@ -68,13 +70,24 @@ class PpdmClient:
         self.last_status = None
 
     def _scrub(self, value):
-        # Never let the password reach error text or body, whatever the server echoes.
-        if not self.password:
-            return value
-        text = json.dumps(value)
-        for secret in (self.password, json.dumps(self.password)[1:-1]):
-            text = text.replace(secret, "********")
-        return json.loads(text)
+        """Replace the password and the token inside string values only (keys kept); never raises."""
+        secrets = [s for s in (self.password, self.token) if s]
+
+        def walk(v):
+            if isinstance(v, str):
+                for secret in secrets:
+                    v = v.replace(secret, "********")
+                return v
+            if isinstance(v, dict):
+                return {k: walk(x) for k, x in v.items()}
+            if isinstance(v, list):
+                return [walk(x) for x in v]
+            return v
+
+        try:
+            return walk(value)
+        except Exception:  # e.g. RecursionError on a hostile body: hide it rather than risk a leak
+            return "********"
 
     def login(self):
         data = {"username": self.username, "password": self.password}
@@ -101,15 +114,22 @@ class PpdmClient:
                 validate_certs=self.validate_certs,
                 ca_path=self.ca_path,
                 timeout=self.timeout,
+                follow_redirects="none",  # never forward the Authorization header to a redirect target
             )
             raw = resp.read()
             status = getattr(resp, "status", None) or resp.getcode()
             self.last_status = status
         except HTTPError as e:
+            if e.code in REDIRECT_CODES:  # no Location (it may carry a query): it is not echoed
+                raise PpdmError(
+                    "%s %s failed: HTTP %s: PPDM redirected the request; redirects are not followed"
+                    % (method, path, e.code),
+                    status=e.code,
+                ) from None
             raw = e.read()
             try:
                 err_body = json.loads(raw) if raw else None
-            except ValueError:
+            except (ValueError, RecursionError):
                 err_body = raw.decode("utf-8", "replace")
             err_body = self._scrub(err_body)
             detail = err_body.get("message") if isinstance(err_body, dict) else err_body
@@ -125,7 +145,7 @@ class PpdmClient:
             return None
         try:
             return json.loads(raw)
-        except ValueError:
+        except (ValueError, RecursionError):
             raise PpdmError(
                 "%s %s failed: HTTP %s response is not valid JSON" % (method, path, status),
                 status=status,
@@ -146,9 +166,17 @@ class PpdmClient:
                     raise PpdmError("GET %s failed: unexpected response on page %d" % (path, page))
                 return data, False
             content = data["content"] or []
+            if not isinstance(content, list):
+                raise PpdmError("GET %s failed: 'content' is not a list" % path)
             items.extend(content)
             pg = data.get("page")
             total = pg.get("totalPages") if isinstance(pg, dict) else None
+            if total is not None and (
+                not isinstance(total, int) or isinstance(total, bool) or total < 0 or total > MAX_PAGES
+            ):
+                raise PpdmError(
+                    "GET %s failed: invalid page.totalPages %r (must be an integer 0..%d)" % (path, total, MAX_PAGES)
+                )
             if total is None:
                 if content:
                     raise PpdmError("GET %s failed: paginated response has no 'page.totalPages'" % path)
@@ -173,6 +201,9 @@ class PpdmClient:
 
     def find_one(self, resource, key, value):
         found = self.list_all(resource, filter=filter_eq(key, value))
+        # never trust the server-side filter: exact, case-sensitive match only (a loose filter must not
+        # make ensure/remove write to or delete another object)
+        found = [o for o in found if isinstance(o, dict) and o.get(key) == value]
         if len(found) > 1:
             ids = ", ".join(str(o.get("id")) for o in found)
             raise PpdmError("%s: %d objects match %s=%s (ids: %s)" % (resource, len(found), key, value, ids))
