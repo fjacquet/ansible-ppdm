@@ -386,10 +386,12 @@ class PpdmClient:
         secret_keys: Any = (),
         update_secrets: str = "on_create",
         create: bool = True,
+        update_verb: str | None = None,
     ) -> dict:
         """Create or update one object; the merge over the existing object is shallow (top-level keys only).
 
-        With create=False a missing object is a PpdmError instead of a POST.
+        With create=False a missing object is a PpdmError instead of a POST. update_verb None means PUT when
+        the route offers it, else PATCH.
         """
         if update_secrets not in ("on_create", "always"):
             raise PpdmError("update_secrets must be 'on_create' or 'always', got %r" % (update_secrets,))
@@ -423,10 +425,11 @@ class PpdmClient:
                     "after": _mask(after, secret_keys),
                 },
             }
-        path = self._route(resource, "PUT", self._item_id(resource, existing))
+        verb = update_verb or ("PUT" if "PUT" in ROUTES[resource]["methods"] else "PATCH")
+        path = self._route(resource, verb, self._item_id(resource, existing))
         drop = (WRITE_ONLY_KEYS | secret_keys) - set(want)
         body = {k: v for k, v in after.items() if k not in drop}
-        obj = after if check_mode else (self.request("PUT", path, body=body) or after)
+        obj = after if check_mode else (self.request(verb, path, body=body) or after)
         return {
             "changed": True,
             "object": _mask(obj, secret_keys),
@@ -448,6 +451,38 @@ class PpdmClient:
             "changed": True,
             "diff": {"before": _mask(strip_readonly(resource, existing), set(secret_keys)), "after": {}},
         }
+
+    def start_action(self, path: str, body: Any, check_mode: bool, wait: bool = False, timeout: int = 600) -> dict:
+        """POST an action; {changed, activity, response}. A 409 is a PpdmError with status 409 (caller decides).
+
+        With wait the activity is polled to COMPLETED and must end with result.status OK; OK_WITH_ERRORS
+        returns with "warnings" added, anything else is a PpdmError. Nothing is sent in check mode.
+        """
+        if check_mode:
+            return {"changed": True, "activity": None, "response": None}
+        resp = self.request("POST", path, body=body)
+        activity = resp if isinstance(resp, dict) and resp.get("id") else None
+        out = {"changed": True, "activity": activity, "response": resp}
+        if not wait:
+            return out
+        if activity is None:
+            raise PpdmError("POST %s failed: response has no activity id to wait for" % path)
+        act = self.wait_activity(activity["id"], timeout)
+        result = act.get("result") if isinstance(act.get("result"), dict) else {}
+        status = result.get("status")
+        out["activity"] = act
+        if status == "OK_WITH_ERRORS":
+            out["warnings"] = [self.scrub_text(result.get("error") or result, 1000)]
+        elif status != "OK":
+            raise PpdmError(
+                "activity %s ended %s: %s"
+                % (
+                    self.scrub_text(act.get("id"), 64),
+                    self.scrub_text(status, 64),
+                    self.scrub_text(result.get("error"), 500),
+                )
+            )
+        return out
 
     def wait_activity(self, activity_id: str, timeout: int, interval: int = 5) -> dict:
         """Poll the activity until it is COMPLETED and return it.
