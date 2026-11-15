@@ -30,6 +30,7 @@
       fjacquet.ppdm.api:
         path: /api/v2/cloud-dr-accounts
       register: cdr_accounts
+      no_log: true
 
     - name: Create the Cloud DR account
       fjacquet.ppdm.api:

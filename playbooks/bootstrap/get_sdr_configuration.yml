@@ -6,6 +6,8 @@
   hosts: "{{ target | default('localhost') }}"
   connection: local
   gather_facts: false
+  vars:
+    hidden_fields_pattern: (?i)assword|secret|key|lockbox|osUsers
   module_defaults:
     group/fjacquet.ppdm.ppdm:
       hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
@@ -17,7 +19,15 @@
       fjacquet.ppdm.api:
         path: /api/v2/server-disaster-recovery-configurations
       register: sdr_configurations
+      no_log: true
 
     - name: Show the SDR configuration
       ansible.builtin.debug:
-        var: sdr_configurations.result
+        # fields matching hidden_fields_pattern (passwords, keys, lockbox, osUsers) are dropped from the output
+        msg: >-
+          {{ item | ansible.builtin.dict2items
+          | rejectattr('key', 'search', hidden_fields_pattern)
+          | ansible.builtin.items2dict }}
+      loop: "{{ sdr_configurations.result }}"
+      loop_control:
+        label: "{{ item.id | default('') }}"

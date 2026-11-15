@@ -19,6 +19,7 @@
       fjacquet.ppdm.api:
         path: /api/v2/server-disaster-recovery-configurations
       register: sdr_configurations
+      no_log: true
 
     - name: Get the Data Domain storage system
       fjacquet.ppdm.storage_system_info:
@@ -45,3 +46,4 @@
       when: >-
         sdr_configurations.result[0].repositoryHost | default('') != sdr_storage_system.storage_systems[0].id
         or sdr_configurations.result[0].repositoryPath | default('') != sdr_repository_path
+      no_log: true

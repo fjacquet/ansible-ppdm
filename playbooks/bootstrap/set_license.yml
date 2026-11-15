@@ -24,6 +24,7 @@
       fjacquet.ppdm.api:
         path: /api/v2/licenses
       register: ppdm_licenses
+      no_log: true
 
     - name: Set the license key
       fjacquet.ppdm.api:

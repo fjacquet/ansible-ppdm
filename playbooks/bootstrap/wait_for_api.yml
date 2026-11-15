@@ -20,3 +20,4 @@
       until: ppdm_ready is succeeded
       retries: 60
       delay: 30
+      no_log: true

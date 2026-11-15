@@ -19,6 +19,7 @@
       fjacquet.ppdm.api:
         path: /api/v2/server-disaster-recovery-configurations
       register: sdr_configurations
+      no_log: true
 
     - name: Get the Data Domain storage system
       fjacquet.ppdm.storage_system_info:
@@ -46,3 +47,4 @@
             'credentialType': 'DDBOOST'
           }) }}
       when: sdr_configurations.result[0].repositoryPath | default('') != 'SysDR_' ~ sdr_short_name
+      no_log: true

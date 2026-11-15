@@ -19,6 +19,7 @@
       fjacquet.ppdm.api:
         path: /api/v2/cloud-dr-accounts
       register: cdr_accounts
+      no_log: true
 
     - name: Check that the Azure account exists
       ansible.builtin.assert:
@@ -29,6 +30,7 @@
       fjacquet.ppdm.api:
         path: "/api/v2/cloud-dr-accounts/{{ (cdr_accounts.result | selectattr('providerName', 'equalto', 'AZURE') | first).id }}/cloud-dr-data-targets"
       register: cdr_targets
+      no_log: true
 
     - name: Create the data target
       fjacquet.ppdm.api:
@@ -39,3 +41,4 @@
           copiesStorageContainer:
             id: "{{ azure_storage_account }}"
       when: cdr_targets.result | selectattr('name', 'equalto', azure_storage_account) | list | length == 0
+      no_log: true

@@ -362,3 +362,24 @@ def test_debug_never_echoes_a_secret_bearing_result():
                 dump = json.dumps(task["ansible.builtin.debug"]) + json.dumps(task.get("loop", ""))
                 for register in secret_registers:
                     assert not re.search(rf"\b{register}\b", dump), (_short(path), task.get("name"), register)
+
+
+SECRET_ENDPOINT_RE = re.compile(
+    r"/api/v2/(configurations|server-disaster-recovery-configurations|smtp|licenses|cloud-dr-accounts)(?![^\s\"]*data-targets)"
+)
+
+
+def test_api_calls_on_secret_bearing_endpoints_have_no_log():
+    # PPDM may return these objects with secret fields (applicationUserPassword, credentialPassword, key, secretKey)
+    for path in FILES:
+        for task in _tasks(path):
+            api = task.get("fjacquet.ppdm.api")
+            if api and SECRET_ENDPOINT_RE.search(str(api.get("path", ""))):
+                assert task.get("no_log") is True, (_short(path), task.get("name"))
+
+
+def test_get_playbooks_print_a_filtered_projection_of_secret_bearing_results():
+    for name in ("bootstrap/get_configuration", "bootstrap/get_sdr_configuration"):
+        text = (PLAYBOOKS / f"{name}.yml").read_text()
+        assert "rejectattr('key', 'search', hidden_fields_pattern)" in text and "osUsers" in text, name
+        assert "var:" not in text, name
