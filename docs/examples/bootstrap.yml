@@ -1,7 +1,6 @@
 ---
 # Bootstrap a new appliance with the bootstrap role: EULA, initial configuration, wait for it to finish.
-# Inspired by bottkars/ansible_ppdm `1.0-playbook_configure_ppdm.yml`,
-# `1.0-playbook_wait_ready.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Inspired by bottkars/ansible_ppdm `1.0-playbook_configure_ppdm.yml` (workflow only; rewritten for fjacquet.ppdm).
 # Environment: PPDM_PASSWORD.
 - name: Bootstrap a new PowerProtect Data Manager
   hosts: localhost

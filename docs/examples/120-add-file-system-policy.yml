@@ -36,7 +36,7 @@
     - name: Check that the Data Domain has a preferred interface
       ansible.builtin.assert:
         that: >-
-          preferred_interface_id is defined or
+          (preferred_interface_id | default('', true) | length > 0) or
           (policy_storage_system.storage_systems[0].details.dataDomain.preferredInterfaces | default([]) | length > 0)
         fail_msg: The Data Domain has no preferred interface; set preferred_interface_id explicitly.
 
@@ -54,7 +54,7 @@
               type: BACKUP
               target:
                 storageContainerId: "{{ policy_storage_system.storage_systems[0].id }}"
-                preferredInterfaceId: "{{ preferred_interface_id if preferred_interface_id is defined else
+                preferredInterfaceId: "{{ preferred_interface_id if (preferred_interface_id | default('', true) | length > 0) else
                   policy_storage_system.storage_systems[0].details.dataDomain.preferredInterfaces[0].networkName }}"
               operations:
                 - backupLevel: SYNTHETIC_FULL

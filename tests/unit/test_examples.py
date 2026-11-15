@@ -244,6 +244,16 @@ def test_readme_indexes_every_example_and_source_file():
     assert "NOTICE" in README
 
 
+def test_header_credits_match_the_readme_row_of_each_example():
+    converted, _ = _readme_rows()
+    row = {example: set(sources.split(", ")) for example, sources in converted}
+    for path in FILES:
+        text = path.read_text()
+        credit = text[text.index("Inspired by") : text.index("(workflow only")]
+        header = set(re.findall(r"`([^`]+)`", credit))
+        assert header == row[path.name], f"{path.name}: header and README differ: {header ^ row[path.name]}"
+
+
 def test_readme_lists_exactly_the_unguarded_examples():
     match = re.search(r"are not guarded \(([\d, ]+)\)", README)
     assert match
@@ -276,7 +286,7 @@ def test_destructive_examples_are_guarded_by_a_preceding_assert():
         guards = [
             i
             for i, t in enumerate(tasks)
-            if "ansible.builtin.assert" in t and var in str(t["ansible.builtin.assert"].get("that"))
+            if "ansible.builtin.assert" in t and f"{var} | bool" in str(t["ansible.builtin.assert"].get("that"))
         ]
         writes = [i for i, t in enumerate(tasks) if _is_write(t)]
         assert guards and writes, name
