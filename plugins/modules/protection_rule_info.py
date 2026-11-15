@@ -18,6 +18,8 @@ extends_documentation_fragment:
 - fjacquet.ppdm.ppdm
 - action_common_attributes
 notes:
+- The v2 protection rule API is deprecated since PPDM 20.2 and removed in 20.6, the module will move to
+  the v3 API in a later release.
 - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0
   REST API.
 seealso:

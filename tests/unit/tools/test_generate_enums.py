@@ -36,3 +36,29 @@ def test_committed_file_matches_and_check_flags_tamper(tmp_path, monkeypatch):
     assert main(["enums", "--check"]) == 0
     (tmp_path / "_enums.py").write_text(ENUMS_FILE.read_text() + "# tampered\n")
     assert main(["enums", "--check"]) == 1
+
+
+def test_rule_enums():
+    enums, _ = build_enums(SPECS)
+    assert enums["protection_rule.condition_connector"] == ("AND", "NONE", "OR")
+    assert "EQUALS" in enums["condition.operator"] and len(enums["condition.operator"]) == 15
+    assert "DR" in enums["protection_rule_run.inventory_source_type"]
+    assert enums["protection_rule_run.preview_action"] == ("CREATE", "EDIT")
+
+
+def test_schema_choices_match_enums():
+    import yaml
+    from ansible_collections.fjacquet.ppdm.plugins.module_utils._enums import ENUMS
+
+    schemas = Path(__file__).resolve().parents[3] / "tools" / "schemas"
+    pairs = {
+        ("protection_rule", "action"): "protection_rule.action",
+        ("protection_rule", "inventory_source_type"): "protection_rule.inventory_source_type",
+        ("protection_rule", "condition_connector"): "protection_rule.condition_connector",
+        ("protection_rule_run", "inventory_source_type"): "protection_rule_run.inventory_source_type",
+        ("protection_rule_run", "preview_action"): "protection_rule_run.preview_action",
+        ("discovery", "level"): "discovery.level",
+    }
+    for (mod, opt), key in pairs.items():
+        opts = yaml.safe_load((schemas / (mod + ".yml")).read_text())["options"]
+        assert tuple(sorted(opts[opt]["choices"])) == ENUMS[key], (mod, opt)

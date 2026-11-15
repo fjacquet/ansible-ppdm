@@ -121,3 +121,28 @@ def test_config_collision_fails(monkeypatch):
     op = FakeOpener()
     out = run(monkeypatch, op, priority=1, config={"priority": 2})
     assert out["failed"] and "priority" in out["msg"] and op.calls == []
+
+
+def test_bad_config_sends_nothing_even_with_policy(monkeypatch):
+    op = FakeOpener()
+    out = run(monkeypatch, op, policy="vm-gold", priority=1, config={"priority": 2})
+    assert out["failed"] and op.calls == []
+
+
+def test_config_cannot_carry_action_result(monkeypatch):
+    op = FakeOpener()
+    out = run(monkeypatch, op, config={"actionResult": "p9"})
+    assert out["failed"] and "actionResult" in out["msg"] and op.calls == []
+
+
+def test_update_check_mode_sends_no_put(monkeypatch):
+    op = FakeOpener(listing(RULE))
+    out = run(monkeypatch, op, priority=9, check_mode=True)
+    assert out["changed"] and methods(op) == ["GET"]
+
+
+def test_changed_conditions_put(monkeypatch):
+    other = dict(COND, assetAttributeValues=["silver"])
+    op = FakeOpener(listing(RULE), Resp(RULE))
+    out = run(monkeypatch, op, conditions=[other])
+    assert out["changed"] and methods(op) == ["GET", "PUT"] and body(op, 1)["conditions"] == [other]

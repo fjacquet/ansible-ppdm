@@ -23,6 +23,8 @@ extends_documentation_fragment:
 - fjacquet.ppdm.ppdm
 - action_common_attributes
 notes:
+- The v2 protection rule API is deprecated since PPDM 20.2 and removed in 20.6, the module will move to
+  the v3 API in a later release.
 - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0
   REST API.
 - The C(ProtectionRule) schema of the 20.3.0 OpenAPI has no required field. The conditions are a list
@@ -249,6 +251,8 @@ def main():
                 "conditionConnector": p["condition_connector"],
                 "tenant": None if p["tenant"] is None else {"id": p["tenant"]},
             }
+            named["actionResult"] = None
+            desired = merge_config(named, p["config"])  # before any request: bad input sends nothing
             if p["policy"] is not None:
                 ref = p["policy"]
                 policy = client.find_one("protection-policies", "name", ref) or client.find_one(
@@ -256,8 +260,7 @@ def main():
                 )
                 if not policy:
                     raise PpdmError("protection policy %s not found" % client.scrub_text(ref, 200))
-                named["actionResult"] = policy["id"]
-            desired = merge_config(named, p["config"])
+                desired["actionResult"] = policy["id"]
             res = client.ensure(
                 "protection-rules",
                 desired,

@@ -69,3 +69,18 @@ def test_preview_edit_and_validation(monkeypatch):
     op = FakeOpener()
     assert run(monkeypatch, op, preview=True)["failed"] and op.calls == []
     assert run(monkeypatch, op, preview=True, rule={"action": "NOPE"})["failed"] and op.calls == []
+
+
+def test_preview_and_run_options_are_exclusive(monkeypatch):
+    op = FakeOpener()
+    assert run(monkeypatch, op, preview=True, rule=NEW, rules=["x"])["failed"]
+    assert run(monkeypatch, op, preview=True, rule=NEW, inventory_source_type="KUBERNETES")["failed"]
+    assert run(monkeypatch, op, rules=["x"], rule=NEW)["failed"]
+    assert run(monkeypatch, op, rules=["x"], preview_action="EDIT")["failed"]
+    assert op.calls == []
+
+
+def test_preview_conditions_must_be_a_list(monkeypatch):
+    op = FakeOpener()
+    out = run(monkeypatch, op, preview=True, rule={"name": "x", "conditions": {"a": 1}})
+    assert out["failed"] and "conditions must be a list" in out["msg"] and op.calls == []

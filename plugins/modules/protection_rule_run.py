@@ -23,6 +23,8 @@ extends_documentation_fragment:
 - fjacquet.ppdm.ppdm
 - action_common_attributes
 notes:
+- The v2 protection rule API is deprecated since PPDM 20.2 and removed in 20.6, the module will move to
+  the v3 API in a later release.
 - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0
   REST API.
 - The execution endpoint answers 200 without a body in the 20.3.0 OpenAPI, it does not return an activity.
@@ -68,12 +70,11 @@ options:
   preview_action:
     description:
     - Whether I(rule) is a rule to create or an edit of an existing rule (the C(previewAction) field).
-      Used with I(preview=true) only.
+      Used with I(preview=true) only, C(CREATE) when omitted.
     type: str
     choices:
     - CREATE
     - EDIT
-    default: CREATE
   rule:
     description:
     - Protection rule body to preview, in the PPDM C(ProtectionRule) format (C(name), C(action), C(inventorySourceType),
@@ -120,7 +121,7 @@ EXAMPLES = r'''
 RETURN = r'''
 response:
   description: Answer of PPDM to the execution request (usually empty).
-  returned: when the request was sent and not a preview
+  returned: when the server returned a body
   type: raw
 preview:
   description: Answer of PPDM to the conflicts preview, the protection rules in conflict (C(content)).
@@ -153,7 +154,7 @@ ARGUMENT_SPEC = dict(
         ],
     ),
     preview=dict(type='bool', default=False),
-    preview_action=dict(type='str', choices=['CREATE', 'EDIT'], default='CREATE'),
+    preview_action=dict(type='str', choices=['CREATE', 'EDIT']),
     rule=dict(type='dict'),
 )
 # fmt: on
@@ -186,12 +187,16 @@ def main():
     client = client_from_module(module)
     out = {}
     try:
+        if p["preview"] and (p["rules"] or p["inventory_source_type"]):
+            raise PpdmError("rules and inventory_source_type cannot be used with preview")
+        if not p["preview"] and (p["rule"] or p["preview_action"]):
+            raise PpdmError("rule and preview_action can only be used with preview")
         if p["preview"]:
             if not p["rule"]:
                 raise PpdmError("rule is required with preview")
             validate_rule_body(p["rule"])
             # read-only: sent even in check mode, never changes anything
-            body = {"previewAction": p["preview_action"], "protectionRule": p["rule"]}
+            body = {"previewAction": p["preview_action"] or "CREATE", "protectionRule": p["rule"]}
             out["preview"] = client.request("POST", "/api/v2/protection-rules-conflicts-preview", body=body)
             module.exit_json(changed=False, **out)
         if not (p["rules"] or p["inventory_source_type"]):

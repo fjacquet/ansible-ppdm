@@ -15,6 +15,7 @@ attributes:
   diff_mode:
     support: full
 notes:
+  - The v2 protection rule API is deprecated since PPDM 20.2 and removed in 20.6, the module will move to the v3 API in a later release.
   - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
   - "The C(ProtectionRule) schema of the 20.3.0 OpenAPI has no required field. The conditions are a list of C(Condition) objects (C(assetAttributeName), C(operator), C(assetAttributeValues)), the nested C(rules) list of the API is not a named option, use I(config) for it."
   - The server-owned fields C(assignedAssetsCount), C(displayDescription), C(lastRunAt) and C(_embedded) are never sent back in a PUT and are ignored by the idempotence check.

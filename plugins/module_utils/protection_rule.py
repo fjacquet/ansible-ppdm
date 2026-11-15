@@ -13,6 +13,8 @@ def _check(value, enum, label):
 
 def validate_conditions(conditions):
     """Fail before any request when a condition is not a dict or its operator is not a known one."""
+    if conditions is not None and not isinstance(conditions, list):
+        raise PpdmError("conditions must be a list")
     for i, cond in enumerate(conditions or []):
         if not isinstance(cond, dict):
             raise PpdmError("conditions[%d] must be a dict" % i)

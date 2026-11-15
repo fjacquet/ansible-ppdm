@@ -15,6 +15,7 @@ attributes:
   diff_mode:
     support: none
 notes:
+  - The v2 protection rule API is deprecated since PPDM 20.2 and removed in 20.6, the module will move to the v3 API in a later release.
   - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
   - "The execution endpoint answers 200 without a body in the 20.3.0 OpenAPI, it does not return an activity. There is nothing to wait for, so the module has no I(wait) option, the rules are applied by PPDM asynchronously."
   - At least one of I(rules) and I(inventory_source_type) is required to run, the module fails before any request otherwise. A preview needs I(rule).
@@ -40,10 +41,9 @@ options:
     default: false
   preview_action:
     description:
-      - Whether I(rule) is a rule to create or an edit of an existing rule (the C(previewAction) field). Used with I(preview=true) only.
+      - Whether I(rule) is a rule to create or an edit of an existing rule (the C(previewAction) field). Used with I(preview=true) only, C(CREATE) when omitted.
     type: str
     choices: [CREATE, EDIT]
-    default: CREATE
   rule:
     description:
       - Protection rule body to preview, in the PPDM C(ProtectionRule) format (C(name), C(action), C(inventorySourceType), C(actionResult), C(conditions)...). Required with I(preview=true), include its C(id) for I(preview_action=EDIT).
@@ -76,7 +76,7 @@ examples: |
 return: |
   response:
     description: Answer of PPDM to the execution request (usually empty).
-    returned: when the request was sent and not a preview
+    returned: when the server returned a body
     type: raw
   preview:
     description: Answer of PPDM to the conflicts preview, the protection rules in conflict (C(content)).
