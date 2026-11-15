@@ -93,8 +93,17 @@
               retries: "{{ __bootstrap_retries }}"
               delay: "{{ bootstrap_wait_delay }}"
               changed_when: false
+              ignore_errors: true  # the explicit fail tasks below decide the outcome
 
             - name: Fail when the configuration failed
               ansible.builtin.fail:
                 msg: "PPDM configuration failed: {{ __bootstrap_config_status.result }}"
               when: __bootstrap_config_status.result.status | default('PROGRESS') == 'FAILED'
+
+            - name: Fail when the configuration did not finish in time
+              ansible.builtin.fail:
+                msg: >-
+                  PPDM configuration did not finish within {{ bootstrap_wait_timeout }} seconds
+                  (last status: {{ __bootstrap_config_status.result.status | default('unknown') }},
+                  last HTTP status: {{ __bootstrap_config_status.status | default('none') }})
+              when: __bootstrap_config_status.result.status | default('PROGRESS') != 'SUCCESS'
