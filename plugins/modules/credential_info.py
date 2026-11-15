@@ -20,15 +20,17 @@ extends_documentation_fragment:
 options:
   name:
     description:
-    - Return only the object whose name equals this value exactly.
+    - Return only the object whose name equals this value exactly. Mutually exclusive with I(filter) and
+      I(id).
     type: str
   filter:
     description:
-    - PPDM filter string, for example C(name lk "prod%").
+    - PPDM filter string, for example C(name lk "prod%"). Mutually exclusive with I(name) and I(id).
     type: str
   id:
     description:
-    - Return only the object with this ID. Mutually exclusive with I(name) and I(filter).
+    - Return only the object with this ID. Mutually exclusive with I(name) and I(filter). A 404 answer
+      gives an empty list, a 404 also happens when this PPDM version does not support the endpoint.
     type: str
 '''
 

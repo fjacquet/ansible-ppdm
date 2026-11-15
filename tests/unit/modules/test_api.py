@@ -135,3 +135,19 @@ def test_activities_path_accepted(monkeypatch):
         path="/api/v2/activities",
     )
     assert out["failed"] is False
+
+
+def test_warns_when_body_dropped_for_paged_get(monkeypatch):
+    op = FakeOpener(Resp({"content": [], "page": {"totalPages": 0}}))
+    out = run(monkeypatch, op, path="/api/v3/alerts", body={"a": 1})
+    assert out["failed"] is False and any("body" in w for w in out["_warnings"])
+
+
+def test_no_body_warning_when_all_pages_false(monkeypatch):
+    out = run(monkeypatch, FakeOpener(Resp({"x": 1})), path="/api/v3/x", body={"a": 1}, all_pages=False)
+    assert out["_warnings"] == []
+
+
+def test_warns_when_wait_but_no_activity_id(monkeypatch):
+    out = run(monkeypatch, FakeOpener(Resp({"ok": 1})), method="POST", path="/api/v3/x", wait=True)
+    assert out["failed"] is False and any("activityId" in w for w in out["_warnings"])

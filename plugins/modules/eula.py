@@ -12,7 +12,7 @@ description:
 - Accept one of the PowerProtect Data Manager EULAs (C(/api/v2/eulas/<name>)).
 - Singleton, there is no I(state) option, the module only ever accepts. The PATCH is sent only when the
   EULA is not already accepted.
-- A EULA cannot be un-accepted through the API, I(accepted=false) fails when the EULA is currently accepted.
+- This module does not un-accept a EULA, I(accepted=false) fails when the EULA is currently accepted.
 version_added: 1.0.0
 author:
 - Frederic Jacquet (@fjacquet)
@@ -80,10 +80,12 @@ def main():
     client = client_from_module(module)
     try:
         before = client.request("GET", path) or {}
-        if before.get("accepted") == p["accepted"]:
+        if not isinstance(before, dict):
+            module.fail_json(msg="GET %s failed: unexpected response" % path)
+        if bool(before.get("accepted")) == p["accepted"]:  # a missing field means not accepted
             module.exit_json(changed=False, eula=before, diff={"before": before, "after": before})
         if not p["accepted"]:
-            module.fail_json(msg="EULA %s is accepted and the API cannot un-accept it" % p["name"])
+            module.fail_json(msg="EULA %s is accepted and this module does not un-accept it" % p["name"])
         after = dict(before, accepted=True)
         if not module.check_mode:
             after = client.request("PATCH", path, body={"accepted": True}) or after

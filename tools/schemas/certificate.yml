@@ -12,6 +12,7 @@ description:
   - With C(state=absent) the entry is deleted when it is currently C(ACCEPTED).
   - A real C(state=present) run does the GET without C(nocache), per the API this retrieves the remote certificate and stores it in the trust store (intended). Check mode and C(state=absent) use C(nocache=true) so they never write to the trust store.
   - Entries are matched on exact I(host) (case-insensitive), I(port) and I(type). More than one match fails.
+  - With C(state=absent) an API entry without a C(type) is not matched, so C(changed=false) can mean "not found by this module".
 options:
   state:
     type: str
@@ -34,7 +35,7 @@ options:
   fingerprint:
     type: str
     description:
-      - Expected fingerprint of the presented certificate, as shown by PPDM (hex, with or without C(:) separators, case-insensitive).
+      - Expected fingerprint of the presented certificate, as shown by PPDM (hex, with or without C(:) separators, case-insensitive). A value without any hex digit (for example C(:)) is rejected.
       - Required for C(state=present) unless I(accept_any_certificate=true).
   accept_any_certificate:
     type: bool

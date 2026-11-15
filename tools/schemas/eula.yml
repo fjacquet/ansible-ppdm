@@ -6,7 +6,7 @@ short_description: Accept an end user license agreement on PowerProtect Data Man
 description:
   - Accept one of the PowerProtect Data Manager EULAs (C(/api/v2/eulas/<name>)).
   - Singleton, there is no I(state) option, the module only ever accepts. The PATCH is sent only when the EULA is not already accepted.
-  - A EULA cannot be un-accepted through the API, I(accepted=false) fails when the EULA is currently accepted.
+  - This module does not un-accept a EULA, I(accepted=false) fails when the EULA is currently accepted.
 options:
   name:
     type: str

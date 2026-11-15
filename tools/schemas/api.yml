@@ -5,7 +5,8 @@ short_description: Call any PowerProtect Data Manager REST endpoint
 description:
   - Escape hatch for endpoints without a dedicated module.
   - GET requests never change anything. Any other method always reports C(changed=true).
-  - In check mode non-GET requests are not sent.
+  - In check mode non-GET requests are not sent (this includes POST-based queries), so C(result) and C(status) are null.
+  - I(body) is not masked, as with M(ansible.builtin.uri). Do not put secrets there that you do not want echoed in verbose output.
 options:
   method:
     type: str
@@ -28,6 +29,7 @@ options:
     description:
       - For GET, fetch every page when the response is a paginated C(content)/C(page) envelope.
       - The result is then the concatenated C(content) list.
+      - A caller-supplied C(page) or C(pageSize) in I(query) is overridden, and I(body) is ignored (a warning is issued).
   wait:
     type: bool
     default: false

@@ -84,7 +84,8 @@ options:
     - Extra request body fields passed through as is, for example C(details) for type-specific settings
       such as C(details.vCenter).
     - The 20.3.0 request body has no certificate trust field, trust is handled with M(fjacquet.ppdm.certificate).
-    - Each top-level key replaces the whole value of that field.
+    - Each top-level key replaces the whole value of that field, the merge with the existing object is
+      shallow (top-level keys only), nested values are not merged.
     - Do not put secrets here, values are not masked in diff or return values.
     type: dict
 '''

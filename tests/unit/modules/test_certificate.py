@@ -148,3 +148,10 @@ def test_absent_check_mode(monkeypatch):
     op = FakeOpener(Resp([cert("ACCEPTED")]))
     out = run(monkeypatch, op, state="absent", check_mode=True, fingerprint=None)
     assert out["changed"] and methods(op) == ["GET"]
+
+
+@pytest.mark.parametrize("fp", [":", "::"])
+def test_fingerprint_normalising_to_empty_is_rejected(monkeypatch, fp):
+    op = FakeOpener()
+    out = run(monkeypatch, op, fingerprint=fp)
+    assert out["failed"] and "fingerprint" in out["msg"] and not op.calls

@@ -41,3 +41,20 @@ def test_eula_unaccept_fails(monkeypatch):
     op = FakeOpener(Resp({"accepted": True}))
     out = run_module(monkeypatch, eula, op, accepted=False)
     assert out["failed"] and methods(op) == ["GET"]
+
+
+def test_eula_missing_accepted_field_is_not_accepted(monkeypatch):
+    op = FakeOpener(Resp({}), Resp({"accepted": True}))
+    out = run_module(monkeypatch, eula, op)
+    assert out["changed"] and methods(op) == ["GET", "PATCH"]
+
+
+def test_eula_missing_accepted_field_and_accepted_false_is_unchanged(monkeypatch):
+    op = FakeOpener(Resp({}))
+    out = run_module(monkeypatch, eula, op, accepted=False)
+    assert not out["changed"] and methods(op) == ["GET"]
+
+
+def test_eula_non_dict_response_fails_cleanly(monkeypatch):
+    out = run_module(monkeypatch, eula, FakeOpener(Resp([1])))
+    assert out["failed"] and "unexpected response" in out["msg"]

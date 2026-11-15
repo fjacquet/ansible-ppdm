@@ -23,6 +23,8 @@ description:
   and stores it in the trust store (intended). Check mode and C(state=absent) use C(nocache=true) so they
   never write to the trust store.
 - Entries are matched on exact I(host) (case-insensitive), I(port) and I(type). More than one match fails.
+- With C(state=absent) an API entry without a C(type) is not matched, so C(changed=false) can mean "not
+  found by this module".
 version_added: 1.0.0
 author:
 - Frederic Jacquet (@fjacquet)
@@ -59,7 +61,7 @@ options:
   fingerprint:
     description:
     - Expected fingerprint of the presented certificate, as shown by PPDM (hex, with or without C(:) separators,
-      case-insensitive).
+      case-insensitive). A value without any hex digit (for example C(:)) is rejected.
     - Required for C(state=present) unless I(accept_any_certificate=true).
     type: str
   accept_any_certificate:
@@ -150,6 +152,8 @@ def main():
             msg="state=present requires fingerprint, or set accept_any_certificate=true "
             "(insecure: trusts whatever certificate the host presents)"
         )
+    if present and p["fingerprint"] and not norm(p["fingerprint"]):
+        module.fail_json(msg="fingerprint %r has no hex digits, it cannot be used as a pin" % p["fingerprint"])
     if present and p["accept_any_certificate"]:
         module.warn("accept_any_certificate=true trusts whatever certificate the host presents")
     client = client_from_module(module)
