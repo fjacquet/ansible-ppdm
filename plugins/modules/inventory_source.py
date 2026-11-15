@@ -20,11 +20,6 @@ author:
 extends_documentation_fragment:
 - fjacquet.ppdm.ppdm
 - action_common_attributes
-attributes:
-  check_mode:
-    support: full
-  diff_mode:
-    support: full
 notes:
 - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0
   REST API.
@@ -103,6 +98,13 @@ options:
       shallow (top-level keys only), nested values are not merged.
     - Do not put secrets here, values are not masked in diff or return values.
     type: dict
+attributes:
+  platform:
+    platforms: all
+  check_mode:
+    support: full
+  diff_mode:
+    support: full
 '''
 
 EXAMPLES = r'''

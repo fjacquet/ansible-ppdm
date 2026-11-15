@@ -33,11 +33,6 @@ author:
 extends_documentation_fragment:
 - fjacquet.ppdm.ppdm
 - action_common_attributes
-attributes:
-  check_mode:
-    support: full
-  diff_mode:
-    support: full
 notes:
 - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0
   REST API.
@@ -88,6 +83,13 @@ options:
     - Only for C(state=present) without I(fingerprint).
     type: bool
     default: false
+attributes:
+  platform:
+    platforms: all
+  check_mode:
+    support: full
+  diff_mode:
+    support: full
 '''
 
 EXAMPLES = r'''

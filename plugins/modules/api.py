@@ -21,12 +21,6 @@ author:
 extends_documentation_fragment:
 - fjacquet.ppdm.ppdm
 - action_common_attributes
-attributes:
-  check_mode:
-    support: partial
-    details: GET requests are sent, any other method is not sent and reports C(changed=true).
-  diff_mode:
-    support: none
 notes:
 - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0
   REST API.
@@ -84,6 +78,14 @@ options:
     - Seconds to wait for the activity when I(wait=true).
     type: int
     default: 600
+attributes:
+  platform:
+    platforms: all
+  check_mode:
+    support: partial
+    details: GET requests are sent, any other method is not sent and reports C(changed=true).
+  diff_mode:
+    support: none
 '''
 
 EXAMPLES = r'''

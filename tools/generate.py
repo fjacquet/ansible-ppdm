@@ -141,9 +141,11 @@ def render_module_blocks(schema):
         "version_added": schema["version_added"],
         "author": ["Frederic Jacquet (@fjacquet)"],
         "extends_documentation_fragment": ["fjacquet.ppdm.ppdm", "action_common_attributes"],
-        **{k: schema[k] for k in ("attributes", "notes", "seealso") if k in schema},
+        **{k: schema[k] for k in ("notes", "seealso") if k in schema},
         "options": doc_opts,
     }
+    if "attributes" in schema:  # the modules only talk HTTP to PPDM: no target OS
+        doc["attributes"] = {"platform": {"platforms": "all"}, **schema["attributes"]}
     lines = ["ARGUMENT_SPEC = dict("]
     for n, s in spec.items():
         line = f"    {n}=dict({', '.join(f'{k}={v!r}' for k, v in s.items())}),"

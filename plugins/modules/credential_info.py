@@ -18,12 +18,6 @@ author:
 extends_documentation_fragment:
 - fjacquet.ppdm.ppdm
 - action_common_attributes
-attributes:
-  check_mode:
-    support: full
-    details: Read-only, behaves the same in check mode.
-  diff_mode:
-    support: none
 notes:
 - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0
   REST API.
@@ -47,6 +41,14 @@ options:
     - Return only the object with this ID. Mutually exclusive with I(name) and I(filter). A 404 answer
       gives an empty list, a 404 also happens when this PPDM version does not support the endpoint.
     type: str
+attributes:
+  platform:
+    platforms: all
+  check_mode:
+    support: full
+    details: Read-only, behaves the same in check mode.
+  diff_mode:
+    support: none
 '''
 
 EXAMPLES = r'''

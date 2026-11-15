@@ -311,7 +311,8 @@ def test_doc_carries_version_attributes_notes_and_seealso():
     }
     doc = yaml.safe_load(generate.render_module_blocks({**SCHEMA, **extra})[0])
     assert doc["version_added"] == "0.1.0"
-    assert doc["attributes"] == extra["attributes"] and doc["notes"] == ["A note."]
+    assert doc["attributes"] == {**extra["attributes"], "platform": {"platforms": "all"}}  # API client: any OS
+    assert doc["notes"] == ["A note."]
     assert doc["seealso"] == extra["seealso"]
     assert doc["extends_documentation_fragment"] == ["fjacquet.ppdm.ppdm", "action_common_attributes"]
 
