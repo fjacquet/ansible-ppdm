@@ -1,0 +1,40 @@
+---
+# Set one property of LOCAL_USER_SETTING (for example the password age), keeping the others.
+# Inspired by bottkars/ansible_ppdm `9.11-playbook_update_password_policy_age.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Change one local user account setting
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Get the local user settings
+      fjacquet.ppdm.api:
+        path: /api/v2/common-settings/LOCAL_USER_SETTING
+      register: local_user_setting
+
+    - name: Check that the property exists
+      ansible.builtin.assert:
+        that: local_user_setting.result.properties | selectattr('name', 'equalto', local_user_setting_name) | list | length == 1
+        fail_msg: No property named {{ local_user_setting_name }}.
+
+    - name: Set the property
+      fjacquet.ppdm.api:
+        method: PUT
+        path: /api/v2/common-settings/LOCAL_USER_SETTING
+        body:
+          id: LOCAL_USER_SETTING
+          properties: >-
+            {{ (local_user_setting.result.properties | rejectattr('name', 'equalto', local_user_setting_name) | list)
+               + [(local_user_setting.result.properties | selectattr('name', 'equalto', local_user_setting_name) | first)
+                  | combine({'value': local_user_setting_value | string})] }}
+      when: >-
+        (local_user_setting.result.properties | selectattr('name', 'equalto', local_user_setting_name) | first).value
+        != local_user_setting_value | string

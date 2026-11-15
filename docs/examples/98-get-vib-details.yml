@@ -1,0 +1,38 @@
+---
+# Read the vSphere VIB details below a vCenter inventory source (read-only).
+# Inspired by bottkars/ansible_ppdm `9.2-playbook_vib_details.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Show the VIB details of an ESX host or cluster
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Get the vCenter inventory source
+      fjacquet.ppdm.inventory_source_info:
+        name: "{{ vcenter_hostname }}"
+      register: vib_vcenter
+
+    - name: Check that the vCenter exists
+      ansible.builtin.assert:
+        that: vib_vcenter.inventory_sources | length == 1
+        fail_msg: No inventory source named {{ vcenter_hostname }}.
+
+    - name: Get the VIB details
+      fjacquet.ppdm.api:
+        path: /api/v2/vib-details
+        query:
+          parentResourceId: "{{ vib_vcenter.inventory_sources[0].id }}"
+          resourceId: "{{ vib_resource_id }}"
+      register: vib_details
+
+    - name: Show the VIB details
+      ansible.builtin.debug:
+        var: vib_details.result

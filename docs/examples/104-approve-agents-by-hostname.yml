@@ -1,0 +1,37 @@
+---
+# Look up the address of each registered agent by host name and approve it on the whitelist (24 hours).
+# Inspired by bottkars/ansible_ppdm `100.4_create_whitelistentry_from_addressquery.yaml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Approve agents by host name
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Get the agent registration status
+      fjacquet.ppdm.api:
+        path: /api/v2/agent-registration-status
+      register: agent_status
+
+    - name: Check that every host is registered
+      ansible.builtin.assert:
+        that: agent_status.result | selectattr('hostname', 'equalto', item) | list | length == 1
+        fail_msg: No registration entry for {{ item }}.
+      loop: "{{ agent_hostnames }}"
+
+    - name: Approve the agent address
+      fjacquet.ppdm.api:
+        method: POST
+        path: /api/v2/whitelist
+        body:
+          ip: "{{ (agent_status.result | selectattr('hostname', 'equalto', item) | first).agent.address }}"
+          state: APPROVED
+          expiresAt: "{{ '%Y-%m-%dT%H:%M:%S.000Z' | strftime(now(utc=true).timestamp() | int + 86400, utc=true) }}"
+      loop: "{{ agent_hostnames }}"

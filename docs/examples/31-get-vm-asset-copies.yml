@@ -1,6 +1,6 @@
 ---
 # Find a protected VM asset by name and list its copies (read-only).
-# Inspired by bottkars/ansible_ppdm `30.1-playbook_get_vm_asset_copies.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Inspired by bottkars/ansible_ppdm `30.1-playbook_get_vm_asset_copies.yml`, `30.1-playbook_search_vm_asset_by_name.yml` (workflow only; rewritten for fjacquet.ppdm).
 # Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
 - name: List the copies of a protected virtual machine
   hosts: localhost
