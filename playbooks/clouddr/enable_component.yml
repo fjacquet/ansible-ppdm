@@ -1,0 +1,36 @@
+---
+# Start the Cloud DR (cdr) component when it is disabled.
+# Inspired by bottkars/ansible_ppdm `2.2-playbook_set_cdra_enabled.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Enable the Cloud DR component
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Get the components
+      fjacquet.ppdm.api:
+        path: /api/v2/components
+      register: ppdm_components
+
+    - name: Check that the Cloud DR component exists
+      ansible.builtin.assert:
+        that: ppdm_components.result | selectattr('componentServiceName', 'equalto', 'cdr') | list | length == 1
+        fail_msg: Expected exactly one component with componentServiceName cdr.
+
+    - name: Pick the Cloud DR component
+      ansible.builtin.set_fact:
+        cdr_component: "{{ ppdm_components.result | selectattr('componentServiceName', 'equalto', 'cdr') | first }}"
+
+    - name: Start the Cloud DR component
+      fjacquet.ppdm.api:
+        method: POST
+        path: "/api/v2/components/{{ cdr_component.id }}/management"
+        body:
+          operation: start
+      when: cdr_component.status == 'DISABLED'

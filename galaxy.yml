@@ -1,0 +1,42 @@
+---
+namespace: fjacquet
+name: ppdm
+version: 0.1.0
+readme: README.md
+authors:
+  - Frédéric Jacquet (@fjacquet)
+description: Unofficial Ansible collection for Dell PowerProtect Data Manager 20.3.0 (not affiliated with Dell)
+license:
+  - GPL-3.0-or-later
+tags:
+  - storage
+  - infrastructure
+  - tools
+  - backup
+  - dell
+  - powerprotect
+dependencies: {}
+homepage: https://github.com/fjacquet/ansible-ppdm
+repository: https://github.com/fjacquet/ansible-ppdm
+documentation: https://github.com/fjacquet/ansible-ppdm
+issues: https://github.com/fjacquet/ansible-ppdm/issues
+build_ignore:
+  - '*.tar.gz'
+  - .ansible
+  - .ansible_collections
+  - .ansible-lint
+  - .github
+  - .gitleaksignore
+  - .gitignore
+  - .pre-commit-config.yaml
+  - .pytest_cache
+  - .ruff_cache
+  - .superpowers
+  - .venv
+  - CLAUDE.md
+  - docs/openapi
+  - docs/superpowers
+  - pyproject.toml
+  - tests
+  - tools
+  - uv.lock

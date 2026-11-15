@@ -1,0 +1,57 @@
+---
+# Deploy the Cloud DR server in the cloud (this creates billable cloud resources); refuses to run unless cloud_dr_confirm is true.
+# Inspired by bottkars/ansible_ppdm `2.5-playbook_set_cdrs_deployment.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional), CDRS_ADMIN_PASSWORD.
+- name: Deploy the Cloud DR server
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Check that the deployment was confirmed
+      ansible.builtin.assert:
+        that: cloud_dr_confirm | bool
+        fail_msg: Set cloud_dr_confirm to true, the deployment creates billable cloud resources.
+
+    - name: Get the Cloud DR accounts
+      fjacquet.ppdm.api:
+        path: /api/v2/cloud-dr-accounts
+      register: cdr_accounts
+      no_log: true
+
+    - name: Check that the Azure account exists
+      ansible.builtin.assert:
+        that: cdr_accounts.result | selectattr('providerName', 'equalto', 'AZURE') | list | length == 1
+        fail_msg: Expected exactly one AZURE Cloud DR account.
+
+    - name: Get the data targets
+      fjacquet.ppdm.api:
+        path: "/api/v2/cloud-dr-accounts/{{ (cdr_accounts.result | selectattr('providerName', 'equalto', 'AZURE') | first).id }}/cloud-dr-data-targets"
+      register: cdr_targets
+      no_log: true
+
+    - name: Check that a data target exists
+      ansible.builtin.assert:
+        that: cdr_targets.result | length > 0
+        fail_msg: No data target, run fjacquet.ppdm.clouddr.set_target first.
+
+    - name: Deploy the Cloud DR server
+      fjacquet.ppdm.api:
+        method: POST
+        path: /api/v2/cdrs-deployment
+        body:
+          cloudTargetId: "{{ cdr_targets.result[0].id }}"
+          adminPassword: "{{ lookup('ansible.builtin.env', 'CDRS_ADMIN_PASSWORD') }}"
+          monitorPassword: "{{ lookup('ansible.builtin.env', 'CDRS_ADMIN_PASSWORD') }}"
+          cidrBlockIp: "{{ cdrs_cidr_block }}"
+          email: "{{ cdrs_email }}"
+          deleteExisting: false
+          privateDeployment: false
+      no_log: true

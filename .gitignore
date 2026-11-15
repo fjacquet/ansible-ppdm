@@ -2,3 +2,11 @@
 __pycache__/
 *.pyc
 .DS_Store
+.superpowers/
+.ansible_collections/
+.ansible/
+.ruff_cache/
+
+# local tooling
+bin/
+docs/*.pdf

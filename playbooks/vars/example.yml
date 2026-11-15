@@ -1,0 +1,88 @@
+---
+# Placeholder values for the example playbooks. Copy and edit; never put secrets here
+# (secrets come from environment variables, see the README).
+ddve_hostname: ddve.example.com
+ddve_port: 3009
+ddve_fingerprint: "00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33"
+ddve_username: sysadmin
+ddve_credential_name: ddve-sysadmin
+
+vcenter_hostname: vcenter.example.com
+vcenter_fingerprint: "00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33"
+vcenter_username: administrator@vsphere.example.com
+vcenter_credential_name: vcenter-admin
+
+k8s_hostname: k8s.example.com
+k8s_port: 6443
+k8s_fingerprint: "00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33"
+k8s_credential_name: ppdm-discovery-k8s
+
+smtp_server: smtp.example.com
+smtp_port: 25
+smtp_from: ppdm@example.com
+
+bootstrap_confirm: false
+bootstrap_eula_accept: false
+bootstrap_admin_pw: "{{ lookup('ansible.builtin.env', 'PPDM_NEW_PASSWORD') }}"
+
+sdr_repository_path: SysDR_ppdm
+
+vm_name: vm01.example.com
+restore_confirm: false
+
+asset_filter: ""
+activity_filter: ""
+inventory_filter: ""
+policy_name: example-policy
+backup_level: FULL
+
+agent_ips:
+  - 192.0.2.10
+whitelist_ids: []
+
+certificate_chain_file: /path/to/chain.pem
+private_key_file: /path/to/key.pem
+
+update_confirm: false
+cert_confirm: false
+license_confirm: false
+whitelist_confirm: false
+whitelist_approve_confirm: false
+rule_exec_confirm: false
+inventory_update_confirm: false
+local_user_setting_confirm: false
+certificate_trust_confirm: false
+
+sdr_short_name: ppdm
+csm_tenant: tenant-0000
+
+namespace_name: demo-namespace
+target_namespace_name: demo-namespace-restored
+restore_type: TO_ALTERNATE
+
+cloud_dr_confirm: false
+azure_subscription_id: 00000000-0000-0000-0000-000000000000
+azure_tenant_domain: 00000000-0000-0000-0000-000000000001
+azure_storage_account: examplestorageaccount
+cdrs_cidr_block: 10.0.0.0/26
+cdrs_email: admin@example.com
+
+fs_policy_name: example-fs-policy
+mssql_policy_name: example-mssql-policy
+exchange_policy_name: example-exchange-policy
+k8s_policy_name: example-k8s-policy
+k8s_rule_name: Kubernetes label rule example
+k8s_rule_label: ppdm_policy=example
+app_credential_name: example-app-credential
+app_credential_username: svc_backup
+policy_window_start: "2026-01-01T19:00:00Z"
+
+k8s_config_key: k8s.velero.exclude.resources
+k8s_config_value: secrets, events
+
+local_user_setting_name: maxAge
+local_user_setting_value: P90D
+vib_resource_id: 00000000-0000-0000-0000-000000000002
+agent_hostnames:
+  - agent01.example.com
+agent_enable_lookups: true

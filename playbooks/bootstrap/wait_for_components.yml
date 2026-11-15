@@ -1,0 +1,22 @@
+---
+# Poll the components until all of them report UP.
+# Inspired by bottkars/ansible_ppdm `99_playbook_get_components copy.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Wait until every PPDM component is up
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Wait for the components
+      fjacquet.ppdm.api:
+        path: /api/v2/components
+      register: ppdm_components
+      until: ppdm_components.result | rejectattr('status', 'equalto', 'UP') | list | length == 0
+      retries: 40
+      delay: 30

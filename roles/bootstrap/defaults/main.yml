@@ -1,0 +1,9 @@
+---
+# bootstrap_hostname, bootstrap_username and bootstrap_password have no default: the caller supplies them.
+bootstrap_port: 8443
+bootstrap_validate_certs: true
+# bootstrap_ca_path: /path/to/ca.pem
+bootstrap_wait_timeout: 3000
+bootstrap_wait_delay: 30
+bootstrap_eula_accept: false
+# bootstrap_configuration: {}

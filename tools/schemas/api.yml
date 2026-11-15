@@ -1,0 +1,110 @@
+module: api
+resource: activities       # unused for a raw-API module; any valid slug
+kind: action
+short_description: Call any PowerProtect Data Manager REST endpoint
+description:
+  - Escape hatch for endpoints without a dedicated module.
+  - GET requests never change anything. Any other method always reports C(changed=true).
+  - In check mode non-GET requests are not sent (this includes POST-based queries), so C(result) and C(status) are null.
+  - I(body) is not masked, as with M(ansible.builtin.uri). Do not put secrets there that you do not want echoed in verbose output.
+version_added: 0.1.0
+attributes:
+  check_mode:
+    support: partial
+    details: GET requests are sent, any other method is not sent and reports C(changed=true).
+  diff_mode:
+    support: none
+notes:
+  - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
+  - Prefer a dedicated module when one exists, this one does not compare state, so it is not idempotent for non-GET methods.
+seealso:
+  - module: ansible.builtin.uri
+    description: Generic HTTP requests.
+options:
+  method:
+    type: str
+    choices: [GET, POST, PUT, PATCH, DELETE]
+    default: GET
+    description: HTTP method.
+  path:
+    type: str
+    required: true
+    description: >-
+      Request path, must start with C(/api/), for example C(/api/v3/alerts). Refused: a C(..) anywhere, a C(/./)
+      or trailing C(/.) segment, the escapes C(%2e), C(%2f), C(%5c), C(%25), C(%c0) and C(%c1) (any case), any
+      escape of a control character (C(%00) to C(%1f), C(%7f)), and the characters C(?), C(#), C(;), backslash,
+      whitespace, control or non-ASCII. Other escapes such as C(%2d) pass. This is a guard against accidents,
+      not a security boundary, the module sends the access token to the configured I(hostname) only and the
+      caller already holds its credentials.
+  query:
+    type: dict
+    description: Query string parameters.
+  body:
+    type: raw
+    description: "JSON request body: a dictionary or a list."
+  all_pages:
+    type: bool
+    default: true
+    description:
+      - For GET, fetch every page when the response is a paginated C(content)/C(page) envelope.
+      - The result is then the concatenated C(content) list.
+      - A caller-supplied C(page) or C(pageSize) in I(query) is overridden, and I(body) is ignored (a warning is issued).
+  wait:
+    type: bool
+    default: false
+    description:
+      - When the response contains an C(activityId), wait for that activity to complete.
+      - Fails unless the activity C(result.status) is C(OK) or C(OK_WITH_ERRORS) (the latter only warns).
+  wait_timeout:
+    type: int
+    default: 600
+    description: Seconds to wait for the activity when I(wait=true).
+examples: |
+  - name: List all alerts
+    fjacquet.ppdm.api:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      path: /api/v3/alerts
+
+  - name: Run a call and wait for its activity
+    fjacquet.ppdm.api:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      method: POST
+      path: /api/v3/activities/abc/interventions
+      body: {}
+      wait: true
+
+  - name: Assign assets to a protection policy (the body is a JSON array)
+    fjacquet.ppdm.api:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      method: POST
+      path: /api/v2/protection-policies/POLICY_ID/asset-assignments
+      body:
+        - ASSET_ID_1
+        - ASSET_ID_2
+return: |
+  status:
+    description: HTTP status code of the response (null in check mode for non-GET).
+    returned: always
+    type: int
+    sample: 200
+  result:
+    description: Parsed JSON response, or the concatenated C(content) list for paginated GETs.
+    returned: always
+    type: raw
+    sample: [{"id": "abc-123", "name": "alert-1"}]
+  skipped_write:
+    description: True when a non-GET request was not sent because of check mode.
+    returned: when check mode skipped a write
+    type: bool
+    sample: true
+  activity:
+    description: Final activity when I(wait=true) and the response carried an C(activityId).
+    returned: when waited
+    type: dict
+    sample: {"id": "act-1", "state": "COMPLETED", "result": {"status": "OK"}}

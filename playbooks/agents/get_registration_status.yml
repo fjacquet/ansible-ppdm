@@ -1,0 +1,27 @@
+---
+# List the protection agents with their registration status (read-only; replaces the unversioned /agents-list call).
+# Inspired by bottkars/ansible_ppdm `100.0_list_agents.yml`,
+# `100.5_get_agent_registration_status.yaml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: List the agent registration status
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Get the agent registration status
+      fjacquet.ppdm.api:
+        path: /api/v2/agent-registration-status
+      register: agent_status
+
+    - name: Show the agents
+      ansible.builtin.debug:
+        msg: "{{ item.hostname | default('') }} {{ item.status | default('') }}"
+      loop: "{{ agent_status.result }}"
+      loop_control:
+        label: "{{ item.hostname | default(item.id | default('')) }}"

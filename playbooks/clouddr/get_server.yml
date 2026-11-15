@@ -1,0 +1,23 @@
+---
+# Show the Cloud DR server configuration (read-only).
+# Inspired by bottkars/ansible_ppdm `2.6-playbook_get_cdrs_deployment.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Read the Cloud DR server configuration
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Get the Cloud DR server configuration
+      fjacquet.ppdm.api:
+        path: /api/v2/cloud-dr-server-configuration
+      register: cdr_server
+
+    - name: Show the configuration
+      ansible.builtin.debug:
+        var: cdr_server.result

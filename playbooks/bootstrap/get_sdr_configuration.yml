@@ -1,0 +1,33 @@
+---
+# Show the server disaster recovery (SDR) configuration (read-only).
+# Inspired by bottkars/ansible_ppdm `3.0-playbook_get_sdr.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Read the server disaster recovery configuration
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  vars:
+    hidden_fields_pattern: (?i)assword|secret|key|lockbox|osUsers
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Get the SDR configuration
+      fjacquet.ppdm.api:
+        path: /api/v2/server-disaster-recovery-configurations
+      register: sdr_configurations
+      no_log: true
+
+    - name: Show the SDR configuration
+      ansible.builtin.debug:
+        # fields matching hidden_fields_pattern (passwords, keys, lockbox, osUsers) are dropped from the output
+        msg: >-
+          {{ item | ansible.builtin.dict2items
+          | rejectattr('key', 'search', hidden_fields_pattern)
+          | ansible.builtin.items2dict }}
+      loop: "{{ sdr_configurations.result }}"
+      loop_control:
+        label: "{{ item.id | default('') }}"

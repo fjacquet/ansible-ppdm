@@ -1,0 +1,50 @@
+---
+argument_specs:
+  main:
+    short_description: Bootstrap a PowerProtect Data Manager (readiness, EULA, initial configuration)
+    description:
+      - Waits for the PPDM REST API, optionally accepts the EULA and applies the initial configuration.
+      - Certificates are out of scope, use C(fjacquet.ppdm.certificate).
+    options:
+      bootstrap_hostname:
+        type: str
+        required: true
+        description: PPDM host name or IP address.
+      bootstrap_port:
+        type: int
+        default: 8443
+        description: REST API port.
+      bootstrap_username:
+        type: str
+        required: true
+        description: PPDM user name.
+      bootstrap_password:
+        type: str
+        required: true
+        no_log: true
+        description: PPDM password.
+      bootstrap_validate_certs:
+        type: bool
+        default: true
+        description: Validate the TLS certificate of the PPDM host.
+      bootstrap_ca_path:
+        type: path
+        description: CA bundle used to validate the PPDM certificate.
+      bootstrap_wait_timeout:
+        type: int
+        default: 3000
+        description: Maximum seconds to wait for the API, and again for the configuration to finish.
+      bootstrap_wait_delay:
+        type: int
+        default: 30
+        description: Seconds between attempts.
+      bootstrap_eula_accept:
+        type: bool
+        default: false
+        description: Accept the PPDM EULA. Must be set explicitly.
+      bootstrap_configuration:
+        type: dict
+        description: >-
+          Fields of the SystemConfiguration schema (timeZone, ntpServers, networks, osUsers, ...)
+          merged over the current configuration and sent with PUT /api/v2/configurations/{id}.
+          Skipped when gettingStartedCompleted is already true.

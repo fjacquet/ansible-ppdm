@@ -1,0 +1,50 @@
+---
+# Approve each IP of agent_ips on the agent whitelist (24 hours) unless already approved and not expired.
+# Inspired by bottkars/ansible_ppdm `100.4_create_whitelistentry.yaml`,
+# `100.6_get_whitelist.yaml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Approve agent IP addresses on the PPDM whitelist
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Check that the change was confirmed
+      ansible.builtin.assert:
+        that: whitelist_approve_confirm | bool
+        fail_msg: Set whitelist_approve_confirm to true, approving an address lets that host register as an agent.
+
+    - name: Get the whitelist
+      fjacquet.ppdm.api:
+        path: /api/v2/whitelist
+      register: ppdm_whitelist
+
+    - name: Approve the agent IP
+      fjacquet.ppdm.api:
+        method: POST
+        path: /api/v2/whitelist
+        body:
+          ip: "{{ item }}"
+          state: APPROVED
+          expiresAt: "{{ '%Y-%m-%dT%H:%M:%S.000Z' | strftime(now(utc=true).timestamp() | int + 86400, utc=true) }}"
+      loop: "{{ agent_ips }}"
+      when: item not in approved_ips
+      vars:
+        now_iso: "{{ now(utc=true).strftime('%Y-%m-%dT%H:%M:%S') }}"
+        approved_ips: >-
+          {{ ppdm_whitelist.result
+             | selectattr('state', 'equalto', 'APPROVED')
+             | rejectattr('expiresAt', 'defined')
+             | map(attribute='ip') | list
+             + ppdm_whitelist.result
+             | selectattr('state', 'equalto', 'APPROVED')
+             | selectattr('expiresAt', 'defined')
+             | selectattr('expiresAt', '>', now_iso)
+             | map(attribute='ip') | list }}

@@ -1,0 +1,117 @@
+import re
+from pathlib import Path
+
+import yaml
+
+ROLE = Path(__file__).resolve().parents[2] / "roles" / "bootstrap"
+
+
+def test_argument_specs_cover_defaults():
+    options = yaml.safe_load((ROLE / "meta" / "argument_specs.yml").read_text())["argument_specs"]["main"]["options"]
+    text = (ROLE / "defaults" / "main.yml").read_text()
+    names = set(re.findall(r"^#?\s*(bootstrap_\w+):", text, re.MULTILINE))
+    assert names and names <= set(options)
+    assert options["bootstrap_password"]["no_log"] is True
+
+
+def test_every_argument_spec_option_has_a_default_or_is_required():
+    options = yaml.safe_load((ROLE / "meta" / "argument_specs.yml").read_text())["argument_specs"]["main"]["options"]
+    text = (ROLE / "defaults" / "main.yml").read_text()
+    in_defaults = set(re.findall(r"^#?\s*(bootstrap_\w+):", text, re.MULTILINE))
+    undeclared = [n for n, o in options.items() if not o.get("required") and n not in in_defaults]
+    assert not undeclared
+    active = set(re.findall(r"^(bootstrap_\w+):", text, re.MULTILINE))
+    assert [n for n, o in options.items() if "default" in o and n not in active] == []
+
+
+def _tasks(items):
+    for t in items:
+        yield t
+        yield from _tasks(t.get("block", []))
+
+
+def _tags(task):
+    tags = task.get("tags", [])
+    return set([tags] if isinstance(tags, str) else tags)
+
+
+def test_stages_are_tagged():
+    tasks = {t["name"]: t for t in _tasks(yaml.safe_load((ROLE / "tasks" / "main.yml").read_text()))}
+    everything = {"bootstrap_wait", "bootstrap_eula", "bootstrap_config"}
+    assert "bootstrap_eula" in _tags(tasks["Accept the PPDM EULA"])
+    for name in (
+        "Validate the wait settings",
+        "Wait for the PPDM REST API",
+        "Fail when authentication is refused",
+        "Fail when the API did not become ready",
+    ):
+        assert _tags(tasks[name]) == everything, name
+    # the tasks inside the block inherit bootstrap_config from their parent
+    assert "bootstrap_config" in _tags(tasks["Apply the initial configuration"])
+
+
+def test_failure_message_is_limited():
+    text = (ROLE / "tasks" / "main.yml").read_text()
+    assert "{{ __bootstrap_config_status.result }}" not in text
+
+
+def test_put_refusal_message_hides_the_response():
+    tasks = {t["name"]: t for t in _tasks(yaml.safe_load((ROLE / "tasks" / "main.yml").read_text()))}
+    msg = tasks["Fail when the configuration was refused"]["ansible.builtin.fail"]["msg"]
+    assert "__bootstrap_put.status" in msg and "see PPDM logs" in msg
+    assert not re.search(r"__bootstrap_put\.(msg|body|result|content)|__bootstrap_put\b(?!\.status)", msg)
+    assert tasks["Apply the initial configuration"] and tasks["Submit the configuration"]["no_log"] is True
+
+
+def test_config_status_failure_message_prints_status_only():
+    tasks = {t["name"]: t for t in _tasks(yaml.safe_load((ROLE / "tasks" / "main.yml").read_text()))}
+    msg = tasks["Fail when the configuration failed"]["ansible.builtin.fail"]["msg"]
+    assert "__bootstrap_config_status.result.status" in msg
+    assert not re.search(r"__bootstrap_config_status\.result\.(msg|message|body)", msg)
+
+
+def test_config_reads_are_no_log():
+    tasks = {t["name"]: t for t in _tasks(yaml.safe_load((ROLE / "tasks" / "main.yml").read_text()))}
+    assert tasks["Wait for the PPDM REST API"]["no_log"] is True
+    assert tasks["Poll the configuration status"]["no_log"] is True
+
+
+def test_config_id_format_is_asserted_before_the_put():
+    names = [t.get("name") for t in _tasks(yaml.safe_load((ROLE / "tasks" / "main.yml").read_text()))]
+    tasks = {t["name"]: t for t in _tasks(yaml.safe_load((ROLE / "tasks" / "main.yml").read_text()))}
+    check = tasks["Check the configuration id format"]
+    assert names.index("Set the configuration id and body") < names.index("Check the configuration id format")
+    assert names.index("Check the configuration id format") < names.index("Submit the configuration")
+    assert "__bootstrap_config_id" in str(check["ansible.builtin.assert"]["that"])
+    assert "regex_search" in str(check["ansible.builtin.assert"]["that"])
+
+
+def _expr(source):
+    from jinja2 import Environment
+
+    return Environment().from_string("{{ " + source + " }}")
+
+
+def test_configuration_expressions_match_the_flattened_list_returned_by_api():
+    # api returns the unwrapped `content` list as `result` for an enveloped GET
+    tasks = {t["name"]: t for t in _tasks(yaml.safe_load((ROLE / "tasks" / "main.yml").read_text()))}
+    configured = {"result": [{"id": "abc-1", "gettingStartedCompleted": True}]}
+    fresh = {"result": [{"id": "abc-1"}]}
+    empty = {"result": []}
+    assert "content" not in (ROLE / "tasks" / "main.yml").read_text().replace("content-type", "")
+
+    guard = tasks["Apply the initial configuration"]["when"][1]
+    guard = guard.removeprefix("not (").removesuffix(")")
+
+    def run(ctx):
+        return _expr(guard).render(__bootstrap_configurations=ctx)
+
+    assert run(configured) == "True"
+    assert run(fresh) == "False"
+
+    exists = tasks["Check that a configuration object exists"]["ansible.builtin.assert"]["that"]
+    assert _expr(exists).render(__bootstrap_configurations=fresh) == "True"
+    assert _expr(exists).render(__bootstrap_configurations=empty) == "False"
+
+    fact = tasks["Set the configuration id and body"]["ansible.builtin.set_fact"]["__bootstrap_config_id"]
+    assert _expr(fact.strip("{} ")).render(__bootstrap_configurations=fresh) == "abc-1"

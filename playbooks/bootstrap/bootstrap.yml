@@ -1,0 +1,34 @@
+---
+# Bootstrap a new appliance with the bootstrap role: EULA, initial configuration, wait for it to finish.
+# Refuses to run unless bootstrap_confirm is true: the initial configuration can be applied only once.
+# Inspired by bottkars/ansible_ppdm `1.0-playbook_configure_ppdm.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional), PPDM_NEW_PASSWORD (admin password set by the configuration).
+- name: Bootstrap a new PowerProtect Data Manager
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../vars/example.yml
+  tasks:
+    - name: Check that the bootstrap was confirmed
+      ansible.builtin.assert:
+        that:
+          - bootstrap_confirm | bool
+          - bootstrap_admin_pw | length > 0
+        fail_msg: >-
+          Set bootstrap_confirm to true (the initial configuration can be applied only once, and bootstrap_eula_accept
+          decides whether the EULA is accepted) and set the new admin credential, see the playbooks README.
+
+    - name: Run the bootstrap role
+      ansible.builtin.import_role:
+        name: fjacquet.ppdm.bootstrap
+      vars:
+        bootstrap_hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+        bootstrap_username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+        bootstrap_password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+        bootstrap_port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+        bootstrap_configuration:
+          timeZone: Europe/Zurich
+          ntpServers:
+            - pool.ntp.org
+          applicationUserPassword: "{{ bootstrap_admin_pw }}"

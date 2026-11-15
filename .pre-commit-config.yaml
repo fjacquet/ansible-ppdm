@@ -1,0 +1,26 @@
+---
+repos:
+  - repo: https://github.com/ansible-network/collection_prep
+    rev: 4429c89a2ce2a06f026d525e788105686f5394d6  # 1.1.1
+    hooks:
+      - id: update-docs
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: f71fa2c1f9cf5cb705f73dffe4b21f7c61470ba9  # v4.4.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: debug-statements
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/asottile/add-trailing-comma
+    rev: 3adb2d6027e0eda3f803a947e5696f05dd4a3d8c  # v3.0.0
+    hooks:
+      - id: add-trailing-comma
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: ef6cf06c079dd6b299dfc720b0f14400c9d168e1  # v0.17.5
+    hooks:
+      - id: ruff-check
+      - id: ruff-format

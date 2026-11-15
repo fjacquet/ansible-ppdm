@@ -1,0 +1,28 @@
+---
+# Set the enableLookups property of APP_AGENT_SETTING (agent_enable_lookups true uses DNS, false uses IP).
+# Inspired by bottkars/ansible_ppdm `100.2_set_dns_for_agents.yaml`,
+# `100.3_set_ip_for_agents.yaml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Switch agent registration between DNS names and IP addresses
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Set the agent lookup setting
+      fjacquet.ppdm.api:
+        method: PUT
+        path: /api/v2/common-settings/APP_AGENT_SETTING
+        body:
+          id: APP_AGENT_SETTING
+          properties:
+            - name: enableLookups
+              value: "{{ agent_enable_lookups | bool | string | lower }}"
+              type: BOOLEAN

@@ -1,0 +1,44 @@
+ancestor: null
+releases:
+  0.1.0:
+    changes:
+      release_summary: First pre-release of the unofficial fjacquet.ppdm collection
+        for Dell PowerProtect Data Manager 20.3.0. It provides ten modules (a generic
+        ``api`` module, info modules, and ensure-style modules), a ``bootstrap`` role
+        and 58 playbooks grouped by use case. The ``api`` module accepts a list as well
+        as a dictionary as request body, and the modules return the raw API response
+        bodies (secrets masked), not reshaped data.
+    fragments:
+    - 0.1.0-release-summary.yml
+    modules:
+    - description: Call any PowerProtect Data Manager REST endpoint
+      name: api
+      namespace: ''
+    - description: Trust or remove a host certificate on PowerProtect Data Manager
+      name: certificate
+      namespace: ''
+    - description: Get certificates from PowerProtect Data Manager
+      name: certificate_info
+      namespace: ''
+    - description: Manage credentials on PowerProtect Data Manager
+      name: credential
+      namespace: ''
+    - description: Get credentials from PowerProtect Data Manager
+      name: credential_info
+      namespace: ''
+    - description: Accept an end user license agreement on PowerProtect Data Manager
+      name: eula
+      namespace: ''
+    - description: Manage inventory sources on PowerProtect Data Manager
+      name: inventory_source
+      namespace: ''
+    - description: Get inventory sources from PowerProtect Data Manager
+      name: inventory_source_info
+      namespace: ''
+    - description: Update a storage system on PowerProtect Data Manager
+      name: storage_system
+      namespace: ''
+    - description: Get storage systems from PowerProtect Data Manager
+      name: storage_system_info
+      namespace: ''
+    release_date: '2026-11-15'
