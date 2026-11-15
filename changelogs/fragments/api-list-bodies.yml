@@ -1,3 +1,0 @@
----
-minor_changes:
-  - api - a request body may be a list as well as a dictionary.
