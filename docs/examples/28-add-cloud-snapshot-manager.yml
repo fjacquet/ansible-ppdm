@@ -1,0 +1,34 @@
+---
+# Create the CLOUD_SNAPSHOT_MANAGER credential and inventory source for a tenant.
+# Inspired by bottkars/ansible_ppdm `2.0-playbook_set_csm.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional), CSM_CREDENTIALS.
+- name: Add Cloud Snapshot Manager to PPDM
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Ensure the Cloud Snapshot Manager credential
+      fjacquet.ppdm.credential:
+        name: "{{ csm_tenant }}"
+        type: CLOUD_SNAPSHOT_MANAGER
+        cred_username: "{{ csm_tenant }}"
+        cred_password: "{{ lookup('ansible.builtin.env', 'CSM_CREDENTIALS') }}"
+      no_log: true
+      register: csm_credential
+
+    - name: Ensure the Cloud Snapshot Manager inventory source
+      fjacquet.ppdm.inventory_source:
+        name: CLOUD_SNAPSHOT_MANAGER
+        type: CLOUD_SNAPSHOT_MANAGER
+        credential_id: "{{ csm_credential.credential.id }}"
+        config:
+          externalTenant:
+            id: "{{ csm_tenant }}"

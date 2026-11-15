@@ -1,0 +1,43 @@
+---
+# Disable the Cloud DR (cdr) component; refuses to run unless cloud_dr_confirm is true.
+# Inspired by bottkars/ansible_ppdm `2.2-playbook_set_cdra_disabled.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Disable the Cloud DR component
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Check that the change was confirmed
+      ansible.builtin.assert:
+        that: cloud_dr_confirm | bool
+        fail_msg: Set cloud_dr_confirm to true, disabling Cloud DR stops its services.
+
+    - name: Get the components
+      fjacquet.ppdm.api:
+        path: /api/v2/components
+      register: ppdm_components
+
+    - name: Check that the Cloud DR component exists
+      ansible.builtin.assert:
+        that: ppdm_components.result | selectattr('componentServiceName', 'equalto', 'cdr') | list | length == 1
+        fail_msg: Expected exactly one component with componentServiceName cdr.
+
+    - name: Pick the Cloud DR component
+      ansible.builtin.set_fact:
+        cdr_component: "{{ ppdm_components.result | selectattr('componentServiceName', 'equalto', 'cdr') | first }}"
+
+    - name: Disable the Cloud DR component
+      fjacquet.ppdm.api:
+        method: POST
+        path: "/api/v2/components/{{ cdr_component.id }}/management"
+        body:
+          operation: disable
+      when: cdr_component.status != 'DISABLED'
