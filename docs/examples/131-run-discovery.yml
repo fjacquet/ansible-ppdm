@@ -1,6 +1,8 @@
 ---
 # Start a discovery on the Kubernetes inventory source (change k8s_hostname for another source).
-# Inspired by bottkars/ansible_ppdm `130.3_playbook_start_k8s_discoveries_by_query.yaml` (workflow only; rewritten for fjacquet.ppdm).
+# Inspired by bottkars/ansible_ppdm `130.3_playbook_start_k8s_discoveries_by_query.yaml`,
+# `130.4_playbook_start_k8s_discoveries.yaml`,
+# `playbook_start_k8s_discoveries.yml` (workflow only; rewritten for fjacquet.ppdm).
 # Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
 - name: Run a discovery on an inventory source
   hosts: localhost

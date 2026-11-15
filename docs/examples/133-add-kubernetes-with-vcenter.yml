@@ -1,0 +1,57 @@
+---
+# Add the cluster with its vCenter (CSI drivers as a process): trust, credential, inventory source with k8s details.
+# The vCenter must already be an inventory source (21-add-vcenter.yml). The cluster side is not covered, see the README.
+# Inspired by bottkars/ansible_ppdm `130.1_playbook_rbac_add_k8s_to_ppdm.yaml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional), PPDM_K8S_TOKEN.
+- name: Add a Kubernetes cluster that runs on vSphere
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Get the vCenter inventory source
+      fjacquet.ppdm.inventory_source_info:
+        filter: address eq "{{ vcenter_hostname }}" and type eq "VCENTER"
+      register: k8s_vcenter
+
+    - name: Check that the vCenter is known
+      ansible.builtin.assert:
+        that: k8s_vcenter.inventory_sources | length == 1
+        fail_msg: No vCenter inventory source with address {{ vcenter_hostname }}.
+
+    - name: Trust the Kubernetes API certificate
+      fjacquet.ppdm.certificate:
+        host: "{{ k8s_hostname }}"
+        port: "{{ k8s_port }}"
+        fingerprint: "{{ k8s_fingerprint }}"
+
+    - name: Ensure the Kubernetes credential
+      fjacquet.ppdm.credential:
+        name: "{{ k8s_credential_name }}"
+        type: KUBERNETES
+        method: TOKEN
+        cred_username: "{{ k8s_credential_name }}"
+        cred_password: "{{ lookup('ansible.builtin.env', 'PPDM_K8S_TOKEN') }}"
+      no_log: true
+      register: k8s_credential
+
+    - name: Ensure the Kubernetes inventory source
+      fjacquet.ppdm.inventory_source:
+        name: "{{ k8s_hostname }}"
+        type: KUBERNETES
+        address: "{{ k8s_hostname }}"
+        source_port: "{{ k8s_port }}"
+        credential_id: "{{ k8s_credential.credential.id }}"
+        config:
+          vendor: KUBERNETES
+          details:
+            k8s:
+              distributionType: VANILLA_ON_VSPHERE
+              vCenterId: "{{ k8s_vcenter.inventory_sources[0].id }}"

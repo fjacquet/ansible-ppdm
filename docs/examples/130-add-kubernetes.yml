@@ -1,7 +1,11 @@
 ---
 # Trust the API server certificate, store the discovery token and add the cluster as an inventory source.
 # The cluster side (RBAC, service account) is not covered, see the README.
-# Inspired by bottkars/ansible_ppdm `130.1_playbook_rbac_add_k8s_to_ppdm.yaml` (workflow only; rewritten for fjacquet.ppdm).
+# Inspired by bottkars/ansible_ppdm `130.1_playbook_rbac_add_k8s_to_ppdm.yaml`,
+# `playbook_add_k8s.yml`,
+# `playbook_rbac_add_k8s_to_ppdm.yml`,
+# `playbook_rbac_add_k8s_to_ppdm_reg_cred.yml`,
+# `playbook_rbac_add_k8s_to_ppdm_reg_cred_assetsource_enable.yml` (workflow only; rewritten for fjacquet.ppdm).
 # Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional), PPDM_K8S_TOKEN.
 - name: Add a Kubernetes cluster to PPDM
   hosts: localhost
