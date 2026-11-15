@@ -229,8 +229,11 @@ def validate_schema(schema, path):
 
 
 def sync_modules(schemas_dir, modules_dir, check):
-    """Rewrite (or, with check, only report) every module whose generated block drifted."""
-    drift = []
+    """Rewrite (or, with check, only report) every module whose generated block drifted.
+
+    All-or-nothing: every schema is validated and rendered before the first file is written.
+    """
+    pending = []
     for path in sorted(Path(schemas_dir).glob("[!_]*.yml")):  # _*.yml are documentation examples
         schema = yaml.safe_load(path.read_text())
         validate_schema(schema, path.name)
@@ -238,10 +241,11 @@ def sync_modules(schemas_dir, modules_dir, check):
         old = target.read_text() if target.exists() else None
         new = module_skeleton(schema) if old is None else update_module_text(old, schema, str(target))
         if new != old:
-            drift.append(target)
-            if not check:
-                target.write_text(new)
-    return drift
+            pending.append((target, new))
+    if not check:
+        for target, new in pending:
+            target.write_text(new)
+    return [target for target, _unused in pending]
 
 
 def main(argv, schemas_dir=SCHEMAS_DIR, modules_dir=MODULES_DIR):

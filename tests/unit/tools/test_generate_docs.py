@@ -290,3 +290,13 @@ def test_bad_top_level_description_rejected(tmp_path, desc, capsys):
     s, m = _setup(tmp_path, {**SCHEMA, "description": desc})
     assert generate.main(["modules"], s, m) == 2
     assert "widget.yml" in capsys.readouterr().err
+
+
+def test_one_invalid_schema_writes_no_module(tmp_path):
+    s, m = tmp_path / "s", tmp_path / "m"
+    s.mkdir()
+    m.mkdir()
+    (s / "aaa.yml").write_text(yaml.safe_dump({**SCHEMA, "module": "aaa"}))
+    (s / "zzz.yml").write_text(yaml.safe_dump({**SCHEMA, "module": "zzz", "examples": f"x {TQ} y\n"}))
+    assert generate.main(["modules"], s, m) == 2
+    assert list(m.iterdir()) == []  # aaa sorts first but nothing is written
