@@ -53,3 +53,11 @@ def test_stages_are_tagged():
 def test_failure_message_is_limited():
     text = (ROLE / "tasks" / "main.yml").read_text()
     assert "{{ __bootstrap_config_status.result }}" not in text
+
+
+def test_put_refusal_message_hides_the_response():
+    tasks = {t["name"]: t for t in _tasks(yaml.safe_load((ROLE / "tasks" / "main.yml").read_text()))}
+    msg = tasks["Fail when the configuration was refused"]["ansible.builtin.fail"]["msg"]
+    assert "__bootstrap_put.status" in msg and "see PPDM logs" in msg
+    assert not re.search(r"__bootstrap_put\.(msg|body|result|content)|__bootstrap_put\b(?!\.status)", msg)
+    assert tasks["Apply the initial configuration"] and tasks["Submit the configuration"]["no_log"] is True

@@ -84,8 +84,10 @@
 
         - name: Fail when the configuration was refused
           ansible.builtin.fail:
-            # only msg and status: never the request body or invocation
-            msg: "PPDM refused the configuration (HTTP {{ __bootstrap_put.status | default('none') }}): {{ __bootstrap_put.msg | default('') }}"
+            # status only: PPDM may echo initial passwords in its response, so the response is never printed
+            msg: >-
+              PPDM refused the configuration (HTTP {{ __bootstrap_put.status | default('none') }});
+              see PPDM logs; the response body is hidden because it may contain secrets
           when: __bootstrap_put is failed
 
         - name: Wait for the configuration to finish
