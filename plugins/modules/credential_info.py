@@ -49,7 +49,7 @@ EXAMPLES = r'''
 '''
 
 RETURN = r'''
-items:
+credentials:
   description: Matching objects, an empty list when nothing matches.
   returned: always
   type: list
@@ -67,7 +67,7 @@ from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import info_mai
 
 
 def main():
-    info_main('credentials', ARGUMENT_SPEC, secret_fields=("password",))
+    info_main('credentials', 'credentials', ARGUMENT_SPEC, secret_fields=("password",))
 
 
 if __name__ == "__main__":

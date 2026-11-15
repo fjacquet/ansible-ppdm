@@ -240,7 +240,7 @@ def client_from_module(module):
     return client
 
 
-def info_main(resource, argument_spec, secret_fields=()):
+def info_main(resource, result_key, argument_spec, secret_fields=()):
     """Shared main() of the read-only *_info modules."""
     module = AnsibleModule(
         argument_spec=dict(connection_argument_spec(), **argument_spec), supports_check_mode=True,
@@ -262,4 +262,4 @@ def info_main(resource, argument_spec, secret_fields=()):
     except PpdmError as err:
         fail_from(module, err)
     items = [{k: v for k, v in o.items() if k not in secret_fields} for o in found]
-    module.exit_json(changed=False, items=items)
+    module.exit_json(**{"changed": False, result_key: items})

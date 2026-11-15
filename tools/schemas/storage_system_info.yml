@@ -30,7 +30,7 @@ examples: |
       password: "{{ ppdm_password }}"
       name: demo
 return: |
-  items:
+  storage_systems:
     description: Matching objects, an empty list when nothing matches.
     returned: always
     type: list

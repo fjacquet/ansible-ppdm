@@ -1,6 +1,4 @@
-import io
 import json
-from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -8,40 +6,10 @@ from ansible.module_utils.testing import patch_module_args
 
 from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import PpdmClient
 from ansible_collections.fjacquet.ppdm.plugins.modules import api
-
-
-class Resp:
-    def __init__(self, payload=None, status=200):
-        self.status = status
-        self._raw = b"" if payload is None else json.dumps(payload).encode()
-
-    def read(self):
-        return self._raw
-
-
-class FakeOpener:
-    def __init__(self, *responses):
-        self.responses = list(responses)
-        self.calls = []
-
-    def __call__(self, url, **kwargs):
-        self.calls.append((url, kwargs))
-        r = self.responses.pop(0)
-        if isinstance(r, Exception):
-            raise r
-        return r
-
-
-def http_error(status, payload):
-    return HTTPError("u", status, "err", {}, io.BytesIO(json.dumps(payload).encode()))
+from ansible_collections.fjacquet.ppdm.tests.unit.helpers import Exit, FakeOpener, Resp, http_error
 
 
 CONN = dict(hostname="h", username="u", password="s3cret")
-
-
-class Exit(Exception):
-    def __init__(self, kwargs):
-        self.kwargs = kwargs
 
 
 def run(monkeypatch, opener, check_mode=False, **args):
