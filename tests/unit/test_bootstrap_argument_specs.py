@@ -84,3 +84,31 @@ def test_config_id_format_is_asserted_before_the_put():
     assert names.index("Check the configuration id format") < names.index("Submit the configuration")
     assert "__bootstrap_config_id" in str(check["ansible.builtin.assert"]["that"])
     assert "regex_search" in str(check["ansible.builtin.assert"]["that"])
+
+
+def _expr(source):
+    from jinja2 import Environment
+
+    return Environment().from_string("{{ " + source + " }}")
+
+
+def test_configuration_expressions_match_the_flattened_list_returned_by_api():
+    # api returns the unwrapped `content` list as `result` for an enveloped GET
+    tasks = {t["name"]: t for t in _tasks(yaml.safe_load((ROLE / "tasks" / "main.yml").read_text()))}
+    configured = {"result": [{"id": "abc-1", "gettingStartedCompleted": True}]}
+    fresh = {"result": [{"id": "abc-1"}]}
+    empty = {"result": []}
+    assert "content" not in (ROLE / "tasks" / "main.yml").read_text().replace("content-type", "")
+
+    guard = tasks["Apply the initial configuration"]["when"][1]
+    guard = guard.removeprefix("not (").removesuffix(")")
+    run = lambda ctx: _expr(guard).render(__bootstrap_configurations=ctx)  # noqa: E731
+    assert run(configured) == "True"
+    assert run(fresh) == "False"
+
+    exists = tasks["Check that a configuration object exists"]["ansible.builtin.assert"]["that"]
+    assert _expr(exists).render(__bootstrap_configurations=fresh) == "True"
+    assert _expr(exists).render(__bootstrap_configurations=empty) == "False"
+
+    fact = tasks["Set the configuration id and body"]["ansible.builtin.set_fact"]["__bootstrap_config_id"]
+    assert _expr(fact.strip("{} ")).render(__bootstrap_configurations=fresh) == "abc-1"

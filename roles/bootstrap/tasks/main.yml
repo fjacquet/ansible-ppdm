@@ -55,21 +55,21 @@
     - name: Apply the initial configuration
       when:
         - bootstrap_configuration is defined
-        - not (__bootstrap_configurations.result.content[0].gettingStartedCompleted | default(false))
+        - not (__bootstrap_configurations.result[0].gettingStartedCompleted | default(false))
       tags: bootstrap_config
       block:
         - name: Check that a configuration object exists
           ansible.builtin.assert:
-            that: __bootstrap_configurations.result.content | default([]) | length > 0
+            that: __bootstrap_configurations.result | default([]) | length > 0
             fail_msg: GET /api/v2/configurations returned no configuration object.
             quiet: true
 
         - name: Set the configuration id and body
           ansible.builtin.set_fact:
-            __bootstrap_config_id: "{{ __bootstrap_configurations.result.content[0].id }}"
+            __bootstrap_config_id: "{{ __bootstrap_configurations.result[0].id }}"
             # _links is dropped; other read-only fields are sent back as returned by GET (unverified on a live PPDM)
             __bootstrap_config_body: >-
-              {{ __bootstrap_configurations.result.content[0] | ansible.builtin.dict2items
+              {{ __bootstrap_configurations.result[0] | ansible.builtin.dict2items
               | rejectattr('key', 'equalto', '_links') | ansible.builtin.items2dict
               | ansible.builtin.combine(bootstrap_configuration, recursive=true) }}
           no_log: true
@@ -103,13 +103,24 @@
             - name: Poll the configuration status
               fjacquet.ppdm.api:
                 path: "/api/v2/configurations/{{ __bootstrap_config_id }}/config-status"
+                # the initial configuration may have replaced the admin password
+                password: "{{ bootstrap_configuration.applicationUserPassword | default(bootstrap_password) }}"
               register: __bootstrap_config_status
               no_log: true  # the status payload may carry configuration data
-              until: (__bootstrap_config_status.result.status | default('PROGRESS')) in ['SUCCESS', 'FAILED']
+              until: >-
+                (__bootstrap_config_status.result.status | default('PROGRESS')) in ['SUCCESS', 'FAILED']
+                or (__bootstrap_config_status.status | default(0)) in [401, 403]
               retries: "{{ __bootstrap_retries }}"
               delay: "{{ bootstrap_wait_delay }}"
               changed_when: false
               ignore_errors: true  # the explicit fail tasks below decide the outcome
+
+            - name: Fail when authentication is refused while polling
+              ansible.builtin.fail:
+                msg: >-
+                  PPDM refused the login while polling the configuration (HTTP {{ __bootstrap_config_status.status }});
+                  check bootstrap_password and bootstrap_configuration.applicationUserPassword
+              when: __bootstrap_config_status is failed and (__bootstrap_config_status.status | default(0)) in [401, 403]
 
             - name: Fail when the configuration failed
               ansible.builtin.fail:
