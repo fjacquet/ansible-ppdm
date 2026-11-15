@@ -206,11 +206,16 @@ dedicated module). It does not emit finished modules.
 - No live PPDM available yet to the builder: acceptance depends on a lab.
 
 ## Calls made after the builder check (author may overrule)
-- **OpenAPI inputs:** the three specs are NOT committed (Dell redistribution
-  rights unknown). They live outside the repo; `tools/generate.py` takes the
-  directory as an argument or `PPDM_OPENAPI_DIR`. The generated
-  resource/version/path table IS committed (small, derived), so CI and
-  contributors never need the specs.
+- **OpenAPI inputs (author decision):** the specs are public, so the three
+  20.3.0 files (21200, 21201, 21202; not the 10.9 MB 9.13 QUICKSTEP file) are
+  committed under `docs/openapi/` to pin the API version. The generator reads
+  that directory by default (`PPDM_OPENAPI_DIR` overrides). The generated
+  resource/version/path table is also committed. `docs/openapi/` stays in
+  `build_ignore`.
+- **Release gating (author decision):** no PPDM lab yet; the author will find
+  one later. Until a lab run validates PUT-replace semantics and activity
+  terminal states, releases are `0.x` pre-releases. `1.0.0` requires a lab
+  run of Lot 1.
 - **Generator source of truth:** one hand-written YAML schema per curated
   module in `tools/schemas/<module>.yml` (options, types, docs, resource,
   unique key). The generator rewrites the `DOCUMENTATION` block and
