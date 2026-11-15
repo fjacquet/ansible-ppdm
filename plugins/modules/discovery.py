@@ -218,7 +218,7 @@ def main():
                 out["discovery"] = res["response"]
             if p["wait"] and not module.check_mode:
                 # the 202 answer is a Discovery whose taskId is the activity id (its own id is not one)
-                task_id = (res["response"] or {}).get("taskId") if isinstance(res["response"], dict) else None
+                task_id = res["response"].get("taskId") if isinstance(res["response"], dict) else None
                 if not task_id:
                     raise PpdmError("discovery answer has no taskId to wait for")
                 out.update(client.await_activity(task_id, p["wait_timeout"]))

@@ -48,7 +48,7 @@ options:
   wait_timeout:
     type: int
     default: 600
-    description: Seconds to wait for each activity when I(wait=true).
+    description: Seconds to wait, applied to each activity separately, when I(wait=true).
 examples: |
   - name: Back up two VMs now with the gold policy
     fjacquet.ppdm.protection_policy_run:

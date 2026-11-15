@@ -501,7 +501,8 @@ class PpdmClient:
                     self.scrub_text(act.get("id"), 64),
                     self.scrub_text(status, 64),
                     self.scrub_text(result.get("error"), 500),
-                )
+                ),
+                body=self.scrub(act),  # the final activity, so a caller can keep it
             )
         return out
 

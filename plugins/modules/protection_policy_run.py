@@ -63,7 +63,7 @@ options:
     default: false
   wait_timeout:
     description:
-    - Seconds to wait for each activity when I(wait=true).
+    - Seconds to wait, applied to each activity separately, when I(wait=true).
     type: int
     default: 600
 attributes:
@@ -152,6 +152,7 @@ def main():
     p = module.params
     client = client_from_module(module)
     out = {}
+    failures = []
     try:
         if not (p["asset_ids"] or p["protection_group_ids"]):
             raise PpdmError("at least one of asset_ids and protection_group_ids is required")
@@ -163,26 +164,40 @@ def main():
         }
         res = client.start_action("/api/v3/protections", {"policy": policy, "source": source}, module.check_mode)
         # the 202 answer is {results: [{activityId, ...}]}, not an activity: wait on each activityId here
-        results = (res["response"] or {}).get("results") or []
+        resp = res["response"]
         warnings, activities = [], []
-        for r in results:
-            if r.get("activityId"):
-                if p["wait"]:
-                    done = client.await_activity(r["activityId"], p["wait_timeout"])
-                    activities.append(done["activity"])
-                    warnings += done.get("warnings", [])
-            elif p["wait"]:
-                warnings.append(
-                    client.scrub_text("not started: %s %s" % (r.get("reason"), r.get("remediation") or ""), 500)
-                )
-        if res["response"] is not None:
+        if isinstance(resp, dict):
+            results = [r for r in resp.get("results") or [] if isinstance(r, dict)]
             out["results"] = results
+            if p["wait"] and not results:
+                warnings.append("PPDM answered no result, nothing to wait for")
+            for r in results:
+                if not r.get("activityId") or r.get("status") == "FAILED":
+                    warnings.append(
+                        client.scrub_text(
+                            "objective %s: status %s: %s %s"
+                            % (r.get("objectiveId"), r.get("status"), r.get("reason"), r.get("remediation") or ""),
+                            500,
+                        )
+                    )
+                if p["wait"] and r.get("activityId"):
+                    try:
+                        done = client.await_activity(r["activityId"], p["wait_timeout"])
+                    except PpdmError as err:  # poll every activity: a failure must not hide the others
+                        failures.append(err.msg)
+                        if isinstance(err.body, dict):
+                            activities.append(err.body)
+                    else:
+                        activities.append(done["activity"])
+                        warnings += done.get("warnings", [])
         if p["wait"]:
             out["activities"] = activities
         if warnings:
             out["warnings"] = warnings
     except PpdmError as err:
         fail_from(module, err)
+    if failures:
+        module.fail_json(msg="; ".join(failures), **out)
     module.exit_json(changed=True, **out)
 
 

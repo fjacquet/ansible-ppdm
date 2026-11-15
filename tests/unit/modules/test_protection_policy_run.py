@@ -78,3 +78,40 @@ def test_entry_without_activity_warns(monkeypatch):
     skipped = Resp({"results": [{"objectiveId": "o1", "status": "FAILED", "reason": "disabled"}]}, 202)
     out = run(monkeypatch, FakeOpener(listing(POLICY), skipped), asset_ids=["x1"], wait=True)
     assert not out["failed"] and "disabled" in out["warnings"][0]
+
+
+def act2(i, status):
+    return Resp({"id": i, "state": "COMPLETED", "result": {"status": status}})
+
+
+TWO = Resp({"results": [{"activityId": "a1", "objectiveId": "o1"}, {"activityId": "a2", "objectiveId": "o2"}]}, 202)
+
+
+def test_multi_one_failed_keeps_context(monkeypatch):
+    op = FakeOpener(listing(POLICY), TWO, act2("a1", "OK"), act2("a2", "FAILED"))
+    out = run(monkeypatch, op, asset_ids=["x1"], wait=True)
+    assert out["failed"] and "a2" in out["msg"] and "FAILED" in out["msg"]
+    assert len(out["results"]) == 2 and [a["id"] for a in out["activities"]] == ["a1", "a2"]
+
+
+def test_multi_all_polled_even_after_failure(monkeypatch):
+    op = FakeOpener(listing(POLICY), TWO, act2("a1", "FAILED"), act2("a2", "OK"))
+    out = run(monkeypatch, op, asset_ids=["x1"], wait=True)
+    assert out["failed"] and len(out["activities"]) == 2
+
+
+def test_multi_ok_and_ok_with_errors(monkeypatch):
+    op = FakeOpener(listing(POLICY), TWO, act2("a1", "OK"), act2("a2", "OK_WITH_ERRORS"))
+    out = run(monkeypatch, op, asset_ids=["x1"], wait=True)
+    assert not out["failed"] and len(out["activities"]) == 2 and len(out["warnings"]) == 1
+
+
+def test_wait_with_empty_results_warns(monkeypatch):
+    out = run(monkeypatch, FakeOpener(listing(POLICY), Resp({"results": []}, 202)), asset_ids=["x1"], wait=True)
+    assert not out["failed"] and out["warnings"]
+
+
+def test_failed_entry_warns_without_wait(monkeypatch):
+    r = Resp({"results": [{"activityId": "a1", "status": "FAILED", "reason": "boom"}]}, 202)
+    out = run(monkeypatch, FakeOpener(listing(POLICY), r), asset_ids=["x1"])
+    assert not out["failed"] and "boom" in out["warnings"][0]
