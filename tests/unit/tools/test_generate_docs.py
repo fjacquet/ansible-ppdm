@@ -259,3 +259,34 @@ def test_description_entry_that_parses_as_mapping_rejected(tmp_path):
     m.mkdir()
     (s / "widget.yml").write_text(yaml.safe_dump({**SCHEMA, "description": ["ok"]}).replace("- ok", "- a (b: c)"))
     assert generate.main(["modules"], s, m) == 2
+
+
+@pytest.mark.parametrize("name", ["class", "import", "None", "lambda"])
+def test_python_keyword_option_name_rejected(tmp_path, name, capsys):
+    s, m = _setup(tmp_path, {**SCHEMA, "options": {name: {"type": "str", "description": "d"}}})
+    assert generate.main(["modules"], s, m) == 2
+    assert "widget.yml" in capsys.readouterr().err
+
+
+def test_python_keyword_module_name_rejected(tmp_path):
+    s, m = tmp_path / "s", tmp_path / "m"
+    s.mkdir()
+    m.mkdir()
+    (s / "class.yml").write_text(yaml.safe_dump({**SCHEMA, "module": "class"}))
+    assert generate.main(["modules"], s, m) == 2
+    assert list(m.iterdir()) == []
+
+
+@pytest.mark.parametrize("desc", [5, None, ["ok", 3], {"a": "b"}, [["x"]]])
+def test_bad_option_description_rejected(tmp_path, desc, capsys):
+    s, m = _setup(tmp_path, {**SCHEMA, "options": {"name": {"type": "str", "description": desc}}})
+    assert generate.main(["modules"], s, m) == 2
+    err = capsys.readouterr().err
+    assert "widget.yml" in err and "name" in err and "description" in err
+
+
+@pytest.mark.parametrize("desc", ["a string", 5, None, ["ok", 3], {"a": "b"}])
+def test_bad_top_level_description_rejected(tmp_path, desc, capsys):
+    s, m = _setup(tmp_path, {**SCHEMA, "description": desc})
+    assert generate.main(["modules"], s, m) == 2
+    assert "widget.yml" in capsys.readouterr().err

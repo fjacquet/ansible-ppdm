@@ -1,6 +1,7 @@
 """Dev-only generator: builds collection code from the PPDM OpenAPI specs."""
 
 import json
+import keyword
 import os
 import re
 import sys
@@ -110,6 +111,8 @@ def check_name(kind, name, where):
     """Names land in generated Python source (ARGUMENT_SPEC keys): only plain identifiers are allowed."""
     if not isinstance(name, str) or not NAME_RE.fullmatch(name):
         raise ValueError(f"{where}: {kind} name {name!r} must match {NAME_RE.pattern}")
+    if keyword.iskeyword(name):  # soft keywords (match, case, type) are valid parameter names and are kept
+        raise ValueError(f"{where}: {kind} name {name!r} is a Python keyword")
 
 
 def render_module_blocks(schema):
@@ -200,14 +203,19 @@ def update_module_text(text, schema, name="module file"):
     return text[:a] + block + text[b + len(END) :].removeprefix("\n")
 
 
+def _str_list(value, strict=False):
+    if isinstance(value, str):
+        return not strict
+    return isinstance(value, list) and all(isinstance(x, str) for x in value)
+
+
 def validate_schema(schema, path):
     """Fail with the file and key named instead of a bare KeyError."""
     for key in ("module", "short_description", "description", "examples", "return"):
         if key not in schema:
             raise ValueError(f"{path}: missing required key {key!r}")
-    desc = schema["description"]
-    if not all(isinstance(x, str) for x in ([desc] if isinstance(desc, str) else desc)):
-        raise ValueError(f"{path}: every 'description' entry must be a string (quote text containing ': ')")
+    if not _str_list(schema["description"], strict=True):
+        raise ValueError(f"{path}: 'description' must be a list of strings (quote text containing ': ')")
     check_name("module", schema["module"], path)
     if schema["module"] != Path(path).stem:
         raise ValueError(f"{path}: module {schema['module']!r} does not match the file name")
@@ -216,6 +224,8 @@ def validate_schema(schema, path):
         for key in ("type", "description"):
             if key not in o:
                 raise ValueError(f"{path}: option {name!r} is missing required key {key!r}")
+        if not _str_list(o["description"]):
+            raise ValueError(f"{path}: option {name!r} key 'description' must be a string or a list of strings")
 
 
 def sync_modules(schemas_dir, modules_dir, check):
