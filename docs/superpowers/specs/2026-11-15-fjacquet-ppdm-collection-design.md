@@ -107,8 +107,8 @@ blocker.
 
 ### Identity
 - Namespace/name: `fjacquet.ppdm`. License GPL-3.0-or-later. Python
-  3.10+ (controller), `requires_ansible: ">=2.16"` (builder to confirm
-  the supported-core window at release time). Repo root = collection root
+  3.10+ (controller), `requires_ansible` = currently maintained ansible-core
+  releases at scaffold time (2.16 is EOL; builder picks the floor). Repo root = collection root
   (`galaxy.yml` at root). Local `ansible-test`: symlink or checkout into
   `ansible_collections/fjacquet/ppdm/`.
 - No `ppdm_` prefix on modules: FQCN already carries it.
@@ -204,3 +204,27 @@ dedicated module). It does not emit finished modules.
 - Galaxy namespace creation and name availability.
 - `action_groups` syntax; PPDM upgrade status endpoint on :14443.
 - No live PPDM available yet to the builder: acceptance depends on a lab.
+
+## Calls made after the builder check (author may overrule)
+- **OpenAPI inputs:** the three specs are NOT committed (Dell redistribution
+  rights unknown). They live outside the repo; `tools/generate.py` takes the
+  directory as an argument or `PPDM_OPENAPI_DIR`. The generated
+  resource/version/path table IS committed (small, derived), so CI and
+  contributors never need the specs.
+- **Generator source of truth:** one hand-written YAML schema per curated
+  module in `tools/schemas/<module>.yml` (options, types, docs, resource,
+  unique key). The generator rewrites the `DOCUMENTATION` block and
+  `argument_spec` inside the module file between marker comments; both are
+  committed so `validate-modules` sees static strings. CI fails if the
+  generator output differs from the committed files.
+- **Read-only fields:** derived from OpenAPI `readOnly` flags into the
+  generated table; `_links` always stripped.
+- **Unique key and singletons:** per-module `key` in its schema (default
+  `name`). Singleton resources (e.g. `eula`, SMTP) support `state: present`
+  only.
+- **`api` module:** takes method + path (not operationId), optional `query`
+  and `body`; GET auto-paginates (`all_pages`, default true); non-GET always
+  reports `changed: true`; in check mode non-GET calls are not sent.
+- **`bootstrap` role:** thin wrapper over Lot 1 modules
+  (login-retry readiness, `configurations`/`config-status`, EULA,
+  certificate). Anything on port 14443 (upgrade) is deferred to Lot 3.
