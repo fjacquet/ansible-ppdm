@@ -1,0 +1,88 @@
+module: protection_policy_run
+resource: protections
+key: name
+kind: action
+short_description: Run a protection policy now on PowerProtect Data Manager
+description:
+  - Trigger an on-demand (protect now) run of a protection policy on assets or protection groups, through C(POST /api/v3/protections).
+  - The module always reports C(changed=true) when it sends the request, it is not idempotent. In check mode nothing is sent and C(changed=true) is reported.
+version_added: 0.2.0
+attributes:
+  check_mode:
+    support: full
+  diff_mode:
+    support: none
+notes:
+  - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
+  - The policy is found by name first, then by id.
+  - "The 202 answer of PPDM is C({results: [{activityId, objectiveId, status, reason, remediation}]}), one entry per started activity, not a single activity. With I(wait=true) every C(activityId) is polled to completion, the module fails unless each activity ends C(OK) (C(OK_WITH_ERRORS) only adds a warning). With I(wait=true) an empty C(results) or an entry without C(activityId) or with status C(FAILED) (the run was not started) fails the module with its C(reason); without I(wait) such an entry only adds a warning."
+  - At least one of I(asset_ids) and I(protection_group_ids) is required, the module fails before any request otherwise.
+seealso:
+  - module: fjacquet.ppdm.protection_policy
+    description: Manage protection policies.
+  - module: fjacquet.ppdm.protection_policy_assets
+    description: Assign assets to a protection policy.
+options:
+  policy:
+    type: str
+    required: true
+    description: Protection policy name or id.
+  objective_ids:
+    type: list
+    elements: str
+    description: Ids of the policy objectives to run. All the objectives of the policy when omitted.
+  asset_ids:
+    type: list
+    elements: str
+    description: Ids of the assets to protect.
+  protection_group_ids:
+    type: list
+    elements: str
+    description: Ids of the protection groups to protect.
+  wait:
+    type: bool
+    default: false
+    description:
+      - Wait for every started activity to complete.
+      - Fails unless each activity C(result.status) is C(OK) or C(OK_WITH_ERRORS) (the latter only warns), and fails when PPDM started no activity.
+  wait_timeout:
+    type: int
+    default: 600
+    description: Seconds to wait, applied to each activity separately, when I(wait=true).
+examples: |
+  - name: Back up two VMs now with the gold policy
+    fjacquet.ppdm.protection_policy_run:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      policy: vm-gold
+      asset_ids:
+        - 11111111-2222-3333-4444-555555555555
+        - 66666666-7777-8888-9999-000000000000
+      wait: true
+
+  - name: Run one objective on a protection group
+    fjacquet.ppdm.protection_policy_run:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      policy: vm-gold
+      objective_ids: ["{{ objective_id }}"]
+      protection_group_ids: ["{{ group_id }}"]
+return: |
+  results:
+    description: Entries of the PPDM answer, one per objective run.
+    returned: when the request was sent
+    type: list
+    elements: dict
+    sample: [{"activityId": "a1", "objectiveId": "o1", "status": "SUCCESS"}]
+  activities:
+    description: Final activities when I(wait=true).
+    returned: when waited
+    type: list
+    elements: dict
+  warnings:
+    description: Entries that did not start an activity (without I(wait)), and OK_WITH_ERRORS activities (when waited).
+    returned: when any
+    type: list
+    elements: str

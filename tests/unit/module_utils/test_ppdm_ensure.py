@@ -227,3 +227,50 @@ def test_ensure_put_keeps_a_write_only_field_the_caller_supplied():
     c.ensure("credentials", {"name": "c1", "type": "Y", "password": "pw"}, secret_keys=["password"])
     body = json.loads(writes(op)[0][1]["data"])
     assert body["password"] == "pw" and "userKey" not in body
+
+
+POLICY = {"id": "p1", "name": "pol", "description": "old"}
+
+
+def test_ensure_uses_patch_when_route_has_no_put():
+    c, op, _unused = mk(page([POLICY], 1, 1), Resp({"id": "p1", "name": "pol", "description": "new"}))
+    r = c.ensure("protection-policies", {"name": "pol", "description": "new"})
+    assert r["changed"]
+    url, kw = writes(op)[0]
+    assert kw["method"] == "PATCH" and url.endswith("/api/v3/protection-policies/p1")
+
+
+def test_ensure_explicit_verb_not_in_route_fails():
+    c, op, _unused = mk(page([POLICY], 1, 1))
+    with pytest.raises(PpdmError, match="does not support PUT"):
+        c.ensure("protection-policies", {"name": "pol", "description": "new"}, update_verb="PUT")
+    assert writes(op) == []
+
+
+def test_ensure_put_unchanged_for_existing_resources():
+    obj = {"id": "1", "name": "c1", "type": "X"}
+    c, op, _unused = mk(page([obj], 1, 1), Resp({"id": "1", "name": "c1", "type": "Y"}))
+    c.ensure("credentials", {"name": "c1", "type": "Y"})
+    assert writes(op)[0][1]["method"] == "PUT"
+
+
+def test_start_action_check_mode_sends_nothing():
+    c, op, _unused = mk()
+    r = c.start_action("/api/v3/protections", {"a": 1}, check_mode=True)
+    assert r == {"changed": True, "response": None} and op.calls == []
+
+
+def test_start_action_returns_response():
+    c, op, _unused = mk(Resp({"id": "a1", "state": "QUEUED"}, 202))
+    r = c.start_action("/api/v3/protections", {"a": 1}, check_mode=False)
+    assert r["changed"] and r["response"] == {"id": "a1", "state": "QUEUED"}
+    assert op.calls[0][1]["method"] == "POST"
+
+
+def test_start_action_409_keeps_status():
+    from ansible_collections.fjacquet.ppdm.tests.unit.module_utils.test_ppdm_client import http_error
+
+    c, _op, _unused = mk(http_error(409, {"message": "already running"}))
+    with pytest.raises(PpdmError) as ei:
+        c.start_action("/api/v3/protections", {}, check_mode=False)
+    assert ei.value.status == 409

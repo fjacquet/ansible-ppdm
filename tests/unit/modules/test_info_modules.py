@@ -12,6 +12,7 @@ from ansible_collections.fjacquet.ppdm.plugins.modules import (
     certificate_info,
     credential_info,
     inventory_source_info,
+    protection_policy_info,
     storage_system_info,
 )
 from ansible_collections.fjacquet.ppdm.tests.unit.helpers import (
@@ -27,6 +28,7 @@ MODULES = [
     (inventory_source_info, "/api/v2/inventory-sources", "inventory_sources"),
     (storage_system_info, "/api/v2/storage-systems", "storage_systems"),
     (certificate_info, "/api/v2/certificates", "certificates"),
+    (protection_policy_info, "/api/v3/protection-policies", "protection_policies"),
 ]
 ALL = pytest.mark.parametrize(
     "mod,base,key", MODULES, ids=[m.__name__.rsplit(".", 1)[1] for m, _unused, _unused in MODULES]
@@ -176,3 +178,31 @@ def test_info_empty_id_fails_instead_of_listing(monkeypatch, mod, base, key):
 def test_info_non_dict_body_for_id_fails_cleanly(monkeypatch, mod, base, key, body):
     out = run(monkeypatch, mod, FakeOpener(Resp(body)), id="abc")
     assert out["failed"] and "unexpected response" in out["msg"]
+
+
+def test_protection_policy_info_asset_type_is_exact_and_filtered(monkeypatch):
+    items = [{"id": "1", "assetType": "FILE_SYSTEM"}, {"id": "2", "assetType": "KUBERNETES"}]
+    op = FakeOpener(page(items, 1, 1))
+    out = run(monkeypatch, protection_policy_info, op, asset_type="FILE_SYSTEM")
+    assert [p["id"] for p in out["protection_policies"]] == ["1"]
+    assert parse_qs(urlsplit(op.calls[0][0]).query)["filter"] == ['assetType eq "FILE_SYSTEM"']
+
+
+def test_protection_policy_info_name_and_asset_type_are_anded(monkeypatch):
+    op = FakeOpener(page([], 1, 0))
+    run(monkeypatch, protection_policy_info, op, name="g", asset_type="KUBERNETES")
+    assert parse_qs(urlsplit(op.calls[0][0]).query)["filter"] == ['name eq "g" and assetType eq "KUBERNETES"']
+
+
+def test_protection_policy_info_user_filter_is_parenthesised(monkeypatch):
+    op = FakeOpener(page([], 1, 0))
+    run(monkeypatch, protection_policy_info, op, filter='name lk "a%" or name lk "b%"', asset_type="KUBERNETES")
+    assert parse_qs(urlsplit(op.calls[0][0]).query)["filter"] == [
+        '(name lk "a%" or name lk "b%") and assetType eq "KUBERNETES"'
+    ]
+
+
+def test_protection_policy_info_asset_type_ignores_non_dict_items(monkeypatch):
+    op = FakeOpener(page(["junk", {"id": "1", "assetType": "FILE_SYSTEM"}], 1, 1))
+    out = run(monkeypatch, protection_policy_info, op, asset_type="FILE_SYSTEM")
+    assert [p["id"] for p in out["protection_policies"]] == ["1"]

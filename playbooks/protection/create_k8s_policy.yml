@@ -1,0 +1,54 @@
+---
+# Create a Kubernetes protection policy, or update it when it differs (idempotent).
+# Assumption, not verified live: storageContainerId is the Data Domain storage system id.
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Create a Kubernetes protection policy
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Get the Data Domain storage system
+      fjacquet.ppdm.storage_system_info:
+        name: "{{ ddve_hostname }}"
+      register: policy_storage_system
+
+    - name: Check that the storage system exists
+      ansible.builtin.assert:
+        that: policy_storage_system.storage_systems | length == 1
+        fail_msg: No storage system named {{ ddve_hostname }}.
+
+    - name: Ensure a Kubernetes protection policy
+      fjacquet.ppdm.protection_policy:
+        name: "{{ k8s_namespace_policy_name }}"
+        asset_type: KUBERNETES
+        description: Kubernetes policy created by Ansible
+        purpose: CENTRALIZED
+        objectives:
+          - type: BACKUP
+            target:
+              storageContainerId: "{{ policy_storage_system.storage_systems[0].id }}"
+            operations:
+              - backupLevel: FULL
+                schedule:
+                  recurrence:
+                    pattern:
+                      type: DAILY
+                      interval: 1
+                  window:
+                    startTime: "{{ policy_window_start }}"
+                    duration: PT8H
+            retentions:
+              - time:
+                  - type: RETENTION
+                    unitType: DAY
+                    unitValue: 3
+            config:
+              dataConsistency: CRASH_CONSISTENT

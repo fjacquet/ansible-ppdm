@@ -41,6 +41,11 @@ plugins:
       name: credential_info
       namespace: ''
       version_added: 0.1.0
+    discovery:
+      description: Start a discovery on PowerProtect Data Manager
+      name: discovery
+      namespace: ''
+      version_added: 0.2.0
     eula:
       description: Accept an end user license agreement on PowerProtect Data Manager
       name: eula
@@ -56,6 +61,43 @@ plugins:
       name: inventory_source_info
       namespace: ''
       version_added: 0.1.0
+    protection_policy:
+      description: Manage protection policies on PowerProtect Data Manager
+      name: protection_policy
+      namespace: ''
+      version_added: 0.2.0
+    protection_policy_assets:
+      description: Assign or unassign assets to a protection policy on PowerProtect
+        Data Manager
+      name: protection_policy_assets
+      namespace: ''
+      version_added: 0.2.0
+    protection_policy_info:
+      description: Get protection policies from PowerProtect Data Manager
+      name: protection_policy_info
+      namespace: ''
+      version_added: 0.2.0
+    protection_policy_run:
+      description: Run a protection policy now on PowerProtect Data Manager
+      name: protection_policy_run
+      namespace: ''
+      version_added: 0.2.0
+    protection_rule:
+      description: Manage protection rules on PowerProtect Data Manager
+      name: protection_rule
+      namespace: ''
+      version_added: 0.2.0
+    protection_rule_info:
+      description: Get protection rules from PowerProtect Data Manager
+      name: protection_rule_info
+      namespace: ''
+      version_added: 0.2.0
+    protection_rule_run:
+      description: Run protection rules or preview their conflicts on PowerProtect
+        Data Manager
+      name: protection_rule_run
+      namespace: ''
+      version_added: 0.2.0
     storage_system:
       description: Update a storage system on PowerProtect Data Manager
       name: storage_system
@@ -71,4 +113,4 @@ plugins:
   strategy: {}
   test: {}
   vars: {}
-version: 0.1.0
+version: 0.2.0
