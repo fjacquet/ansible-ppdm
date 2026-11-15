@@ -24,3 +24,5 @@ action_groups:
     - protection_rule_run
     - resource_group
     - resource_group_info
+    - protection_group
+    - protection_group_info

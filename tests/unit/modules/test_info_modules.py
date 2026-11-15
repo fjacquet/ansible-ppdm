@@ -12,6 +12,7 @@ from ansible_collections.fjacquet.ppdm.plugins.modules import (
     certificate_info,
     credential_info,
     inventory_source_info,
+    protection_group_info,
     protection_policy_info,
     protection_rule_info,
     resource_group_info,
@@ -32,6 +33,7 @@ MODULES = [
     (certificate_info, "/api/v2/certificates", "certificates"),
     (protection_policy_info, "/api/v3/protection-policies", "protection_policies"),
     (protection_rule_info, "/api/v3/rules", "protection_rules"),
+    (protection_group_info, "/api/v2/protection-groups", "protection_groups"),
     (resource_group_info, "/api/v2/resource-groups", "resource_groups"),
 ]
 ALL = pytest.mark.parametrize(
