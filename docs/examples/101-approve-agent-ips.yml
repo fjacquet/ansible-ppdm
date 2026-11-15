@@ -1,6 +1,7 @@
 ---
 # Approve each IP of agent_ips on the agent whitelist (24 hours) unless already approved and not expired.
-# Inspired by bottkars/ansible_ppdm `100.4_create_whitelistentry.yaml`, `100.6_get_whitelist.yaml` (workflow only; rewritten for fjacquet.ppdm).
+# Inspired by bottkars/ansible_ppdm `100.4_create_whitelistentry.yaml`,
+# `100.6_get_whitelist.yaml` (workflow only; rewritten for fjacquet.ppdm).
 # Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
 - name: Approve agent IP addresses on the PPDM whitelist
   hosts: localhost
