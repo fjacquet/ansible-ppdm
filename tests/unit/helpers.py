@@ -72,4 +72,4 @@ def listing(*items):
 
 
 def methods(opener):
-    return [kw["method"] for _, kw in opener.calls]
+    return [kw["method"] for _unused, kw in opener.calls]

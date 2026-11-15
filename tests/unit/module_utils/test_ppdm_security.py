@@ -32,7 +32,7 @@ def test_request_disables_redirects():
 def test_redirect_response_is_ppdm_error_without_location(code):
     loc = "http://evil.example/steal?token=SECRET-QUERY"
     err = urllib.error.HTTPError(loc, code, "Found", {"Location": loc}, io.BytesIO(b""))
-    c, _ = mk(err)
+    c, _unused = mk(err)
     with pytest.raises(PpdmError) as e:
         c.request("GET", "/api/v2/x")
     assert "redirects are not followed" in e.value.msg
@@ -45,19 +45,19 @@ def test_redirect_response_is_ppdm_error_without_location(code):
 
 
 def test_find_one_ignores_unrelated_object():
-    c, _ = mk(page([{"id": "other", "name": "vcenter-prod"}], 1))
+    c, _unused = mk(page([{"id": "other", "name": "vcenter-prod"}], 1))
     assert c.find_one("credentials", "name", "dd-lab") is None
 
 
 def test_find_one_is_case_sensitive():
-    c, _ = mk(page([{"id": "1", "name": "DD-LAB"}], 1))
+    c, _unused = mk(page([{"id": "1", "name": "DD-LAB"}], 1))
     assert c.find_one("credentials", "name", "dd-lab") is None
 
 
 def test_find_one_duplicate_rule_applies_after_filtering():
-    c, _ = mk(page([{"id": "1", "name": "a"}, {"id": "2", "name": "other"}], 1))
+    c, _unused = mk(page([{"id": "1", "name": "a"}, {"id": "2", "name": "other"}], 1))
     assert c.find_one("credentials", "name", "a")["id"] == "1"
-    c, _ = mk(page([{"id": "1", "name": "a"}, {"id": "2", "name": "a"}], 1))
+    c, _unused = mk(page([{"id": "1", "name": "a"}, {"id": "2", "name": "a"}], 1))
     with pytest.raises(PpdmError, match="2 objects match"):
         c.find_one("credentials", "name", "a")
 
@@ -65,13 +65,13 @@ def test_find_one_duplicate_rule_applies_after_filtering():
 def test_ensure_creates_instead_of_putting_on_unrelated_object():
     c, op = mk(page([{"id": "other", "name": "vcenter-prod"}], 1), Resp({"id": "n"}, 201))
     c.ensure("credentials", {"name": "dd-lab", "type": "DATADOMAIN"})
-    assert [kw["method"] for _, kw in op.calls] == ["GET", "POST"]
+    assert [kw["method"] for _unused, kw in op.calls] == ["GET", "POST"]
 
 
 def test_remove_sends_no_delete_for_unrelated_object():
     c, op = mk(page([{"id": "other", "name": "vcenter-prod"}], 1))
     assert c.remove("credentials", "name", "dd-lab")["changed"] is False
-    assert [kw["method"] for _, kw in op.calls] == ["GET"]
+    assert [kw["method"] for _unused, kw in op.calls] == ["GET"]
 
 
 # S4: scrubbing never corrupts JSON, never raises, covers the token
@@ -80,7 +80,7 @@ def test_remove_sends_no_delete_for_unrelated_object():
 @pytest.mark.parametrize("pw", ["a", "e", '"', ":", "401", "\\", "null", "s3cret", "péss", "message"])
 def test_scrub_http_error_json_body(pw):
     body = {"status": 401, "message": "bad login for admin: %s" % pw, "detail": {"x": [pw, 1, None]}}
-    c, _ = mk(http_error(401, body), password=pw)
+    c, _unused = mk(http_error(401, body), password=pw)
     with pytest.raises(PpdmError) as e:
         c.request("POST", "/api/v2/login", body={"password": pw})
     assert e.value.status == 401
@@ -97,7 +97,7 @@ def test_scrub_http_error_json_body(pw):
 @pytest.mark.parametrize("pw", ["a", '"', "\\", "401", "hunter22"])
 def test_scrub_non_json_body_and_urlerror(pw):
     err = urllib.error.HTTPError("u", 500, "x", {}, io.BytesIO(("oops %s oops" % pw).encode()))
-    c, _ = mk(err, urllib.error.URLError("refused %s" % pw), password=pw)
+    c, _unused = mk(err, urllib.error.URLError("refused %s" % pw), password=pw)
     with pytest.raises(PpdmError) as e:
         c.request("GET", "/x")
     assert "********" in e.value.body
@@ -110,14 +110,14 @@ def test_scrub_non_json_body_and_urlerror(pw):
 
 @pytest.mark.parametrize("pw", ["a", '"', "401"])
 def test_scrub_login_failure(pw):
-    c, _ = mk(http_error(401, {"message": "no %s" % pw}), password=pw)
+    c, _unused = mk(http_error(401, {"message": "no %s" % pw}), password=pw)
     with pytest.raises(PpdmError):
         c.login()
 
 
 def test_scrub_hides_access_token():
     tok = "eyJhbGciOiJIUzI1NiJ9.FAKE.FAKE"
-    c, _ = mk(Resp({"access_token": tok}), http_error(400, {"message": "echo Authorization=Bearer " + tok}))
+    c, _unused = mk(Resp({"access_token": tok}), http_error(400, {"message": "echo Authorization=Bearer " + tok}))
     c.login()
     with pytest.raises(PpdmError) as e:
         c.request("GET", "/api/v2/x")
@@ -125,7 +125,7 @@ def test_scrub_hides_access_token():
 
 
 def test_scrub_non_container_values_untouched():
-    c, _ = mk(http_error(400, [1, "pw", None]), password="pw")
+    c, _unused = mk(http_error(400, [1, "pw", None]), password="pw")
     with pytest.raises(PpdmError) as e:
         c.request("GET", "/x")
     assert e.value.body == [1, "********", None]
@@ -138,7 +138,7 @@ def test_scrub_non_container_values_untouched():
 def test_bad_total_pages_rejected(literal):
     resp = Resp()
     resp._raw = ('{"content": [], "page": {"totalPages": %s}}' % literal).encode()
-    c, _ = mk(resp)
+    c, _unused = mk(resp)
     with pytest.raises(PpdmError, match="totalPages"):
         c.list_all("credentials")
 
@@ -152,20 +152,20 @@ def test_huge_int_total_pages_capped():
 
 def test_max_pages_boundary_ok_and_over_rejected(monkeypatch):
     monkeypatch.setattr(ppdm, "MAX_PAGES", 2)
-    c, _ = mk(page([1], 2), page([2], 2))
+    c, _unused = mk(page([1], 2), page([2], 2))
     assert c.get_all("/x") == [1, 2]
-    c, _ = mk(page([1], 3))
+    c, _unused = mk(page([1], 3))
     with pytest.raises(PpdmError, match="totalPages"):
         c.get_all("/x")
 
 
 def test_zero_total_pages_ok():
-    c, _ = mk(page([], 0))
+    c, _unused = mk(page([], 0))
     assert c.list_all("credentials") == []
 
 
 def test_non_list_content_rejected():
-    c, _ = mk(page("abc", 1))
+    c, _unused = mk(page("abc", 1))
     with pytest.raises(PpdmError, match="content"):
         c.list_all("credentials")
 
@@ -177,7 +177,7 @@ def test_deeply_nested_json_is_ppdm_error(opener_resp):
     resp._raw = deep
     if opener_resp == "error":
         resp = urllib.error.HTTPError("u", 500, "x", {}, io.BytesIO(deep))
-    c, _ = mk(resp)
+    c, _unused = mk(resp)
     with pytest.raises(PpdmError):
         c.request("GET", "/x")
 
@@ -190,7 +190,7 @@ def _no_run_of_8(text):
 
 
 def _logged_in(pw, failure):
-    c, _ = mk(Resp({"access_token": TOKEN}), failure, password=pw)
+    c, _unused = mk(Resp({"access_token": TOKEN}), failure, password=pw)
     c.login()
     return c
 
@@ -212,7 +212,7 @@ def test_token_survives_no_password_substring_cut(pw, where):
 
 
 def test_login_failure_still_hides_password():
-    c, _ = mk(http_error(401, {"message": "bad hunter22 for admin"}), password="hunter22")
+    c, _unused = mk(http_error(401, {"message": "bad hunter22 for admin"}), password="hunter22")
     with pytest.raises(PpdmError) as e:
         c.login()
     assert "hunter22" not in e.value.msg + json.dumps(e.value.body)

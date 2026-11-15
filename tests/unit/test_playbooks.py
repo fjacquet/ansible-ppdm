@@ -250,12 +250,12 @@ def _readme_rows():
 def test_readme_indexes_every_example_and_source_file():
     converted, skipped = _readme_rows()
     assert len(ALL_SOURCES) == 90
-    seen = [name for _, _, sources in converted for name in sources.split(", ")]
+    seen = [name for _unused, _unused, sources in converted for name in sources.split(", ")]
     seen += [name for row in skipped for name in row.split(", ")]
     for name in ALL_SOURCES:
         assert seen.count(name) == 1, f"{name} is in {seen.count(name)} table rows, expected exactly one"
     assert set(seen) == set(ALL_SOURCES), set(seen) ^ set(ALL_SOURCES)
-    listed = {fqcn for fqcn, _, _ in converted}
+    listed = {fqcn for fqcn, _unused, _unused in converted}
     for path in FILES:
         assert _fqcn(path) in listed, f"{_fqcn(path)} is not in the converted table"
     assert listed == {_fqcn(path) for path in FILES}
@@ -263,9 +263,9 @@ def test_readme_indexes_every_example_and_source_file():
 
 
 def test_readme_maps_each_fqcn_to_its_use_case_directory():
-    converted, _ = _readme_rows()
-    for fqcn, link, _ in converted:
-        _, _, usecase, name = fqcn.split(".")
+    converted, _unused = _readme_rows()
+    for fqcn, link, _unused in converted:
+        _unused, _unused, usecase, name = fqcn.split(".")
         assert link == f"{usecase}/{name}.yml", f"{fqcn} links to {link}"
         assert (PLAYBOOKS / link).is_file(), link
 
@@ -286,8 +286,8 @@ def test_hosts_come_from_the_target_variable():
 
 
 def test_header_credits_match_the_readme_row_of_each_example():
-    converted, _ = _readme_rows()
-    row = {fqcn: set(sources.split(", ")) for fqcn, _, sources in converted}
+    converted, _unused = _readme_rows()
+    row = {fqcn: set(sources.split(", ")) for fqcn, _unused, sources in converted}
     for path in FILES:
         text = path.read_text()
         credit = text[text.index("Inspired by") : text.index("(workflow only")]

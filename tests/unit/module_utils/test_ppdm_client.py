@@ -68,7 +68,7 @@ def test_list_all_paginates_250_items_in_three_requests():
     c = client(op)
     c.login()
     assert c.list_all("alerts") == items
-    qs = [parse_qs(urlsplit(u).query) for u, _ in op.calls[1:]]
+    qs = [parse_qs(urlsplit(u).query) for u, _unused in op.calls[1:]]
     assert [q["page"] for q in qs] == [["1"], ["2"], ["3"]]
     assert all(q["pageSize"] == ["100"] for q in qs)
 

@@ -64,7 +64,8 @@ def test_inventory_source_update_on_diff(monkeypatch):
 
 def test_inventory_source_check_mode(monkeypatch):
     op = FakeOpener(listing(EXISTING))
-    out = run_module(monkeypatch, inventory_source, op, check_mode=True, **dict(ARGS, address="x"))
+    args = {**ARGS, "address": "x"}
+    out = run_module(monkeypatch, inventory_source, op, check_mode=True, **args)
     assert out["changed"] and methods(op) == ["GET"]
 
 

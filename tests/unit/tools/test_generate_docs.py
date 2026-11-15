@@ -40,7 +40,7 @@ def _spec(src):
 
 
 def test_render_includes_extends_documentation_fragment():
-    doc, _ = generate.render_module_blocks(SCHEMA)
+    doc, _unused = generate.render_module_blocks(SCHEMA)
     assert yaml.safe_load(doc)["extends_documentation_fragment"] == ["fjacquet.ppdm.ppdm"]
 
 
@@ -216,7 +216,7 @@ def test_skeleton_has_no_coding_line_or_noqa():
 def test_long_choices_are_wrapped_one_per_line_and_parse():
     choices = [f"CHOICE_NUMBER_{i:03d}" for i in range(12)]
     opts = {"mode": {"type": "str", "choices": choices, "description": "Mode."}}
-    _, src = generate.render_module_blocks({**SCHEMA, "options": opts})
+    _unused, src = generate.render_module_blocks({**SCHEMA, "options": opts})
     ast.parse(src)
     assert all(f"            '{c}',\n" in src for c in choices)
     assert _spec(src)["mode"]["choices"] == choices

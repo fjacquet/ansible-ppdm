@@ -28,7 +28,9 @@ MODULES = [
     (storage_system_info, "/api/v2/storage-systems", "storage_systems"),
     (certificate_info, "/api/v2/certificates", "certificates"),
 ]
-ALL = pytest.mark.parametrize("mod,base,key", MODULES, ids=[m.__name__.rsplit(".", 1)[1] for m, _, _ in MODULES])
+ALL = pytest.mark.parametrize(
+    "mod,base,key", MODULES, ids=[m.__name__.rsplit(".", 1)[1] for m, _unused, _unused in MODULES]
+)
 
 
 def run(monkeypatch, mod, opener, check_mode=False, **args):

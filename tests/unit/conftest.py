@@ -24,7 +24,7 @@ def _register_collection_packages() -> None:
         pkg = types.ModuleType(name)
         pkg.__path__ = []
         sys.modules[name] = pkg
-        parent, _, child = name.rpartition(".")
+        parent, _unused, child = name.rpartition(".")
         if parent:
             setattr(sys.modules[parent], child, pkg)
 

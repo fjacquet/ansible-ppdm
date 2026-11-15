@@ -47,7 +47,7 @@ def test_quote_id_refuses_empty():
 
 @pytest.mark.parametrize("bad", ["..", "."])
 def test_route_encodes_dot_ids(bad):
-    c, _ = mk()
+    c, _unused = mk()
     assert c._route("credentials", "DELETE", bad).endswith("/" + quote_id(bad))
     assert not c._route("credentials", "DELETE", bad).endswith("/..")
 
@@ -63,14 +63,14 @@ def test_certificate_item_path_keeps_inner_dots():
 
 
 def test_total_pages_error_does_not_echo_secrets():
-    c, _ = mk(page([], "x" + "S3cret!"))
+    c, _unused = mk(page([], "x" + "S3cret!"))
     with pytest.raises(PpdmError) as e:
         c.list_all("credentials")
     assert "S3cret!" not in e.value.msg
 
 
 def test_duplicate_message_scrubs_server_values():
-    c, _ = mk(
+    c, _unused = mk(
         Resp({"access_token": "TOK-123456"}),
         page([{"id": "S3cret!1", "name": "a"}, {"id": "2", "name": "a"}], 1),
     )
@@ -83,7 +83,7 @@ def test_duplicate_message_scrubs_server_values():
 def test_scrub_single_pass_password_overlapping_token_edge():
     tok = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiJ9.sig"
     pw = "echo Bearer " + tok[:38]
-    c, _ = mk(Resp({"access_token": tok}), password=pw)
+    c, _unused = mk(Resp({"access_token": tok}), password=pw)
     c.login()
     out = c._scrub("echo Bearer " + tok)
     assert tok[30:] not in out and tok[:12] not in out
@@ -93,13 +93,13 @@ def test_scrub_single_pass_password_overlapping_token_edge():
 
 
 def test_page_with_too_many_items_rejected():
-    c, _ = mk(page(list(range(ppdm.PAGE_SIZE + 1)), 1))
+    c, _unused = mk(page(list(range(ppdm.PAGE_SIZE + 1)), 1))
     with pytest.raises(PpdmError, match="items"):
         c.list_all("credentials")
 
 
 def test_page_at_page_size_ok():
-    c, _ = mk(page(list(range(ppdm.PAGE_SIZE)), 1))
+    c, _unused = mk(page(list(range(ppdm.PAGE_SIZE)), 1))
     assert len(c.list_all("credentials")) == ppdm.PAGE_SIZE
 
 
@@ -107,7 +107,7 @@ def test_oversized_body_rejected(monkeypatch):
     monkeypatch.setattr(ppdm, "MAX_BODY_BYTES", 10)
     big = Resp()
     big._raw = b'{"a": "' + b"x" * 20 + b'"}'
-    c, _ = mk(big)
+    c, _unused = mk(big)
     with pytest.raises(PpdmError, match="too large"):
         c.request("GET", "/x")
 
@@ -116,7 +116,7 @@ def test_body_at_limit_ok(monkeypatch):
     monkeypatch.setattr(ppdm, "MAX_BODY_BYTES", 8)
     r = Resp()
     r._raw = b'{"a": 1}'
-    c, _ = mk(r)
+    c, _unused = mk(r)
     assert c.request("GET", "/x") == {"a": 1}
 
 
@@ -134,7 +134,7 @@ def test_body_at_limit_ok(monkeypatch):
     ],
 )
 def test_hostname_accepted(host, netloc):
-    c, _ = mk(host=host)
+    c, _unused = mk(host=host)
     assert c.base_url == "https://%s:8443" % netloc
 
 
@@ -183,7 +183,7 @@ def _no_run_of_8(text, secret):
 
 
 def _logged(pw):
-    c, _ = mk(Resp({"access_token": TOK}), password=pw)
+    c, _unused = mk(Resp({"access_token": TOK}), password=pw)
     c.login()
     return c
 
@@ -206,7 +206,7 @@ def test_scrub_overlap_leaves_no_token_run(pw):
 
 
 def test_scrub_equal_length_overlapping_secrets():
-    c, _ = mk(password="abcdefghij")
+    c, _unused = mk(password="abcdefghij")
     c.token = "efghijklmn"
     out = c.scrub("..abcdefghijklmn..")
     assert out == "..********.." and "klmn" not in out
@@ -241,14 +241,14 @@ def test_scrub_covers_dict_keys_and_messages(which, shape):
 
 
 def test_scrub_never_raises_on_odd_secrets():
-    c, _ = mk(password=12345)
+    c, _unused = mk(password=12345)
     c.token = ["x"]
     assert c.scrub("a 12345 b") == "a 12345 b"
 
 
 @pytest.mark.parametrize("tok", [12345, [], "", None, {"a": 1}])
 def test_login_requires_string_token(tok):
-    c, _ = mk(Resp({"access_token": tok}))
+    c, _unused = mk(Resp({"access_token": tok}))
     with pytest.raises(PpdmError, match="access_token"):
         c.login()
     assert c.token is None
@@ -256,7 +256,7 @@ def test_login_requires_string_token(tok):
 
 @pytest.mark.parametrize("bad", [None, ""])
 def test_item_verbs_never_fall_back_to_collection(bad):
-    c, _ = mk()
+    c, _unused = mk()
     for verb in ("PUT", "DELETE", "PATCH"):
         if verb in ppdm.ROUTES["credentials"]["methods"]:
             with pytest.raises(PpdmError):
@@ -297,7 +297,7 @@ def test_wait_activity_timeout_scrubs_state():
         "a{b}",
         "a|b",
         "a^b",
-        "a​b",
+        "a\u200bb",
         "a．b",
         "bücher.de",
         "a" * 5000,
@@ -326,13 +326,13 @@ def test_hostname_allowlist_accepts(host):
 
 
 def test_hostname_ipv6_normalised():
-    c, _ = mk(host="2001:DB8:0:0:0:0:0:1")
+    c, _unused = mk(host="2001:DB8:0:0:0:0:0:1")
     assert c.base_url == "https://[2001:db8::1]:8443"
 
 
 # Fix round 2: repr escapes must not hide a secret from the scrubber
 
-NASTY = ["p\\w", "a\nb", "it's\"x", "z​z", "\x07bell", "t\tab", "smile\U0001f600x"]
+NASTY = ["p\\w", "a\nb", "it's\"x", "z\u200bz", "\x07bell", "t\tab", "smile\U0001f600x"]
 
 
 def _forms(secret):
@@ -362,7 +362,7 @@ def nasty(request):
 def test_messages_hide_escaped_secrets(nasty, shape, which):
     pw, tok = (nasty, TOK) if which == "password" else ("S3cret!", nasty)
     secret = nasty
-    c, _ = mk(password=pw)
+    c, _unused = mk(password=pw)
     c.token = tok  # set directly: login() refuses a non-printable token, a hostile echo must still be hidden
     value = _shapes(secret)[shape]
     msgs = []
@@ -395,7 +395,7 @@ def test_huge_error_body_is_bounded_and_fast():
 
     big = '{"message": "' + "a" * (5 * 1024 * 1024) + '"}'
     err = urllib.error.HTTPError("u", 500, "x", {}, io.BytesIO(big.encode()))
-    c, _ = mk(err, password="a")
+    c, _unused = mk(err, password="a")
     t = time.time()
     with pytest.raises(PpdmError) as e:
         c.request("GET", "/x")
@@ -410,7 +410,7 @@ NASTY3 = NASTY + ["plain-secret-1"]
 
 def _err(body, pw, status=400):
     raw = body if isinstance(body, bytes) else body.encode()
-    c, _ = mk(urllib.error.HTTPError("u", status, "x", {}, io.BytesIO(raw)), password=pw)
+    c, _unused = mk(urllib.error.HTTPError("u", status, "x", {}, io.BytesIO(raw)), password=pw)
     with pytest.raises(PpdmError) as e:
         c.request("GET", "/x")
     return e.value
@@ -453,7 +453,7 @@ def test_error_body_over_scrub_limit_is_omitted():
 
 @pytest.mark.parametrize("tok", ["a\nb", "a\rb", "a b", "a\x00b", "café", "a\x7fb", "a\tb"])
 def test_login_rejects_non_printable_token(tok):
-    c, _ = mk(Resp({"access_token": tok}))
+    c, _unused = mk(Resp({"access_token": tok}))
     with pytest.raises(PpdmError, match="invalid access_token"):
         c.login()
     assert c.token is None
@@ -478,14 +478,14 @@ def test_request_build_error_never_echoes_the_header():
 def test_scrub_text_is_bounded_on_a_huge_value():
     import time
 
-    c, _ = mk(password="a")
+    c, _unused = mk(password="a")
     t = time.time()
     out = c.scrub_text("ab" * 2_500_000, 64)  # over MAX_SCRUB_TEXT: the length marker only, nothing scrubbed
     assert time.time() - t < 1.0 and out == "<... of 5000000 characters omitted>"
 
 
 def test_scrub_text_cut_does_not_leave_a_secret_prefix():
-    c, _ = mk(password="hunter2SuperSecret")
+    c, _unused = mk(password="hunter2SuperSecret")
     out = c.scrub_text("x" * 60 + "hunter2SuperSecret", 70)
     assert "hunter2" not in out
 
@@ -501,7 +501,7 @@ def _secret(n, seed):
     import random
 
     rnd = random.Random(seed)
-    return "".join(rnd.choice(SAFE) for _ in range(n))
+    return "".join(rnd.choice(SAFE) for _unused in range(n))
 
 
 def _runs(secret, text, k=8):
@@ -531,7 +531,7 @@ def _out(err):
 @pytest.mark.parametrize("kind", ["json", "text"])
 def test_repeated_echoed_secret_never_leaks(kind, reps, n, which):
     tok = _secret(n, n * 1000 + reps)
-    msg = "; ".join("invalid Authorization header 'Bearer %s'" % tok for _ in range(reps))
+    msg = "; ".join("invalid Authorization header 'Bearer %s'" % tok for _unused in range(reps))
     if kind == "json":
         body = json.dumps({"code": 401, "message": msg})
     else:  # non-JSON body between 64 KiB and 1 MiB
@@ -569,7 +569,7 @@ TARGETS = [
 @pytest.mark.parametrize("off", [1, 5, 9, 17])
 @pytest.mark.parametrize("limit", [64, 1000, ppdm.MAX_ERROR_TEXT])
 def test_scrub_text_straddle_after_merged_masks(target, off, limit):
-    c, _ = mk(password=PW7)
+    c, _unused = mk(password=PW7)
     out = c.scrub_text(_straddle(target, off), limit)
     assert len(out) <= limit and not _runs(PW7, out, 4), (target, off, limit, out[-40:])
 
@@ -587,7 +587,7 @@ def test_error_body_straddle_after_merged_masks(target, off, which):
 def test_scrub_text_over_limit_gives_only_the_marker():
     import time
 
-    c, _ = mk(password="Q")
+    c, _unused = mk(password="Q")
     t = time.time()
     out = c.scrub_text("Q" * (5 * 1000 * 1000), 10**7)
     assert time.time() - t < 0.5
@@ -597,7 +597,7 @@ def test_scrub_text_over_limit_gives_only_the_marker():
 
 
 def test_scrub_text_at_the_limit_is_scrubbed_in_full():
-    c, _ = mk(password=PW7)
+    c, _unused = mk(password=PW7)
     text = "y" * (ppdm.MAX_SCRUB_TEXT - len(PW7)) + PW7
     assert c.scrub_text(text, 10**7) == "y" * (ppdm.MAX_SCRUB_TEXT - len(PW7)) + "********"
     err = _err(PW7 + "y" * (ppdm.MAX_SCRUB_TEXT - 2 * len(PW7)) + PW7, PW7)
@@ -608,7 +608,7 @@ def test_scrub_text_at_the_limit_is_scrubbed_in_full():
 def test_huge_structure_is_not_scrubbed():
     import time
 
-    c, _ = mk(password="Q")
+    c, _unused = mk(password="Q")
     t = time.time()
     out = c.scrub_text(["Q"] * 6_000_000, 64)
     assert time.time() - t < 1.0 and out.startswith("<... of ") and "Q" not in out
@@ -619,7 +619,7 @@ def test_uppercase_json_escape_is_masked(pw):
     upper = json.dumps(pw)[1:-1]
     upper = __import__("re").sub(r"\\u([0-9a-f]{4})", lambda m: "\\u" + m.group(1).upper(), upper)
     assert upper != json.dumps(pw)[1:-1]
-    c, _ = mk(password=pw)
+    c, _unused = mk(password=pw)
     assert upper not in c.scrub_text("x " + upper + " y", 1000)
     err = _err("oops " + upper, pw)
     assert upper not in _out(err)
@@ -658,14 +658,14 @@ def test_scrub_text_property_random():
 
         return _forms(s) | {up(j), up(raw)}
 
-    for _ in range(2000):
-        pw = "".join(rnd.choice(alphabet) for _ in range(rnd.randint(1, 6)))
-        tok = "".join(rnd.choice("abcXY") for _ in range(rnd.randint(1, 12)))
-        c, _ = mk(password=pw)
+    for _unused in range(2000):
+        pw = "".join(rnd.choice(alphabet) for _unused in range(rnd.randint(1, 6)))
+        tok = "".join(rnd.choice("abcXY") for _unused in range(rnd.randint(1, 12)))
+        c, _unused = mk(password=pw)
         c.token = tok
         pieces = sorted(forms(pw) | forms(tok))
         chunks = []
-        for _ in range(rnd.randint(0, 40)):
+        for _unused in range(rnd.randint(0, 40)):
             r = rnd.random()
             if r < 0.4:
                 chunks.append(rnd.choice(pieces) * rnd.randint(1, 3))
@@ -673,7 +673,7 @@ def test_scrub_text_property_random():
                 p = rnd.choice(pieces)
                 chunks.append(p[: rnd.randint(0, len(p))])
             else:
-                chunks.append("".join(rnd.choice(alphabet + "XYz") for _ in range(rnd.randint(0, 30))))
+                chunks.append("".join(rnd.choice(alphabet + "XYz") for _unused in range(rnd.randint(0, 30))))
         text = "".join(chunks)
         for limit in (0, 1, 8, 40, 100, 64 * 1024):
             out = c.scrub_text(text, limit)
