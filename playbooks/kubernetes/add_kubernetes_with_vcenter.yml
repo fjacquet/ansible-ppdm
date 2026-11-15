@@ -1,6 +1,6 @@
 ---
 # Add the cluster with its vCenter (CSI drivers as a process): trust, credential, inventory source with k8s details.
-# The vCenter must already be an inventory source (fjacquet.ppdm.inventory.add_vcenter). The cluster side is not covered, see the README.
+# The vCenter must already be an inventory source (fjacquet.ppdm.sources.add_vcenter). The cluster side is not covered, see the README.
 # Inspired by bottkars/ansible_ppdm `130.1_playbook_rbac_add_k8s_to_ppdm.yaml` (workflow only; rewritten for fjacquet.ppdm).
 # Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional), PPDM_K8S_TOKEN.
 - name: Add a Kubernetes cluster that runs on vSphere

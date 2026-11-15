@@ -16,11 +16,11 @@ Connection settings and secrets come from environment variables, nothing sensiti
 |----------|---------|---------|
 | `PPDM_HOSTNAME`, `PPDM_USERNAME`, `PPDM_PASSWORD` | all | PPDM address and login |
 | `PPDM_PORT` | all (optional) | REST API port, default 8443 |
-| `DDVE_PASSWORD` | `inventory.add_data_domain` | Data Domain password |
-| `VCENTER_PASSWORD` | `inventory.add_vcenter` | vCenter password |
+| `DDVE_PASSWORD` | `sources.add_data_domain` | Data Domain password |
+| `VCENTER_PASSWORD` | `sources.add_vcenter` | vCenter password |
 | `PPDM_K8S_TOKEN` | `kubernetes.add_kubernetes` | Kubernetes service account token |
 | `PPDM_LICENSE_KEY` | `bootstrap.set_license` | PPDM license key |
-| `CSM_CREDENTIALS` | `inventory.add_cloud_snapshot_manager` | Cloud Snapshot Manager credential secret |
+| `CSM_CREDENTIALS` | `sources.add_cloud_snapshot_manager` | Cloud Snapshot Manager credential secret |
 | `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` | `clouddr.configure_account` | Azure account keys for Cloud DR |
 | `CDRS_ADMIN_PASSWORD` | `clouddr.deploy_server` | Admin and monitor password of the Cloud DR server |
 | `APP_CREDENTIAL_PASSWORD` | `protection.add_mssql_policy`, `protection.add_exchange_policy` | Operating system password for SQL Server and Exchange hosts |
@@ -34,9 +34,9 @@ name is the use case directory and the file name, in lowercase letters, digits a
 
 ```
 export PPDM_HOSTNAME=ppdm.example.com PPDM_USERNAME=admin PPDM_PASSWORD=...
-ansible-playbook fjacquet.ppdm.inventory.add_data_domain -e @my-vars.yml
+ansible-playbook fjacquet.ppdm.sources.add_data_domain -e @my-vars.yml
 ansible-playbook fjacquet.ppdm.protection.run_policy -e @my-vars.yml
-ansible-playbook playbooks/inventory/add_data_domain.yml -e @my-vars.yml   # by path
+ansible-playbook playbooks/sources/add_data_domain.yml -e @my-vars.yml   # by path
 ```
 
 Playbooks that change something destructive or service affecting (`assets.restore_vm_copy`, `kubernetes.restore_copy`, `clouddr.disable_component`, `clouddr.deploy_server`, `clouddr.delete_server`, `bootstrap.set_local_user_setting`, `bootstrap.replace_certificate`, `bootstrap.set_license`, `maintenance.install_update_package`, `maintenance.delete_update_package`, `agents.approve_agent_ips`, `agents.delete_whitelist_entries`, `agents.approve_agents_by_hostname`, `kubernetes.add_policy_and_rule`, `kubernetes.trust_root_certificate`, `kubernetes.set_controller_config`) refuse to
@@ -51,14 +51,14 @@ playbook itself creates or documents, and `protection.run_policy` starts one bac
 
 Besides the disclaimer above, these points are known guesses:
 
-- `inventory.list_unassigned_credentials`: the `consumersCount` filter is marked `x-ppdm-filter: false` in the spec, PPDM may reject it.
+- `sources.list_unassigned_credentials`: the `consumersCount` filter is marked `x-ppdm-filter: false` in the spec, PPDM may reject it.
 - `clouddr.enable_component`, `clouddr.disable_component`: the `start` and `disable` operations of the component management call have no enum in the spec.
 - `bootstrap.configure_sdr`, `bootstrap.set_sdr_existing_unit`: `repositoryHost` is set to the storage system id, as in the original workflow.
 - `clouddr.set_target`, `clouddr.deploy_server`: the data target body (`copiesStorageContainer.id` set to the storage account name) is taken from the original
   workflow, the spec gives no example.
 - `bootstrap.get_local_user_settings`, `bootstrap.set_local_user_setting`: the community `/policies/password` endpoint does not exist in 20.3.0. `LOCAL_USER_SETTING` (deprecated in the
   spec) is the closest setting, its property names (`maxAge` here) are not listed in the spec.
-- `inventory.get_vib_details`: the spec requires `resourceId` too, the original workflow sent only `parentResourceId`.
+- `sources.get_vib_details`: the spec requires `resourceId` too, the original workflow sent only `parentResourceId`.
 - `agents.set_agent_dns_lookups`: the `APP_AGENT_SETTING` setting and its `enableLookups` property come from the original workflow, they are not
   described in the 20.3.0 spec.
 - `protection.add_file_system_policy`, `protection.add_mssql_policy`, `protection.add_exchange_policy`, `kubernetes.add_policy_and_rule`: policies are built from the `/api/v3` schema (objectives, operations, retentions), not from the
@@ -99,17 +99,17 @@ Every original file is listed in exactly one of the two tables below.
 | [fjacquet.ppdm.bootstrap.get_components](bootstrap/get_components.yml) | List the appliance components with their status (read-only). | `api` | 96 | 99_playbook_get_components.yml | converted |
 | [fjacquet.ppdm.bootstrap.wait_for_components](bootstrap/wait_for_components.yml) | Poll the components until all of them report UP. | `api` | 99 | 99_playbook_get_components copy.yml | converted |
 
-### Inventory: Data Domain, vCenter, CSM, credentials
+### Sources: Data Domain, vCenter, CSM, credentials
 
 | Playbook | What it does | Modules | Former example | Original bottkars files | Status |
 |----------|--------------|---------|----------------|-------------------------|--------|
-| [fjacquet.ppdm.inventory.add_data_domain](inventory/add_data_domain.yml) | Trust the Data Domain certificate, create its credential and add it as an inventory source. | `certificate`, `credential`, `inventory_source` | 20 | 2.0-playbook_set_ddve.yml | converted |
-| [fjacquet.ppdm.inventory.add_vcenter](inventory/add_vcenter.yml) | Trust the vCenter certificate, create its credential and add it as an inventory source. | `certificate`, `credential`, `inventory_source` | 21 | 2.1-playbook_set_vsphere.yml | converted |
-| [fjacquet.ppdm.inventory.list_unassigned_credentials](inventory/list_unassigned_credentials.yml) | List credentials of type KUBERNETES that no consumer uses (read-only). | `credential_info` | 22 | 2.0-playbook_test_unassigned_credentials.yml | converted |
-| [fjacquet.ppdm.inventory.add_cloud_snapshot_manager](inventory/add_cloud_snapshot_manager.yml) | Create the CLOUD_SNAPSHOT_MANAGER credential and inventory source for a tenant. | `credential`, `inventory_source` | 28 | 2.0-playbook_set_csm.yml | converted |
-| [fjacquet.ppdm.inventory.list_credential_usage](inventory/list_credential_usage.yml) | Show which objects use a credential (read-only). | `api`, `credential_info` | 29 | 2.0-playbook_test_unassigned_credentials_id.yml | converted |
-| [fjacquet.ppdm.inventory.get_inventory_and_storage_systems](inventory/get_inventory_and_storage_systems.yml) | List inventory sources (optionally filtered) and the Data Domain storage system (read-only). | `inventory_source_info`, `storage_system_info` | 97 | 99_get_inventory.yml, 99_get_data_domain.yml | converted |
-| [fjacquet.ppdm.inventory.get_vib_details](inventory/get_vib_details.yml) | Read the vSphere VIB details below a vCenter inventory source (read-only). | `api`, `inventory_source_info` | 98 | 9.2-playbook_vib_details.yml | converted |
+| [fjacquet.ppdm.sources.add_data_domain](sources/add_data_domain.yml) | Trust the Data Domain certificate, create its credential and add it as an inventory source. | `certificate`, `credential`, `inventory_source` | 20 | 2.0-playbook_set_ddve.yml | converted |
+| [fjacquet.ppdm.sources.add_vcenter](sources/add_vcenter.yml) | Trust the vCenter certificate, create its credential and add it as an inventory source. | `certificate`, `credential`, `inventory_source` | 21 | 2.1-playbook_set_vsphere.yml | converted |
+| [fjacquet.ppdm.sources.list_unassigned_credentials](sources/list_unassigned_credentials.yml) | List credentials of type KUBERNETES that no consumer uses (read-only). | `credential_info` | 22 | 2.0-playbook_test_unassigned_credentials.yml | converted |
+| [fjacquet.ppdm.sources.add_cloud_snapshot_manager](sources/add_cloud_snapshot_manager.yml) | Create the CLOUD_SNAPSHOT_MANAGER credential and inventory source for a tenant. | `credential`, `inventory_source` | 28 | 2.0-playbook_set_csm.yml | converted |
+| [fjacquet.ppdm.sources.list_credential_usage](sources/list_credential_usage.yml) | Show which objects use a credential (read-only). | `api`, `credential_info` | 29 | 2.0-playbook_test_unassigned_credentials_id.yml | converted |
+| [fjacquet.ppdm.sources.get_inventory_and_storage_systems](sources/get_inventory_and_storage_systems.yml) | List inventory sources (optionally filtered) and the Data Domain storage system (read-only). | `inventory_source_info`, `storage_system_info` | 97 | 99_get_inventory.yml, 99_get_data_domain.yml | converted |
+| [fjacquet.ppdm.sources.get_vib_details](sources/get_vib_details.yml) | Read the vSphere VIB details below a vCenter inventory source (read-only). | `api`, `inventory_source_info` | 98 | 9.2-playbook_vib_details.yml | converted |
 
 ### Protection: policies, rules, assignments
 
