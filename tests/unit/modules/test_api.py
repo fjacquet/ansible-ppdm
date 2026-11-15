@@ -119,6 +119,14 @@ def test_wait_warns_on_ok_with_errors(monkeypatch):
         "/api/v2/x?y=1",
         "/api/v2/x#f",
         "/api/v2/ x",
+        "/api/%252e%252e/x",
+        "/api/v2/x%00.json",
+        "/api/v2/x\x00",
+        "/api/v2/x\x07y",
+        "/api/v2/x\\y",
+        "/api/v2/x;jsessionid=1",
+        "/api/\uff0e\uff0e/x",
+        "/api/v2/caf\u00e9",
     ],
 )
 def test_unsafe_paths_rejected_before_request(monkeypatch, path):
@@ -128,12 +136,9 @@ def test_unsafe_paths_rejected_before_request(monkeypatch, path):
     assert op.calls == []
 
 
-def test_activities_path_accepted(monkeypatch):
-    out = run(
-        monkeypatch,
-        FakeOpener(Resp({"content": [], "page": {"totalPages": 0}})),
-        path="/api/v2/activities",
-    )
+@pytest.mark.parametrize("path", ["/api/v2/activities", "/api/v3/protection-policies/abc-123"])
+def test_valid_paths_accepted(monkeypatch, path):
+    out = run(monkeypatch, FakeOpener(Resp({"content": [], "page": {"totalPages": 0}})), path=path)
     assert out["failed"] is False
 
 

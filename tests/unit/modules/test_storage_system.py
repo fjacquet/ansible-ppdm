@@ -1,5 +1,6 @@
 import json
 
+import pytest
 from ansible_collections.fjacquet.ppdm.plugins.modules import storage_system
 from ansible_collections.fjacquet.ppdm.tests.unit.helpers import (
     FakeOpener,
@@ -54,3 +55,11 @@ def test_storage_system_missing_fails(monkeypatch):
     op = FakeOpener(listing())
     out = run(monkeypatch, op, description="new")
     assert out["failed"] and "dd1" in out["msg"] and methods(op) == ["GET"]
+
+
+@pytest.mark.parametrize("key", ["name", "description", "locationId", "ddLocationId"])
+def test_config_colliding_with_a_named_option_fails(monkeypatch, key):
+    op = FakeOpener()
+    out = run(monkeypatch, op, description="d", config={key: "x", "details": {}})
+    assert out["failed"] and key in out["msg"] and "details" not in out["msg"]
+    assert op.calls == []

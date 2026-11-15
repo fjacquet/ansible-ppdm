@@ -33,6 +33,15 @@ def filter_eq(key, value):
     return '%s eq "%s"' % (key, str(value).replace("\\", "\\\\").replace('"', '\\"'))
 
 
+def merge_config(named, config):
+    """Body from the named options (None values dropped) over config; config may not use a named option's key."""
+    config = config or {}
+    clash = sorted(set(config) & set(named))
+    if clash:
+        raise PpdmError("config must not set %s: use the matching module option instead" % ", ".join(clash))
+    return dict(config, **{k: v for k, v in named.items() if v is not None})
+
+
 def _mask(obj, secret_keys):
     return {k: (MASK if k in secret_keys else v) for k, v in obj.items()}
 

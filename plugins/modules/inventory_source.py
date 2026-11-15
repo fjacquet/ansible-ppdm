@@ -81,6 +81,8 @@ options:
     type: str
   config:
     description:
+    - The module fails when C(config) contains a key that a named option sets (C(name), C(type), C(address),
+      C(port) and C(credentials)), use the option instead.
     - Extra request body fields passed through as is, for example C(details) for type-specific settings
       such as C(details.vCenter).
     - The 20.3.0 request body has no certificate trust field, trust is handled with M(fjacquet.ppdm.certificate).
@@ -179,6 +181,7 @@ from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
     client_from_module,
     connection_argument_spec,
     fail_from,
+    merge_config,
 )
 
 
@@ -194,16 +197,14 @@ def main():
         if p["state"] == "absent":
             res = client.remove("inventory-sources", "name", p["name"], check_mode=module.check_mode)
         else:
-            desired = {
+            named = {
                 "name": p["name"],
                 "type": p["type"],
                 "address": p["address"],
                 "port": p["source_port"],
+                "credentials": None if p["credential_id"] is None else {"id": p["credential_id"]},
             }
-            if p["credential_id"] is not None:
-                desired["credentials"] = {"id": p["credential_id"]}
-            desired = {k: v for k, v in desired.items() if v is not None}
-            desired.update(p["config"] or {})
+            desired = merge_config(named, p["config"])
             res = client.ensure("inventory-sources", desired, check_mode=module.check_mode)
     except PpdmError as err:
         fail_from(module, err)

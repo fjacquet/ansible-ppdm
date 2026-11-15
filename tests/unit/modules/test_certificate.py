@@ -161,3 +161,16 @@ def test_fingerprint_normalising_to_empty_is_rejected(monkeypatch, fp):
 def test_padded_or_uppercase_pin_matches(monkeypatch, fp):
     op = FakeOpener(Resp([cert("UNKNOWN")]), Resp(cert("ACCEPTED")))
     assert run(monkeypatch, op, fingerprint=fp)["changed"]
+
+
+@pytest.mark.parametrize("bad_id", ["../credentials/x", "x?y=1#f", "a/b", ".."])
+def test_server_supplied_id_is_quoted_in_put_and_delete(monkeypatch, bad_id):
+    op = FakeOpener(Resp([cert("UNKNOWN", id=bad_id)]), Resp(cert("ACCEPTED")))
+    run(monkeypatch, op)
+    put_path = op.calls[1][0].split("https://h:8443", 1)[1]
+    op = FakeOpener(Resp([cert("ACCEPTED", id=bad_id)]), Resp(None, 204))
+    run(monkeypatch, op, state="absent", fingerprint=None)
+    del_path = op.calls[1][0].split("https://h:8443", 1)[1]
+    for path in (put_path, del_path):
+        tail = path[len("/api/v2/certificates/") :]
+        assert path.startswith("/api/v2/certificates/") and not set("/?#") & set(tail) and tail.strip(".") != ""

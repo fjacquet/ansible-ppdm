@@ -34,7 +34,10 @@ options:
     default: GET
   path:
     description:
-    - Request path, must start with C(/api/), for example C(/api/v3/alerts).
+    - Request path, must start with C(/api/), for example C(/api/v3/alerts). Paths containing C(..), C(%2e),
+      C(%25), C(%00), C(?), C(#), C(;), a backslash, whitespace, control or non-ASCII characters are refused.
+      This is a guard against accidents, not a security boundary, the module sends the access token to
+      the configured I(hostname) only and the caller already holds its credentials.
     type: str
     required: true
   query:
@@ -134,10 +137,11 @@ def main():
     )
     p = module.params
     method, path = p["method"], p["path"]
-    if not path.startswith("/api/") or re.search(r"\.\.|%2e|[?#\s]", path, re.IGNORECASE):
+    # a guard against accidents, not a security boundary (see the path option)
+    if not path.startswith("/api/") or re.search(r"\.\.|%2e|%25|%00|[;?#\\]|[^\x21-\x7e]", path, re.IGNORECASE):
         module.fail_json(
-            msg="path must start with /api/ and contain no '..', '%2e', '?', '#' or whitespace "
-            "(use the query option for parameters)"
+            msg="path must start with /api/ and contain no '..', '%2e', '%25', '%00', '?', '#', ';', '\\', "
+            "whitespace, control or non-ASCII characters (use the query option for parameters)"
         )
     if method != "GET" and module.check_mode:
         module.exit_json(changed=True, skipped_write=True, status=None, result=None)

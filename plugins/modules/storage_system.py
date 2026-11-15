@@ -44,6 +44,8 @@ options:
     type: str
   config:
     description:
+    - The module fails when C(config) contains a key that a named option sets (C(name), C(description),
+      C(locationId) and C(ddLocationId)), use the option instead.
     - Extra request body fields passed through as is (for example C(details)).
     - Each top-level key replaces the whole value of that field, the merge with the existing object is
       shallow (top-level keys only), nested values are not merged.
@@ -89,6 +91,7 @@ from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
     client_from_module,
     connection_argument_spec,
     fail_from,
+    merge_config,
 )
 
 
@@ -105,9 +108,8 @@ def main():
         "locationId": p["location_id"],
         "ddLocationId": p["dd_location_id"],
     }
-    desired = {k: v for k, v in desired.items() if v is not None}
-    desired.update(p["config"] or {})
     try:
+        desired = merge_config(desired, p["config"])
         if client.find_one("storage-systems", "name", p["name"]) is None:
             module.fail_json(
                 msg="storage system %r not found: storage systems cannot be created through the "

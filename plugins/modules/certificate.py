@@ -19,9 +19,11 @@ description:
   than the pin fails, it is never reported as unchanged.
 - With I(accept_any_certificate=true) only C(UNKNOWN) is accepted, every other non-C(ACCEPTED) state fails.
 - With C(state=absent) the entry is deleted when it is currently C(ACCEPTED).
-- A real C(state=present) run does the GET without C(nocache), per the API this retrieves the remote certificate
-  and stores it in the trust store (intended). Check mode and C(state=absent) use C(nocache=true) so they
-  never write to the trust store.
+- ? A real C(state=present) run does the GET without C(nocache), per the API this retrieves the remote
+    certificate and stores it in the trust store in a non-accepted state, BEFORE the I(fingerprint) pin
+    is checked, and the entry stays there when the pin does not match (by design
+  : PPDM exposes no side-effect-free way to read the presented certificate). Check mode and C(state=absent)
+    use C(nocache=true) so they never write to the trust store.
 - Entries are matched on exact I(host) (case-insensitive), I(port) and I(type). More than one match fails.
 - With C(state=absent) an API entry without a C(type) is not matched, so C(changed=false) can mean "not
   found by this module".
@@ -126,6 +128,7 @@ ARGUMENT_SPEC = dict(
 # END GENERATED
 
 import re
+from urllib.parse import quote
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
@@ -137,6 +140,11 @@ from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
 
 PATH = "/api/v2/certificates"
 PIN_ACCEPTS = ("UNKNOWN", "MISMATCHED", "REJECTED")
+
+
+def item_path(cert_id):
+    # the id comes from the server: it must not change the path (a bare "." or ".." is not touched by quote)
+    return "%s/%s" % (PATH, quote(str(cert_id), safe="").replace(".", "%2E"))
 
 
 def norm(fp):
@@ -188,7 +196,7 @@ def main():
             if state != "ACCEPTED" or not cert.get("id"):
                 module.exit_json(changed=False, certificate={}, diff={"before": {}, "after": {}})
             if not module.check_mode:
-                client.request("DELETE", "%s/%s" % (PATH, cert["id"]))
+                client.request("DELETE", item_path(cert["id"]))
             module.exit_json(changed=True, certificate={}, diff={"before": cert, "after": {}})
         if cert is None:
             module.fail_json(msg="PPDM returned no certificate for %s:%s" % (p["host"], p["port"]))
@@ -210,7 +218,7 @@ def main():
         after = dict(cert, state="ACCEPTED")
         if not module.check_mode:
             if cert.get("id"):
-                after = client.request("PUT", "%s/%s" % (PATH, cert["id"]), body=after) or after
+                after = client.request("PUT", item_path(cert["id"]), body=after) or after
             else:
                 after = client.request("POST", PATH, body=after) or after
     except PpdmError as err:
