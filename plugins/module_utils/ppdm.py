@@ -44,9 +44,9 @@ WRITE_ONLY_KEYS = frozenset(
 )
 
 
-def strip_readonly(resource: str, obj: dict) -> dict:
-    """Copy of obj without the readOnly properties of the resource (from ROUTES) and without _links."""
-    drop = set(ROUTES[resource]["readonly"]) | {"_links"}
+def strip_readonly(resource: str, obj: dict, readonly: Any = None) -> dict:
+    """Copy of obj without the readOnly properties (from ROUTES, or the readonly override) and without _links."""
+    drop = set(ROUTES[resource]["readonly"] if readonly is None else readonly) | {"_links"}
     return {k: v for k, v in obj.items() if k not in drop}
 
 
@@ -54,6 +54,15 @@ def filter_eq(key: str, value: Any) -> str:
     """PPDM filter expression `key eq "value"` (backslash and double quote escaped)."""
     # shortcut: the OpenAPI does not document filter escaping; backslash-escaping \ and " is best effort.
     return '%s eq "%s"' % (key, str(value).replace("\\", "\\\\").replace('"', '\\"'))
+
+
+def is_subset(want: Any, have: Any) -> bool:
+    """True when every dict key of want is in have with a subset value; lists must have the same length."""
+    if isinstance(want, dict):
+        return isinstance(have, dict) and all(k in have and is_subset(v, have[k]) for k, v in want.items())
+    if isinstance(want, list):
+        return isinstance(have, list) and len(want) == len(have) and all(map(is_subset, want, have))
+    return want == have
 
 
 def merge_config(named: dict, config: dict | None) -> dict:
@@ -387,17 +396,21 @@ class PpdmClient:
         update_secrets: str = "on_create",
         create: bool = True,
         update_verb: str | None = None,
+        readonly: Any = None,
+        subset_keys: Any = (),
     ) -> dict:
         """Create or update one object; the merge over the existing object is shallow (top-level keys only).
 
         With create=False a missing object is a PpdmError instead of a POST. update_verb None means PUT when
-        the route offers it, else PATCH.
+        the route offers it, else PATCH. readonly overrides the ROUTES readOnly key set. A desired value of a
+        subset_keys key that is a subset of the existing one (see is_subset) counts as unchanged, so server-added
+        ids and defaults do not cause an update; a real update still sends the desired value as given.
         """
         if update_secrets not in ("on_create", "always"):
             raise PpdmError("update_secrets must be 'on_create' or 'always', got %r" % (update_secrets,))
         secret_keys = set(secret_keys)
         existing = self.find_one(resource, key, desired[key])
-        want = strip_readonly(resource, desired)
+        want = strip_readonly(resource, desired, readonly)
         if existing is None:
             if not create:
                 raise PpdmError("%s %s=%s not found" % (resource, key, self.scrub_text(desired[key], 200)))
@@ -408,21 +421,23 @@ class PpdmClient:
                 "object": _mask(obj, secret_keys),
                 "diff": {"before": {}, "after": _mask(want, secret_keys)},
             }
-        before = strip_readonly(resource, existing)
+        before = strip_readonly(resource, existing, readonly)
         after = dict(before, **want)
+        same = {k: before[k] for k in subset_keys if k in want and k in before and is_subset(want[k], before[k])}
+        shown = dict(after, **same)
 
         # Secrets are write-only (GET omits/masks them): never part of the comparison.
         def plain(o):
             return {k: v for k, v in o.items() if k not in secret_keys}
 
         force = update_secrets == "always" and bool(secret_keys & set(want))
-        if plain(after) == plain(before) and not force:
+        if plain(shown) == plain(before) and not force:
             return {
                 "changed": False,
                 "object": _mask(existing, secret_keys),
                 "diff": {
                     "before": _mask(before, secret_keys),
-                    "after": _mask(after, secret_keys),
+                    "after": _mask(shown, secret_keys),
                 },
             }
         verb = update_verb or ("PUT" if "PUT" in ROUTES[resource]["methods"] else "PATCH")
@@ -583,8 +598,10 @@ def info_main(
                     raise PpdmError("GET %s/%s failed: unexpected response" % (resource, p["id"]))
                 found = [body]
         else:
-            terms = [filter_eq("name", p["name"])] if p["name"] else [p["filter"]] if p["filter"] else []
+            terms = [filter_eq("name", p["name"])] if p["name"] else []
             terms += [filter_eq(f, p[o]) for o, f in extra.items() if p[o] is not None]
+            if p["filter"]:  # parenthesised so an `or` in it cannot escape the ANDed terms
+                terms.insert(0, "(%s)" % p["filter"] if terms else p["filter"])
             found = client.list_all(resource, filter=" and ".join(terms) or None)
             if p["name"]:  # the server-side filter is advisory (and I(filter) is passed through unchanged)
                 found = [o for o in found if isinstance(o, dict) and o.get("name") == p["name"]]

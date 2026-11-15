@@ -192,3 +192,11 @@ def test_protection_policy_info_name_and_asset_type_are_anded(monkeypatch):
     op = FakeOpener(page([], 1, 0))
     run(monkeypatch, protection_policy_info, op, name="g", asset_type="KUBERNETES")
     assert parse_qs(urlsplit(op.calls[0][0]).query)["filter"] == ['name eq "g" and assetType eq "KUBERNETES"']
+
+
+def test_protection_policy_info_user_filter_is_parenthesised(monkeypatch):
+    op = FakeOpener(page([], 1, 0))
+    run(monkeypatch, protection_policy_info, op, filter='name lk "a%" or name lk "b%"', asset_type="KUBERNETES")
+    assert parse_qs(urlsplit(op.calls[0][0]).query)["filter"] == [
+        '(name lk "a%" or name lk "b%") and assetType eq "KUBERNETES"'
+    ]

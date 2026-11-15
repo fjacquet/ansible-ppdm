@@ -16,6 +16,8 @@ attributes:
     support: full
 notes:
   - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
+  - I(objectives) and I(overrides) are lists that replace the whole list on PPDM. To update them without churn, copy them with their C(id) values from M(fjacquet.ppdm.protection_policy_info) and edit the copy.
+  - Idempotence treats each desired item as a subset of the existing item at the same index (same list length), so ids and defaults PPDM adds do not cause a change; a real difference sends your lists as given.
   - The structure of I(objectives) (C(target), C(operations), C(retentions), C(config), C(options)) depends on I(asset_type), see the examples and the PPDM 20.3.0 REST API reference.
 seealso:
   - module: fjacquet.ppdm.protection_policy_info
@@ -47,7 +49,7 @@ options:
   purpose:
     type: str
     choices: [CENTRALIZED, EXCLUSION, SELF_SERVICE]
-    description: Purpose of the policy. PPDM cannot change it through PATCH.
+    description: Purpose of the policy. The module fails when it differs from the existing policy, PPDM cannot change it through PATCH.
   objectives:
     type: list
     elements: dict
@@ -55,13 +57,15 @@ options:
       - Objectives of the policy, passed to PPDM as is after validation.
       - Each item must be a dict with C(type) one of C(ARCHIVE), C(BACKUP), C(CLOUD_DR), C(CLOUD_TIER), C(OBJECT_STORAGE_BACKUP), C(REPLICATION), C(SNAPSHOT) or C(VAULT).
       - Add C(id) only to reference an existing objective in an update.
-      - The whole list replaces the existing one, nested values are not merged.
+      - The whole list replaces the existing one, nested values are not merged. Copy existing objectives with their ids from M(fjacquet.ppdm.protection_policy_info) to update them.
+      - A run is unchanged when each desired objective is a subset of the existing one at the same index (same list length).
   overrides:
     type: list
     elements: dict
     description:
       - Schedule skip overrides (at most 10), passed to PPDM as is.
       - An empty list removes all overrides.
+      - Compared like I(objectives), a subset of the existing list at the same indexes is unchanged.
   config:
     type: dict
     description:

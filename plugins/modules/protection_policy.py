@@ -24,6 +24,10 @@ extends_documentation_fragment:
 notes:
 - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0
   REST API.
+- I(objectives) and I(overrides) are lists that replace the whole list on PPDM. To update them without
+  churn, copy them with their C(id) values from M(fjacquet.ppdm.protection_policy_info) and edit the copy.
+- Idempotence treats each desired item as a subset of the existing item at the same index (same list length),
+  so ids and defaults PPDM adds do not cause a change; a real difference sends your lists as given.
 - The structure of I(objectives) (C(target), C(operations), C(retentions), C(config), C(options)) depends
   on I(asset_type), see the examples and the PPDM 20.3.0 REST API reference.
 seealso:
@@ -79,7 +83,8 @@ options:
     type: bool
   purpose:
     description:
-    - Purpose of the policy. PPDM cannot change it through PATCH.
+    - Purpose of the policy. The module fails when it differs from the existing policy, PPDM cannot change
+      it through PATCH.
     type: str
     choices:
     - CENTRALIZED
@@ -91,13 +96,17 @@ options:
     - Each item must be a dict with C(type) one of C(ARCHIVE), C(BACKUP), C(CLOUD_DR), C(CLOUD_TIER),
       C(OBJECT_STORAGE_BACKUP), C(REPLICATION), C(SNAPSHOT) or C(VAULT).
     - Add C(id) only to reference an existing objective in an update.
-    - The whole list replaces the existing one, nested values are not merged.
+    - The whole list replaces the existing one, nested values are not merged. Copy existing objectives
+      with their ids from M(fjacquet.ppdm.protection_policy_info) to update them.
+    - A run is unchanged when each desired objective is a subset of the existing one at the same index
+      (same list length).
     type: list
     elements: dict
   overrides:
     description:
     - Schedule skip overrides (at most 10), passed to PPDM as is.
     - An empty list removes all overrides.
+    - Compared like I(objectives), a subset of the existing list at the same indexes is unchanged.
     type: list
     elements: dict
   config:
@@ -360,7 +369,18 @@ def main():
                     "protection policy %s has asset type %s, it cannot be changed to %s: delete and recreate it"
                     % (p["name"], existing.get("assetType"), p["asset_type"])
                 )
-            res = client.ensure("protection-policies", desired, check_mode=module.check_mode)
+            if existing and p["purpose"] and existing.get("purpose") not in (None, p["purpose"]):
+                raise PpdmError(
+                    "protection policy %s has purpose %s, PPDM cannot change it to %s through PATCH"
+                    % (p["name"], existing.get("purpose"), p["purpose"])
+                )
+            res = client.ensure(
+                "protection-policies",
+                desired,
+                check_mode=module.check_mode,
+                readonly=("createdAt", "updatedAt", "disablementInfo"),
+                subset_keys=("objectives", "overrides"),
+            )
     except PpdmError as err:
         fail_from(module, err)
     module.exit_json(changed=res["changed"], protection_policy=res.get("object", {}), diff=res["diff"])

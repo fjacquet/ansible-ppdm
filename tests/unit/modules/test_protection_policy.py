@@ -111,3 +111,65 @@ def test_absent_check_mode_sends_nothing(monkeypatch):
         state="absent",
     )
     assert out["changed"] and methods(op) == ["GET"]
+
+
+REAL = {
+    "id": "p1",
+    "name": "gold",
+    "assetType": "VMWARE_VIRTUAL_MACHINE",
+    "description": "d",
+    "purpose": "CENTRALIZED",
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-02T00:00:00Z",
+    "disablementInfo": {"state": "ENABLED"},
+    "objectives": [
+        {
+            "id": "o1",
+            "type": "BACKUP",
+            "createdAt": "t",
+            "operations": [{"id": "op1", "backupLevel": "FULL", "triggerType": "ON_SCHEDULE"}],
+            "retentions": [{"id": "r1", "time": [{"type": "RETENTION", "unitType": "DAY", "unitValue": 30}]}],
+        }
+    ],
+}
+USER_OBJ = [
+    {
+        "type": "BACKUP",
+        "operations": [{"backupLevel": "FULL"}],
+        "retentions": [{"time": [{"type": "RETENTION", "unitType": "DAY", "unitValue": 30}]}],
+    }
+]
+
+
+def test_server_added_fields_do_not_cause_change(monkeypatch):
+    op = FakeOpener(listing(REAL), listing(REAL))
+    out = run(monkeypatch, op, objectives=USER_OBJ)
+    assert not out["changed"] and set(methods(op)) == {"GET"}
+
+
+def test_real_objective_difference_changes(monkeypatch):
+    other = json.loads(json.dumps(USER_OBJ))
+    other[0]["retentions"][0]["time"][0]["unitValue"] = 60
+    op = FakeOpener(listing(REAL), listing(REAL), Resp({"id": "p1"}))
+    out = run(monkeypatch, op, objectives=other)
+    assert out["changed"] and methods(op)[-1] == "PATCH"
+    assert json.loads(op.calls[2][1]["data"])["objectives"] == other
+
+
+def test_longer_objective_list_changes(monkeypatch):
+    op = FakeOpener(listing(REAL), listing(REAL), Resp({"id": "p1"}))
+    assert run(monkeypatch, op, objectives=USER_OBJ + [{"type": "SNAPSHOT"}])["changed"]
+
+
+def test_patch_body_drops_server_owned_fields_keeps_objective_ids(monkeypatch):
+    op = FakeOpener(listing(REAL), listing(REAL), Resp({"id": "p1"}))
+    run(monkeypatch, op, objectives=None, description="new")
+    sent = json.loads(op.calls[2][1]["data"])
+    assert not {"createdAt", "updatedAt", "disablementInfo"} & set(sent)
+    assert sent["objectives"][0]["id"] == "o1" and sent["description"] == "new"
+
+
+def test_purpose_change_fails_early(monkeypatch):
+    op = FakeOpener(listing(REAL))
+    out = run(monkeypatch, op, objectives=USER_OBJ, purpose="SELF_SERVICE")
+    assert out["failed"] and "purpose" in out["msg"] and methods(op) == ["GET"]
