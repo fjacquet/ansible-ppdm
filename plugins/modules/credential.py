@@ -177,7 +177,9 @@ def main():
     client = client_from_module(module)
     try:
         if p["state"] == "absent":
-            res = client.remove("credentials", "name", p["name"], check_mode=module.check_mode)
+            res = client.remove(
+                "credentials", "name", p["name"], check_mode=module.check_mode, secret_keys=("password",)
+            )
         else:
             desired = {
                 "name": p["name"],

@@ -76,3 +76,9 @@ def test_credential_absent_deletes(monkeypatch):
 def test_credential_present_requires_type_and_username(monkeypatch):
     out = run_module(monkeypatch, credential, FakeOpener(), name="c1")
     assert out["failed"] and "type" in out["msg"]
+
+
+def test_credential_absent_masks_password_in_diff(monkeypatch):
+    op = FakeOpener(listing(dict(EXISTING, password="pw-secret")), Resp(None, 204))
+    out = run_module(monkeypatch, credential, op, name="c1", state="absent")
+    assert "pw-secret" not in json.dumps(out)

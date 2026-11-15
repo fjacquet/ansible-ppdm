@@ -185,3 +185,34 @@ def test_list_all_bare_list_response_raises():
     c = PpdmClient("h", "u", "p", opener=FakeOpener(Resp([{"id": 1}])))
     with pytest.raises(PpdmError):
         c.list_all("alerts")
+
+
+def test_get_all_later_page_without_envelope_raises():
+    op = FakeOpener(page([{"id": 1}], 1, 2), Resp({"oops": True}))
+    with pytest.raises(PpdmError, match="unexpected response on page 2"):
+        client(op).get_all("/api/v3/alerts")
+
+
+@pytest.mark.parametrize("pg", [[], "x", {}, {"totalPages": None}])
+def test_list_all_unusable_page_with_content_raises(pg):
+    c = client(FakeOpener(Resp({"content": [{"id": 1}], "page": pg})))
+    with pytest.raises(PpdmError, match="totalPages"):
+        c.list_all("alerts")
+
+
+@pytest.mark.parametrize("pg", [None, [], {}])
+def test_list_all_empty_content_with_odd_page_is_empty(pg):
+    body = {"content": []} if pg is None else {"content": [], "page": pg}
+    assert client(FakeOpener(Resp(body))).list_all("alerts") == []
+
+
+@pytest.mark.parametrize("exc", [ValueError("bad header\nx S3cret!"), UnicodeEncodeError("ascii", "é", 0, 1, "r")])
+def test_value_and_unicode_errors_become_ppdm_error(exc):
+    with pytest.raises(PpdmError) as e:
+        client(FakeOpener(exc)).request("GET", "/api/v3/x")
+    assert "S3cret!" not in e.value.msg
+
+
+def test_bad_query_value_becomes_ppdm_error():
+    with pytest.raises(PpdmError):
+        client(FakeOpener()).request("GET", "/api/v3/x", query={"a": "\ud800"})

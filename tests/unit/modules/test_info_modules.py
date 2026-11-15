@@ -143,3 +143,25 @@ def test_credential_info_has_no_secret_fields(monkeypatch):
     assert "password" not in out["credentials"][0] and "hunter2" not in json.dumps(out)
     out = run(monkeypatch, credential_info, FakeOpener(Resp(dict(cred))), id="1")
     assert "password" not in out["credentials"][0]
+
+
+@ALL
+def test_info_name_conflicts_with_filter(monkeypatch, mod, base, key):
+    op = FakeOpener()
+    out = run(monkeypatch, mod, op, name="x", filter="f")
+    assert out["failed"] and "mutually exclusive" in out["msg"]
+    assert op.calls == []
+
+
+@ALL
+def test_info_empty_id_fails_instead_of_listing(monkeypatch, mod, base, key):
+    op = FakeOpener()
+    out = run(monkeypatch, mod, op, id="")
+    assert out["failed"] and op.calls == []
+
+
+@ALL
+@pytest.mark.parametrize("body", [[{"id": "a"}], "text"])
+def test_info_non_dict_body_for_id_fails_cleanly(monkeypatch, mod, base, key, body):
+    out = run(monkeypatch, mod, FakeOpener(Resp(body)), id="abc")
+    assert out["failed"] and "unexpected response" in out["msg"]

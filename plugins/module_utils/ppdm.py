@@ -86,13 +86,13 @@ class PpdmClient:
         self.token = token
 
     def request(self, method, path, query=None, body=None):
-        url = self.base_url + path
-        if query:
-            url += "?" + urlencode(query, quote_via=quote)
-        headers = {"Accept": "application/json", "Content-Type": "application/json"}
-        if self.token:
-            headers["Authorization"] = "Bearer " + self.token
         try:
+            url = self.base_url + path
+            if query:
+                url += "?" + urlencode(query, quote_via=quote)
+            headers = {"Accept": "application/json", "Content-Type": "application/json"}
+            if self.token:
+                headers["Authorization"] = "Bearer " + self.token
             resp = self.opener(
                 url,
                 method=method,
@@ -118,7 +118,8 @@ class PpdmClient:
                 status=e.code,
                 body=err_body,
             ) from None
-        except (URLError, OSError, HTTPException) as e:
+        # ValueError covers UnicodeError, bad headers and urlencode failures
+        except (URLError, OSError, HTTPException, ValueError) as e:
             raise PpdmError(self._scrub("%s %s failed: %s" % (method, path, e))) from None
         if status == 204 or not raw:
             return None
@@ -141,14 +142,18 @@ class PpdmClient:
         while True:
             data = self.request("GET", path, query=dict(query or {}, page=page, pageSize=PAGE_SIZE))
             if not isinstance(data, dict) or "content" not in data:
+                if page > 1:  # never drop or truncate what was already collected
+                    raise PpdmError("GET %s failed: unexpected response on page %d" % (path, page))
                 return data, False
             content = data["content"] or []
             items.extend(content)
-            if "page" not in data:
+            pg = data.get("page")
+            total = pg.get("totalPages") if isinstance(pg, dict) else None
+            if total is None:
                 if content:
-                    raise PpdmError("GET %s failed: paginated response has no 'page' envelope" % path)
+                    raise PpdmError("GET %s failed: paginated response has no 'page.totalPages'" % path)
                 return items, True
-            if page >= data["page"].get("totalPages", 0):
+            if page >= total:
                 return items, True
             page += 1
 
@@ -179,7 +184,9 @@ class PpdmClient:
             raise PpdmError("%s does not support %s" % (resource, verb))
         if obj_id is None:
             return route["base"]
-        return route["item"].replace("{id}", str(obj_id))
+        if str(obj_id) == "":
+            raise PpdmError("%s %s: id must not be empty" % (resource, verb))
+        return route["item"].replace("{id}", quote(str(obj_id), safe=""))
 
     def ensure(
         self,
@@ -190,6 +197,7 @@ class PpdmClient:
         secret_keys=(),
         update_secrets="on_create",
     ):
+        """Create or update one object; the merge over the existing object is shallow (top-level keys only)."""
         if update_secrets not in ("on_create", "always"):
             raise PpdmError("update_secrets must be 'on_create' or 'always', got %r" % (update_secrets,))
         secret_keys = set(secret_keys)
@@ -231,7 +239,7 @@ class PpdmClient:
             },
         }
 
-    def remove(self, resource, key, value, check_mode=False):
+    def remove(self, resource, key, value, check_mode=False, secret_keys=()):
         existing = self.find_one(resource, key, value)
         if existing is None:
             return {"changed": False, "diff": {"before": {}, "after": {}}}
@@ -240,10 +248,12 @@ class PpdmClient:
             self.request("DELETE", path)
         return {
             "changed": True,
-            "diff": {"before": strip_readonly(resource, existing), "after": {}},
+            "diff": {"before": _mask(strip_readonly(resource, existing), set(secret_keys)), "after": {}},
         }
 
     def wait_activity(self, activity_id, timeout, interval=5):
+        if interval <= 0:
+            raise PpdmError("wait_activity: interval must be greater than 0, got %r" % (interval,))
         path = self._route("activities", "GET", activity_id)
         waited = 0
         while True:
@@ -307,18 +317,22 @@ def info_main(resource, result_key, argument_spec, secret_fields=()):
     module = AnsibleModule(
         argument_spec=dict(connection_argument_spec(), **argument_spec),
         supports_check_mode=True,
-        mutually_exclusive=[("id", "name"), ("id", "filter")],
+        mutually_exclusive=[("id", "name"), ("id", "filter"), ("name", "filter")],
     )
     p = module.params
     client = client_from_module(module)
     try:
-        if p["id"]:
+        if p["id"] is not None:  # an empty id must fail in _route, not fall through to a full list
             try:
-                found = [client.request("GET", client._route(resource, "GET", p["id"]))]
+                body = client.request("GET", client._route(resource, "GET", p["id"]))
             except PpdmError as err:
                 if err.status != 404:
                     raise
                 found = []
+            else:
+                if not isinstance(body, dict):
+                    raise PpdmError("GET %s/%s failed: unexpected response" % (resource, p["id"]))
+                found = [body]
         else:
             flt = filter_eq("name", p["name"]) if p["name"] else p["filter"]
             found = client.list_all(resource, filter=flt)

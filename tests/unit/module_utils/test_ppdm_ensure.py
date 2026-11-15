@@ -177,3 +177,30 @@ def test_wait_activity_times_out():
     with pytest.raises(PpdmError, match="timeout|timed out"):
         c.wait_activity("x", timeout=10, interval=5)
     assert sum(sleeps) >= 10
+
+
+@pytest.mark.parametrize("interval", [0, -5])
+def test_wait_activity_rejects_non_positive_interval(interval):
+    c, op, _ = mk()
+    with pytest.raises(PpdmError, match="interval"):
+        c.wait_activity("x", timeout=10, interval=interval)
+    assert op.calls == []
+
+
+def test_remove_masks_secrets_in_diff_before():
+    obj = {"id": "1", "name": "n", "password": "hunter2"}
+    c, _, _ = mk(page([obj], 1, 1), Resp(None, 204))
+    r = c.remove("credentials", "name", "n", secret_keys=["password"])
+    assert r["diff"]["before"]["password"] == "VALUE_SPECIFIED_IN_NO_LOG_PARAMETER"
+    assert "hunter2" not in json.dumps(r)
+
+
+def test_item_path_id_is_quoted():
+    c, _, _ = mk()
+    assert c._route("credentials", "GET", "../x?y#z").endswith("/..%2Fx%3Fy%23z")
+
+
+def test_item_path_empty_id_raises():
+    c, _, _ = mk()
+    with pytest.raises(PpdmError, match="id"):
+        c._route("credentials", "GET", "")
