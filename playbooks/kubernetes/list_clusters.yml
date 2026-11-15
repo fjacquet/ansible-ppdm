@@ -1,0 +1,26 @@
+---
+# List the Kubernetes inventory sources with address and port (read-only).
+# Inspired by bottkars/ansible_ppdm `99_playbook_get_k8s_info.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: List the Kubernetes clusters known to PPDM
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Get the Kubernetes inventory sources
+      fjacquet.ppdm.inventory_source_info:
+        filter: type eq "KUBERNETES"
+      register: k8s_sources
+
+    - name: Show the clusters
+      ansible.builtin.debug:
+        msg: "{{ item.name }} {{ item.address | default('') }}:{{ item.port | default('') }}"
+      loop: "{{ k8s_sources.inventory_sources }}"
+      loop_control:
+        label: "{{ item.name }}"

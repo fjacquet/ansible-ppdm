@@ -1,0 +1,56 @@
+---
+# Wait for the Cloud DR component, then create the Azure account or update its keys when it exists.
+# Inspired by bottkars/ansible_ppdm `2.3-playbook_configure_cloud_dr_account.yml`,
+# `2.3-playbook_updarte_cloud_dr_account.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional), AZURE_CLIENT_ID, AZURE_CLIENT_SECRET.
+- name: Configure the Cloud DR cloud account
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Wait for the Cloud DR component to be up
+      fjacquet.ppdm.api:
+        path: /api/v2/components
+      register: cdr_components
+      until: >-
+        cdr_components.result | selectattr('componentServiceName', 'equalto', 'cdr')
+        | selectattr('status', 'equalto', 'UP') | list | length == 1
+      retries: 20
+      delay: 5
+
+    - name: Get the Cloud DR accounts
+      fjacquet.ppdm.api:
+        path: /api/v2/cloud-dr-accounts
+      register: cdr_accounts
+
+    - name: Create the Cloud DR account
+      fjacquet.ppdm.api:
+        method: POST
+        path: /api/v2/cloud-dr-accounts
+        body: &cdr_account_body
+          providerName: AZURE
+          providerParameters:
+            - name: subscriptionId
+              value: "{{ azure_subscription_id }}"
+            - name: domain
+              value: "{{ azure_tenant_domain }}"
+          userKey: "{{ lookup('ansible.builtin.env', 'AZURE_CLIENT_ID') }}"
+          secretKey: "{{ lookup('ansible.builtin.env', 'AZURE_CLIENT_SECRET') }}"
+      no_log: true
+      when: cdr_accounts.result | selectattr('providerName', 'equalto', 'AZURE') | list | length == 0
+
+    - name: Update the Cloud DR account
+      fjacquet.ppdm.api:
+        method: PUT
+        path: "/api/v2/cloud-dr-accounts/{{ (cdr_accounts.result | selectattr('providerName', 'equalto', 'AZURE') | first).id }}"
+        body: *cdr_account_body
+      no_log: true
+      when: cdr_accounts.result | selectattr('providerName', 'equalto', 'AZURE') | list | length > 0

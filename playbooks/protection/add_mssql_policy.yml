@@ -1,0 +1,101 @@
+---
+# Create the OS credential and a daily full plus hourly log policy unless one of that name exists.
+# Assumptions, not verified live: storageContainerId is the Data Domain storage system id, and the objective id is generated.
+# Inspired by bottkars/ansible_ppdm `120.1_playbook_add_mssql_policy.yaml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional), APP_CREDENTIAL_PASSWORD.
+- name: Create a Microsoft SQL Server protection policy
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Get the policy of that name
+      fjacquet.ppdm.api:
+        path: /api/v3/protection-policies
+        query:
+          filter: name eq "{{ mssql_policy_name }}"
+      register: existing_policy
+
+    - name: Get the Data Domain storage system
+      fjacquet.ppdm.storage_system_info:
+        name: "{{ ddve_hostname }}"
+      register: policy_storage_system
+
+    - name: Check that the storage system exists
+      ansible.builtin.assert:
+        that: policy_storage_system.storage_systems | length == 1
+        fail_msg: No storage system named {{ ddve_hostname }}.
+
+    - name: Check that the Data Domain has a preferred interface
+      ansible.builtin.assert:
+        that: >-
+          (preferred_interface_id | default('', true) | length > 0) or
+          (policy_storage_system.storage_systems[0].details.dataDomain.preferredInterfaces | default([]) | length > 0)
+        fail_msg: The Data Domain has no preferred interface; set preferred_interface_id explicitly.
+
+    - name: Ensure the application credential
+      fjacquet.ppdm.credential:
+        name: "{{ app_credential_name }}"
+        type: OS
+        cred_username: "{{ app_credential_username }}"
+        cred_password: "{{ lookup('ansible.builtin.env', 'APP_CREDENTIAL_PASSWORD') }}"
+      no_log: true
+      register: app_credential
+
+    - name: Create the Microsoft SQL Server protection policy
+      fjacquet.ppdm.api:
+        method: POST
+        path: /api/v3/protection-policies
+        body:
+          assetType: MICROSOFT_SQL_DATABASE
+          name: "{{ mssql_policy_name }}"
+          description: SQL Server policy created by Ansible
+          purpose: CENTRALIZED
+          objectives:
+            - id: "{{ (mssql_policy_name ~ '-backup') | to_uuid }}"
+              type: BACKUP
+              target:
+                storageContainerId: "{{ policy_storage_system.storage_systems[0].id }}"
+                preferredInterfaceId: "{{ preferred_interface_id if (preferred_interface_id | default('', true) | length > 0) else
+                  policy_storage_system.storage_systems[0].details.dataDomain.preferredInterfaces[0].networkName }}"
+              operations:
+                - backupLevel: FULL
+                  triggerType: ON_SCHEDULE
+                  schedule:
+                    recurrence:
+                      pattern:
+                        type: DAILY
+                        interval: 1
+                    window:
+                      startTime: "{{ policy_window_start }}"
+                      duration: PT10H
+                - backupLevel: LOG
+                  triggerType: ON_SCHEDULE
+                  schedule:
+                    recurrence:
+                      pattern:
+                        type: HOURLY
+                        interval: 1
+                    window:
+                      startTime: "{{ policy_window_start }}"
+                      duration: PT24H
+              retentions:
+                - time:
+                    - type: RETENTION
+                      unitType: DAY
+                      unitValue: 3
+              config:
+                dataConsistency: APPLICATION_CONSISTENT
+                connectionsDetails:
+                  - type: OS
+                    credentialId: "{{ app_credential.credential.id }}"
+              options:
+                debugEnabled: false
+      when: existing_policy.result | length == 0

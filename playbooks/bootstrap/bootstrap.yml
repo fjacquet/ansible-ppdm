@@ -1,0 +1,21 @@
+---
+# Bootstrap a new appliance with the bootstrap role: EULA, initial configuration, wait for it to finish.
+# Inspired by bottkars/ansible_ppdm `1.0-playbook_configure_ppdm.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_PASSWORD.
+- name: Bootstrap a new PowerProtect Data Manager
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Run the bootstrap role
+      ansible.builtin.import_role:
+        name: fjacquet.ppdm.bootstrap
+      vars:
+        bootstrap_hostname: ppdm.example.com
+        bootstrap_username: admin
+        bootstrap_password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+        bootstrap_eula_accept: true
+        bootstrap_configuration:
+          timeZone: Europe/Zurich
+          ntpServers:
+            - pool.ntp.org

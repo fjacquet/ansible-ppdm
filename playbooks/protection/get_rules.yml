@@ -1,0 +1,29 @@
+---
+# List the protection rules, optionally filtered by name (read-only).
+# Inspired by bottkars/ansible_ppdm `playbook_get_rule.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: List protection rules
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Get the protection rules
+      fjacquet.ppdm.api:
+        path: /api/v2/protection-rules
+        query: "{{ {'filter': 'name eq \"' ~ k8s_rule_name ~ '\"'} if k8s_rule_name else omit }}"
+      register: ppdm_rules
+
+    - name: Show the rules
+      ansible.builtin.debug:
+        msg: "{{ item.name }} {{ item.id }} {{ item.inventorySourceType }}"
+      loop: "{{ ppdm_rules.result }}"
+      loop_control:
+        label: "{{ item.name }}"

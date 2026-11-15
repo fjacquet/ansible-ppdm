@@ -1,0 +1,47 @@
+---
+# Set the server disaster recovery (SDR) repository to an existing Data Domain storage system.
+# Inspired by bottkars/ansible_ppdm `3.0-playbook_set_sdr.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Point PPDM server disaster recovery to a Data Domain
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Get the SDR configuration
+      fjacquet.ppdm.api:
+        path: /api/v2/server-disaster-recovery-configurations
+      register: sdr_configurations
+
+    - name: Get the Data Domain storage system
+      fjacquet.ppdm.storage_system_info:
+        name: "{{ ddve_hostname }}"
+      register: sdr_storage_system
+
+    - name: Check that the SDR configuration and the storage system exist
+      ansible.builtin.assert:
+        that:
+          - sdr_configurations.result | length == 1
+          - sdr_storage_system.storage_systems | length == 1
+        fail_msg: Expected one SDR configuration and one storage system named {{ ddve_hostname }}.
+
+    - name: Set the SDR repository
+      fjacquet.ppdm.api:
+        method: PUT
+        path: "/api/v2/server-disaster-recovery-configurations/{{ sdr_configurations.result[0].id }}"
+        body: >-
+          {{ sdr_configurations.result[0] | combine({
+            'backupsEnabled': true,
+            'repositoryHost': sdr_storage_system.storage_systems[0].id,
+            'repositoryPath': sdr_repository_path
+          }) }}
+      when: >-
+        sdr_configurations.result[0].repositoryHost | default('') != sdr_storage_system.storage_systems[0].id
+        or sdr_configurations.result[0].repositoryPath | default('') != sdr_repository_path

@@ -1,0 +1,22 @@
+---
+# Retry a read until the REST API answers and the login works (the bootstrap role does the same before configuring).
+# Inspired by bottkars/ansible_ppdm `1.0-playbook_wait_ready.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Wait for the PPDM REST API
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Wait for the REST API
+      fjacquet.ppdm.api:
+        path: /api/v2/configurations
+      register: ppdm_ready
+      until: ppdm_ready is succeeded
+      retries: 60
+      delay: 30

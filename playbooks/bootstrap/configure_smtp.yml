@@ -1,0 +1,47 @@
+---
+# Create the SMTP configuration, or update it when it differs.
+# Inspired by bottkars/ansible_ppdm `3.1-playbook_set_smtp.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Configure the PPDM SMTP server
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Get the SMTP configuration
+      fjacquet.ppdm.api:
+        path: /api/v2/smtp
+      register: ppdm_smtp
+
+    - name: Create the SMTP configuration
+      fjacquet.ppdm.api:
+        method: POST
+        path: /api/v2/smtp
+        body:
+          mailServer: "{{ smtp_server }}"
+          port: "{{ smtp_port | int }}"
+          mailFrom: "{{ smtp_from }}"
+      when: ppdm_smtp.result | length == 0
+
+    - name: Update the SMTP configuration
+      fjacquet.ppdm.api:
+        method: PUT
+        path: "/api/v2/smtp/{{ ppdm_smtp.result[0].id }}"
+        body:
+          id: "{{ ppdm_smtp.result[0].id }}"
+          mailServer: "{{ smtp_server }}"
+          port: "{{ smtp_port | int }}"
+          mailFrom: "{{ smtp_from }}"
+      when:
+        - ppdm_smtp.result | length > 0
+        - >-
+          ppdm_smtp.result[0].mailServer != smtp_server
+          or ppdm_smtp.result[0].port != (smtp_port | int)
+          or ppdm_smtp.result[0].mailFrom | default('') != smtp_from
