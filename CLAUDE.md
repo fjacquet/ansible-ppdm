@@ -56,3 +56,4 @@ uv run ansible-galaxy collection build --force --output-path <scratch-dir>
 - `changelogs/`: antsibull-changelog config and fragments.
 - `docs/openapi/`: PPDM 20.3.0 OpenAPI specs (21200, 21201, 21202).
 - `docs/superpowers/`: design spec and implementation plan (not shipped).
+- `playbooks/<usecase>/<name>.yml`: collection playbooks, run as `ansible-playbook fjacquet.ppdm.<usecase>.<name>` (names: lowercase, digits, `_`). Index and conventions in `playbooks/README.md`; `tests/unit/test_playbooks.py` enforces them.

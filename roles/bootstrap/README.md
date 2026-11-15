@@ -25,7 +25,7 @@ Brings a freshly deployed PowerProtect Data Manager 20.3.0 to a configured state
 
 ## Example
 
-See `docs/examples/bootstrap.yml`. Certificates are not handled by the role; call `fjacquet.ppdm.certificate` yourself afterwards:
+See `playbooks/bootstrap/bootstrap.yml` (`ansible-playbook fjacquet.ppdm.bootstrap.bootstrap`). Certificates are not handled by the role; call `fjacquet.ppdm.certificate` yourself afterwards:
 
 ```yaml
 - name: Trust the PPDM certificate
