@@ -13,6 +13,7 @@ BASE_RE = re.compile(r"^/api/(v\d+)/([^/{}]+)$")
 ITEM_RE = re.compile(r"^/api/(v\d+)/([^/{}]+)/\{[^/{}]+\}$")
 SCHEMAS_DIR = Path(__file__).resolve().parent / "schemas"
 MODULES_DIR = Path(__file__).resolve().parents[1] / "plugins" / "modules"
+OPTION_KEYS = {"type", "required", "choices", "default", "elements", "aliases", "description", "no_log"}
 BEGIN, END = "# BEGIN GENERATED", "# END GENERATED"
 ROUTES_FILE = Path(__file__).resolve().parents[1] / "plugins" / "module_utils" / "_routes.py"
 
@@ -87,10 +88,13 @@ def render_module_blocks(schema):
     """Return (DOCUMENTATION yaml text, ARGUMENT_SPEC python source) from one schema."""
     doc_opts, spec = {}, {}
     for name, o in schema.get("options", {}).items():
+        unknown = set(o) - OPTION_KEYS
+        if unknown:  # shortcut: no suboptions yet, add when a module needs them
+            raise ValueError(f"module {schema['module']!r} option {name!r}: unsupported key(s) {sorted(unknown)}")
         d = {"description": [o["description"]] if isinstance(o["description"], str) else o["description"],
              "type": o["type"]}
         s = {"type": o["type"]}
-        for k in ("required", "choices", "default", "elements"):
+        for k in ("required", "choices", "default", "elements", "aliases"):
             if k in o:
                 d[k] = s[k] = o[k]
         if o.get("no_log"):
@@ -113,6 +117,11 @@ def render_module_blocks(schema):
 
 def render_generated_block(schema):
     doc, spec = render_module_blocks(schema)
+    texts = {k: schema[k] if schema[k].endswith("\n") else schema[k] + "\n" for k in ("examples", "return")}
+    for label, text in (("DOCUMENTATION", doc), *texts.items()):
+        if "'''" in text:
+            raise ValueError(f"module {schema['module']!r}: {label} text contains a triple quote, which breaks the generated string")
+    schema = {**schema, **texts}
     return (f"{BEGIN}\nDOCUMENTATION = r'''\n{doc}'''\n\nEXAMPLES = r'''\n{schema['examples']}'''\n\n"
             f"RETURN = r'''\n{schema['return']}'''\n\n{spec}{END}\n")
 
@@ -135,9 +144,12 @@ def module_skeleton(schema):
     )
 
 
-def update_module_text(text, schema):
+def update_module_text(text, schema, name="module file"):
     block = render_generated_block(schema)
-    a, b = text.index(BEGIN), text.index(END)
+    a = text.find(BEGIN)
+    b = text.find(END, a + len(BEGIN)) if a >= 0 else -1
+    if a < 0 or b < 0:
+        raise ValueError(f"{name}: missing or misordered '{BEGIN}' / '{END}' markers")
     return text[:a] + block + text[b + len(END) :].removeprefix("\n")
 
 
@@ -148,7 +160,7 @@ def sync_modules(schemas_dir, modules_dir, check):
         schema = yaml.safe_load(path.read_text())
         target = Path(modules_dir) / f"{schema['module']}.py"
         old = target.read_text() if target.exists() else None
-        new = module_skeleton(schema) if old is None else update_module_text(old, schema)
+        new = module_skeleton(schema) if old is None else update_module_text(old, schema, str(target))
         if new != old:
             drift.append(target)
             if not check:
@@ -163,7 +175,11 @@ def main(argv, schemas_dir=SCHEMAS_DIR, modules_dir=MODULES_DIR):
         return 0
     if argv[:1] == ["modules"]:
         check = "--check" in argv
-        drift = sync_modules(schemas_dir, modules_dir, check)
+        try:
+            drift = sync_modules(schemas_dir, modules_dir, check)
+        except ValueError as err:
+            print(f"error: {err}", file=sys.stderr)
+            return 2
         for p in drift:
             print(f"{'drift' if check else 'updated'}: {p}", file=sys.stderr)
         return 1 if (check and drift) else 0

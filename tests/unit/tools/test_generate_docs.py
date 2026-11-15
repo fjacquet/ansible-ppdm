@@ -1,11 +1,14 @@
 import ast
+import re
 
+import pytest
 import yaml
 
 from tools import generate
 from ansible_collections.fjacquet.ppdm.plugins.doc_fragments.ppdm import ModuleDocFragment
 from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import connection_argument_spec
 
+TQ = "'" * 3
 SCHEMA = {
     "module": "widget",
     "resource": "widgets",
@@ -87,3 +90,74 @@ def test_generated_module_compiles_and_keeps_hand_code(tmp_path):
     text = path.read_text()
     assert text.endswith("# hand written\n")
     ast.parse(text)
+
+
+def _setup(tmp_path, schema):
+    s, m = tmp_path / "s", tmp_path / "m"
+    s.mkdir()
+    m.mkdir()
+    (s / "widget.yml").write_text(yaml.safe_dump(schema))
+    return s, m
+
+
+@pytest.mark.parametrize("field", ["examples", "return"])
+def test_triple_quote_rejected(field):
+    with pytest.raises(ValueError, match="widget.*triple"):
+        generate.render_generated_block({**SCHEMA, field: "a " + TQ + " b"})
+
+
+def test_triple_quote_in_description_rejected():
+    opts = {"name": {**SCHEMA["options"]["name"], "description": "it " + TQ + " breaks"}}
+    with pytest.raises(ValueError, match="DOCUMENTATION"):
+        generate.render_generated_block({**SCHEMA, "options": opts})
+
+
+def test_trailing_quote_text_compiles():
+    ast.parse(generate.render_generated_block({**SCHEMA, "examples": "x: 'y'", "return": "z: 'w'"}))
+
+
+def test_missing_or_reordered_markers_clear_error(tmp_path):
+    s, m = _setup(tmp_path, SCHEMA)
+    generate.main(["modules"], s, m)
+    path = m / "widget.py"
+    good = path.read_text()
+    for bad in (good.replace(generate.BEGIN, ""), good.replace(generate.END, ""),
+                generate.END + "\n" + good.replace(generate.END, "")):
+        path.write_text(bad)
+        with pytest.raises(ValueError, match="widget.py.*markers"):
+            generate.update_module_text(bad, SCHEMA, str(path))
+        assert generate.main(["modules", "--check"], s, m) == 2
+        assert generate.main(["modules"], s, m) == 2
+
+
+def test_alias_round_trip():
+    opts = {**SCHEMA["options"], "name": {**SCHEMA["options"]["name"], "aliases": ["n"]}}
+    doc, src = generate.render_module_blocks({**SCHEMA, "options": opts})
+    assert yaml.safe_load(doc)["options"]["name"]["aliases"] == ["n"]
+    assert _spec(src)["name"]["aliases"] == ["n"]
+
+
+def test_unknown_option_key_fails_loudly():
+    opts = {"name": {**SCHEMA["options"]["name"], "suboptions": {}}}
+    with pytest.raises(ValueError, match="widget.*name.*suboptions"):
+        generate.render_module_blocks({**SCHEMA, "options": opts})
+
+
+def _env_names(text):
+    return set(re.findall(r"E\((PPDM_\w+)\)", text))
+
+
+def test_fragment_env_and_choices_match_spec():
+    opts = yaml.safe_load(ModuleDocFragment.DOCUMENTATION)["options"]
+    for name, s in connection_argument_spec().items():
+        assert opts[name].get("choices") == s.get("choices")
+        spec_env = set(s["fallback"][1]) if "fallback" in s else set()
+        assert _env_names(" ".join(opts[name]["description"])) == spec_env, name
+
+
+def test_env_name_mismatch_detected():
+    mutated = ModuleDocFragment.DOCUMENTATION.replace("PPDM_HOSTNAME", "PPDM_HOST")
+    opts = yaml.safe_load(mutated)["options"]
+    assert _env_names(" ".join(opts["hostname"]["description"])) != set(
+        connection_argument_spec()["hostname"]["fallback"][1]
+    )
