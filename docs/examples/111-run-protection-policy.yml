@@ -1,6 +1,8 @@
 ---
 # Start the first objective of a protection policy found by name (POST /api/v3/protections).
-# Inspired by bottkars/ansible_ppdm `110.4_playbook_start_policy.yaml, 120.3_playbook_start_policy.yaml and 130.4_playbook_start_k8s_policy.yaml` (workflow only; rewritten for fjacquet.ppdm).
+# Inspired by bottkars/ansible_ppdm `110.4_playbook_start_policy.yaml`,
+# `120.3_playbook_start_policy.yaml`,
+# `130.4_playbook_start_k8s_policy.yaml` (workflow only; rewritten for fjacquet.ppdm).
 # Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
 - name: Run a protection policy now
   hosts: localhost
