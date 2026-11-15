@@ -34,10 +34,12 @@
 ### Task 1: v3 rule enums and shared validation
 
 **Files:**
+
 - Modify: `tools/generate.py` (`build_enums`), `plugins/module_utils/_enums.py` (generated), `plugins/module_utils/protection_rule.py`
 - Test: `tests/unit/tools/test_generate_enums.py`, create `tests/unit/test_protection_rule_utils.py`
 
 **Interfaces:**
+
 - Produces `ENUMS` keys (sorted tuples read from the v3 spec schemas `Rule`, `RuleAction`, `RuleFilter`, `RuleLogicalCondition`, `RuleRelationalCondition`, `RuleExecution`, `ProtectionGroup` (v2)): `rule.action_name`, `rule.variant`, `rule.scope`, `rule.category`, `rule_filter.object_type`, `rule_filter.object_subtype`, `rule_filter.type`, `rule_filter.operator`, `rule_condition.operator` (relational), `rule_condition.logical_operator`, `rule_run.action_name`, `rule_run.object_subtype`, `protection_group.type`, `protection_group.subtype`, `protection_group.member_asset_type`, `protection_group.backup_strategy`. The old keys `protection_rule.*`, `condition.operator`, `protection_rule_run.*` are removed with their v2 lookups.
 - Produces in `protection_rule.py`: `validate_filters(filters: list | None) -> None` (raises `PpdmError`), `validate_rule_body(rule: dict) -> None` (checks `action.name`, `variant`, `scopes`, `categories`, then `validate_filters(rule.get("filters"))`). Remove `validate_conditions`.
 
@@ -50,10 +52,12 @@
 ### Task 2: `protection_rule` and `protection_rule_info` on v3
 
 **Files:**
+
 - Modify: `tools/schemas/protection_rule.yml`, `tools/schemas/protection_rule_info.yml`, generated parts of `plugins/modules/protection_rule.py` and `protection_rule_info.py`, rewrite bodies
 - Test: rewrite `tests/unit/modules/test_protection_rule.py`, update `tests/unit/modules/test_info_modules.py` (`protection_rule_info` path `/api/v3/rules`)
 
 **Interfaces:**
+
 - Consumes: `validate_filters`, `ENUMS["rule.*"]` (Task 1); `PpdmClient.ensure/remove/find_one`, `merge_config`, `info_main`.
 - Options of `protection_rule` (all v2 options removed): `state` (present|absent, default present), `name` (required), `description`, `priority` (int), `action` (str, choices `rule.action_name`), `protection_policy` / `protection_policy_id`, `resource_group` / `resource_group_id` (each pair mutually exclusive; the name forms are resolved with `find_one("protection-policies"|"resource-groups","name",v)`, no match fails `protection policy X not found`), `variant`, `scopes` (list, choices), `categories` (list, choices), `filters` (list of dict), `config` (dict, same collision rule: fails on `id`, `_links` and on any key a named option sets).
 - Body sent: `{name, description, priority, action: {name, args: [{name: "PROTECTION_POLICY_ID"|"RESOURCE_GROUP_ID", values: [id]}]}, variant, scopes, categories, filters}`; omitted when the option is None. `protection_policy*` is only valid with `action=ASSIGN_PROTECTION_POLICY`, `resource_group*` only with `ASSIGN_RESOURCE_GROUP`, else a `PpdmError` before any request. Read-only stripped and ignored in comparison: `createdAt, updatedAt, lastRunAt, lastMigratedAt, status, uniqueHash`. `filters` and `action.args` compared as in `ensure(subset_keys=...)` (read `ppdm.py` `is_subset`/`ensure` to choose the keys; filters compared in order). Resource `"rules"`; returns `protection_rule`, `diff`.
@@ -68,10 +72,12 @@
 ### Task 3: `protection_rule_run` on v3
 
 **Files:**
+
 - Modify: `tools/schemas/protection_rule_run.yml`, generated part and body of `plugins/modules/protection_rule_run.py`
 - Test: rewrite `tests/unit/modules/test_protection_rule_run.py`
 
 **Interfaces:**
+
 - Consumes: `validate_rule_body`, `ENUMS["rule_run.*"]`, `client.start_action(path, body, check_mode) -> {"changed", "response"}`, `client.await_activity(activity_id, timeout) -> {"activity", ["warnings"]}`, and the `wait` handling of `plugins/modules/protection_policy_run.py` (mirror it: with `wait` an answer without `activityId` fails, without `wait` only a warning).
 - Options (v2 `rules`, `inventory_source_type`, `preview_action` removed): `rule` (str, required: name or id, found by name first then id as the old `find_rule`, resource `rules`), `action_name` (choices `rule_run.action_name`, default: the rule's `action.name`, fail if that is not executable), `object_subtypes` (list, choices; default omitted), `preview` (bool, default false), `wait` (bool), `wait_timeout` (int).
 - Run: `POST /api/v3/rule-execution` body `{"ruleId": id, "actionName": ..., "objectType": "ASSET"[, "objectSubtypes": [...]]}`. Preview: `POST /api/v3/protection-policy-rule-conflict-preview` body `{"rule": <the existing rule>}`, always sent (also in check mode, read-only), `changed=False`, returns `preview`. `wait`/`wait_timeout` with `preview` is an error.
@@ -83,6 +89,7 @@
 ### Task 4: rule playbooks and docs
 
 **Files:**
+
 - Modify: `playbooks/protection/create_rule.yml`, `run_rule.yml`, `get_rules.yml`, `playbooks/kubernetes/add_policy_and_rule.yml` (only the part that calls the v2 rule API: port it to `protection_rule` or to a v3 `api` body, builder's call), `playbooks/vars/example.yml`, `playbooks/README.md` (rows, "Unverified details", remove the v2-deprecation lines), root `README.md` (module list unchanged here; remove the two v2 lab-checklist bullets about `tag`/flat conditions and the v2 deprecation, add bullets in Task 8)
 - Test: `tests/unit/test_playbooks.py` (existing guards must stay green; add a guard that no playbook calls `/api/v2/protection-rules` or `/api/v2/rules`)
 
@@ -93,6 +100,7 @@
 ### Task 5: `resource_group` and `resource_group_info`
 
 **Files:**
+
 - Create: `tools/schemas/resource_group.yml`, `tools/schemas/resource_group_info.yml`, `plugins/modules/resource_group.py`, `plugins/modules/resource_group_info.py`, `tests/unit/modules/test_resource_group.py`
 - Modify: `meta/runtime.yml`, `tests/unit/modules/test_info_modules.py` (add `resource_group_info`, `/api/v2/resource-groups`, `resource_groups`)
 

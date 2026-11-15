@@ -106,6 +106,7 @@ blocker.
 ## Design
 
 ### Identity
+
 - Namespace/name: `fjacquet.ppdm`. License GPL-3.0-or-later. Python
   3.10+ (controller), `requires_ansible` = currently maintained ansible-core
   releases at scaffold time (2.16 is EOL; builder picks the floor). Repo root = collection root
@@ -114,6 +115,7 @@ blocker.
 - No `ppdm_` prefix on modules: FQCN already carries it.
 
 ### Layout
+
 ```
 galaxy.yml  README.md  NOTICE  LICENSE  CLAUDE.md  pyproject.toml (uv)
 meta/runtime.yml                 requires_ansible + action_groups
@@ -125,10 +127,12 @@ tools/generate.py                reads docs/openapi -> tables, specs, report
 tests/unit/ tests/sanity/ tests/integration/ (manual)
 changelogs/  docs/  .github/workflows/ci.yml
 ```
+
 `galaxy.yml` `build_ignore` excludes `docs/superpowers/`, `tools/`, the
 OpenAPI copies, `.venv`, tests data not needed in the artifact.
 
 ### Shared client (`module_utils/ppdm.py`)
+
 - Uses `ansible.module_utils.urls.open_url` only (no `requests`).
 - Connection args via doc fragment + `env_fallback`: `hostname`
   (`PPDM_HOSTNAME`), `port` (default 8443), `username`, `password`
@@ -144,6 +148,7 @@ OpenAPI copies, `.venv`, tests data not needed in the artifact.
   once with `module_defaults`.
 
 ### Module rules
+
 - Names: `<resource>` (mutating, `state: present|absent`), `<resource>_info`
   (read-only), action modules for verbs (`protection_policy_run`,
   `restore`...). **No `state: get`.**
@@ -154,6 +159,7 @@ OpenAPI copies, `.venv`, tests data not needed in the artifact.
 - All modules: FQCN-correct examples, full `RETURN`, `no_log` on secrets.
 
 ### Delivery in three lots (full design doc for lot N+1 is not needed now)
+
 - **Lot 1 (foundation + bootstrap + inventory):** client, doc fragment,
   action group, generator, `api`, generic `info`-style reads, `eula`,
   `certificate`, `storage_system` (DD/DDVE), `inventory_source`
@@ -166,6 +172,7 @@ Module list is a proposal built from bottkars' real workflows; the author may
 reorder per client need.
 
 ### Tooling and CI
+
 - `uv`: `pyproject.toml` dev group (ansible-core, ansible-lint,
   antsibull-changelog, ansible-creator, pytest, molecule if roles need it).
   Run everything via `uv run`.
@@ -180,6 +187,7 @@ reorder per client need.
   token as a repo secret.
 
 ### Generator scope
+
 `tools/generate.py` reads the three OpenAPI files and emits: the resource ->
 version -> path table used by the client; `argument_spec` **and** the matching
 `DOCUMENTATION` options for curated modules from one source (avoids
@@ -187,11 +195,13 @@ version -> path table used by the client; `argument_spec` **and** the matching
 dedicated module). It does not emit finished modules.
 
 ## Decided by the author
+
 - Hybrid approach; namespace `fjacquet.ppdm`; no Dell namespace; public
   Galaxy + GitHub; `uv`; modules without `ppdm_` prefix; `git init` for this
   repo.
 
 ## Left to the builder
+
 - Exact option names per module, exact `argument_spec` details.
 - Supported ansible-core / Python matrix at release time.
 - Unit-test fixture strategy for the mocked client.
@@ -199,6 +209,7 @@ dedicated module). It does not emit finished modules.
 - Order of modules inside a lot.
 
 ## Open items / not verified
+
 - bottkars' remaining 68 roles read only by URL/method; mine them per module
   when implementing it.
 - Galaxy namespace creation and name availability.
@@ -206,6 +217,7 @@ dedicated module). It does not emit finished modules.
 - No live PPDM available yet to the builder: acceptance depends on a lab.
 
 ## Calls made after the builder check (author may overrule)
+
 - **OpenAPI inputs (author decision):** the specs are public, so the three
   20.3.0 files (21200, 21201, 21202; not the 10.9 MB 9.13 QUICKSTEP file) are
   committed under `docs/openapi/` to pin the API version. The generator reads
