@@ -62,6 +62,7 @@ def test_schema_choices_match_enums():
         ("protection_rule_run", "action_name"): "rule_run.action_name",
         ("protection_rule_run", "object_subtypes"): "rule_run.object_subtype",
         ("discovery", "level"): "discovery.level",
+        ("asset_info", "asset_type"): "asset.type",
     }
     for (mod, opt), key in pairs.items():
         opts = yaml.safe_load((schemas / (mod + ".yml")).read_text())["options"]

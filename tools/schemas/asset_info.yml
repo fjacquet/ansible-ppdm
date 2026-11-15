@@ -1,0 +1,54 @@
+module: asset_info
+resource: assets
+kind: info
+short_description: Get assets from PowerProtect Data Manager
+description:
+  - Read-only query of assets. Never changes anything.
+  - Returns every matching object, all pages.
+  - The C(credentials) field of each asset is never returned, because its C(extraInfo) name/value pairs are free-form and could carry secrets. C(credentialId) (a reference only) is kept.
+version_added: 0.3.0
+attributes:
+  check_mode:
+    support: full
+    details: Read-only, behaves the same in check mode.
+  diff_mode:
+    support: none
+notes:
+  - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
+  - The C(credentials) field is never returned. The 20.3.0 schema of assets has no password or token field, this is a precaution for the free-form C(credentials[].extraInfo).
+options:
+  asset_type:
+    type: str
+    choices: [AVAMAR_ASSET, CLOUD_DIRECTOR_VAPP, CLOUD_NATIVE_ENTITY, DR, FILE_SYSTEM, GENERIC_APPLICATION_ASSET, HYPERV_VIRTUAL_MACHINE, KUBERNETES, MICROSOFT_EXCHANGE_DATABASE, MICROSOFT_SQL_DATABASE, NAS_SHARE, NATIVEEDGE_VIRTUAL_MACHINE, NUTANIX_VIRTUAL_MACHINE, ORACLE_DATABASE, POWERSTORE_BLOCK, POWER_MAX_BLOCK, SAP_HANA_DATABASE, VMWARE_VIRTUAL_MACHINE]
+    description: Return only assets of this type (exact match, combined with I(name) or I(filter) when given).
+  name:
+    type: str
+    description: Return only the object whose name equals this value exactly (case-sensitive, checked again on the result, whatever the server filter returns). Mutually exclusive with I(filter) and I(id).
+  filter:
+    type: str
+    description: PPDM filter string, for example C(name lk "prod%"). It is passed to PPDM unchanged and its result is not re-checked. Mutually exclusive with I(name) and I(id).
+  id:
+    type: str
+    description: Return only the object with this ID. Mutually exclusive with I(name) and I(filter). A 404 answer gives an empty list, a 404 also happens when this PPDM version does not support the endpoint.
+examples: |
+  - name: List all assets
+    fjacquet.ppdm.asset_info:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+    register: result
+
+  - name: List file system assets
+    fjacquet.ppdm.asset_info:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      asset_type: FILE_SYSTEM
+
+return: |
+  assets:
+    description: Matching objects, an empty list when nothing matches.
+    returned: always
+    type: list
+    elements: dict
+    sample: [{"id": "a1", "name": "vm01", "type": "VMWARE_VIRTUAL_MACHINE"}]

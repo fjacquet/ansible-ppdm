@@ -142,6 +142,7 @@ def build_enums(openapi_dir):
         for k in ("id", "type"):  # the spec has no `required` list: use its "required for POST" wording
             if "required for post" in (_prop(pspec, obj, k).get("description", "").lower()):
                 required.add(k)
+    _, asset_obj = get("Asset")
     dspec, disc = get("Discovery")
     _, r3 = get("Rule")
     _, ra = get("RuleAction")
@@ -154,6 +155,7 @@ def build_enums(openapi_dir):
         "protection_policy.asset_type": asset,
         "protection_policy.purpose": purpose,
         "objective.type": otype,
+        "asset.type": set(asset_obj["properties"]["type"]["enum"]),
         "discovery.level": set(_prop(dspec, disc, "level")["enum"]),
         "rule.action_name": set(ra["properties"]["name"]["enum"]),
         "rule.variant": set(r3["properties"]["variant"]["enum"]),
