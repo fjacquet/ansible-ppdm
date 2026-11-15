@@ -48,8 +48,8 @@ options:
     type: dict
   body:
     description:
-    - JSON request body.
-    type: dict
+    - 'JSON request body: a dictionary or a list.'
+    type: raw
   all_pages:
     description:
     - For GET, fetch every page when the response is a paginated C(content)/C(page) envelope.
@@ -88,6 +88,17 @@ EXAMPLES = r'''
     path: /api/v3/activities/abc/interventions
     body: {}
     wait: true
+
+- name: Assign assets to a protection policy (the body is a JSON array)
+  fjacquet.ppdm.api:
+    hostname: ppdm.example.com
+    username: admin
+    password: "{{ ppdm_password }}"
+    method: POST
+    path: /api/v2/protection-policies/POLICY_ID/asset-assignments
+    body:
+      - ASSET_ID_1
+      - ASSET_ID_2
 '''
 
 RETURN = r'''
@@ -113,7 +124,7 @@ ARGUMENT_SPEC = dict(
     method=dict(type='str', choices=['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], default='GET'),
     path=dict(type='str', required=True),
     query=dict(type='dict'),
-    body=dict(type='dict'),
+    body=dict(type='raw'),
     all_pages=dict(type='bool', default=True),
     wait=dict(type='bool', default=False),
     wait_timeout=dict(type='int', default=600),
@@ -148,6 +159,8 @@ def main():
             "%2e, %2f, %5c, %25 or %c0/%c1 escape, no %-escaped control character (%00-%1f, %7f), no '?', '#', "
             "';', '\\', whitespace, control or non-ASCII characters (use the query option for parameters)"
         )
+    if p["body"] is not None and not isinstance(p["body"], (dict, list)):
+        module.fail_json(msg="body must be a dictionary or a list, not %s" % type(p["body"]).__name__)
     if method != "GET" and module.check_mode:
         module.exit_json(changed=True, skipped_write=True, status=None, result=None)
     client = client_from_module(module)

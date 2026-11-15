@@ -27,8 +27,8 @@ options:
     type: dict
     description: Query string parameters.
   body:
-    type: dict
-    description: JSON request body.
+    type: raw
+    description: "JSON request body: a dictionary or a list."
   all_pages:
     type: bool
     default: true
@@ -63,6 +63,17 @@ examples: |
       path: /api/v3/activities/abc/interventions
       body: {}
       wait: true
+
+  - name: Assign assets to a protection policy (the body is a JSON array)
+    fjacquet.ppdm.api:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      method: POST
+      path: /api/v2/protection-policies/POLICY_ID/asset-assignments
+      body:
+        - ASSET_ID_1
+        - ASSET_ID_2
 return: |
   status:
     description: HTTP status code of the response (null in check mode for non-GET).

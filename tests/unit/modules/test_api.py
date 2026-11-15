@@ -189,3 +189,40 @@ def test_non_dict_activity_result_fails_cleanly(monkeypatch, result):
     act = {"id": "a1", "state": "COMPLETED", "result": result}
     out = run(monkeypatch, _async(act), method="POST", path="/api/v3/x", wait=True)
     assert out["failed"] and "status" in out["msg"]
+
+
+LIST_BODIES = [
+    [{"id": "a", "x": [1, [2, {"y": None}]]}],
+    [],
+    [[], [[1, "b"]], {}],
+    ["x", 1, True],
+]
+
+
+@pytest.mark.parametrize("body", LIST_BODIES)
+def test_list_body_is_sent_as_json_array(monkeypatch, body):
+    op = FakeOpener(Resp({"id": "x"}, status=202))
+    out = run(monkeypatch, op, method="POST", path="/api/v2/protection-policies/p/asset-assignments", body=body)
+    assert out["failed"] is False and out["changed"] is True
+    assert json.loads(op.calls[0][1]["data"]) == body
+
+
+@pytest.mark.parametrize("body", ["text", 5, True])
+def test_invalid_body_type_is_rejected(monkeypatch, body):
+    op = FakeOpener(Resp({}))
+    out = run(monkeypatch, op, method="POST", path="/api/v3/alerts", body=body)
+    assert out["failed"] is True and "body" in out["msg"]
+    assert op.calls == []
+
+
+@pytest.mark.parametrize("body", [[{"id": "a"}], []])
+def test_check_mode_list_body_sends_nothing(monkeypatch, body):
+    op = FakeOpener()
+    out = run(monkeypatch, op, check_mode=True, method="POST", path="/api/v3/alerts", body=body)
+    assert out["changed"] is True and out["skipped_write"] is True and op.calls == []
+
+
+def test_get_all_pages_warns_with_list_body(monkeypatch):
+    op = FakeOpener(Resp({"content": []}))
+    out = run(monkeypatch, op, path="/api/v3/alerts", body=[1])
+    assert any("body is ignored" in w for w in out["_warnings"])
