@@ -1,0 +1,37 @@
+module: certificate_info
+resource: certificates
+kind: info
+short_description: Get certificates from PowerProtect Data Manager
+description:
+  - Read-only query of certificates. Never changes anything.
+  - Returns every matching object, all pages.
+options:
+  name:
+    type: str
+    description: Return only the object whose name equals this value exactly.
+  filter:
+    type: str
+    description: PPDM filter string, for example C(name lk "prod%").
+  id:
+    type: str
+    description: Return only the object with this ID. Mutually exclusive with I(name) and I(filter).
+examples: |
+  - name: List all certificates
+    fjacquet.ppdm.certificate_info:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+    register: result
+
+  - name: Get one by name
+    fjacquet.ppdm.certificate_info:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      name: demo
+return: |
+  items:
+    description: Matching objects, an empty list when nothing matches.
+    returned: always
+    type: list
+    elements: dict

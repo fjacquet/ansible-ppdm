@@ -13,7 +13,7 @@ from http.client import HTTPException
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 
-from ansible.module_utils.basic import env_fallback
+from ansible.module_utils.basic import AnsibleModule, env_fallback
 from ansible.module_utils.urls import open_url
 
 from ansible_collections.fjacquet.ppdm.plugins.module_utils._routes import ROUTES
@@ -28,6 +28,11 @@ ACTIVITY_TERMINAL_STATES = frozenset(["COMPLETED"])
 def strip_readonly(resource, obj):
     drop = set(ROUTES[resource]["readonly"]) | {"_links"}
     return {k: v for k, v in obj.items() if k not in drop}
+
+
+def filter_eq(key, value):
+    # shortcut: the OpenAPI does not document filter escaping; backslash-escaping \ and " is best effort.
+    return '%s eq "%s"' % (key, str(value).replace("\\", "\\\\").replace('"', '\\"'))
 
 
 def _mask(obj, secret_keys):
@@ -146,7 +151,7 @@ class PpdmClient:
         return []  # envelope-less object: no items, as before
 
     def find_one(self, resource, key, value):
-        found = self.list_all(resource, filter='%s eq "%s"' % (key, value))
+        found = self.list_all(resource, filter=filter_eq(key, value))
         if len(found) > 1:
             ids = ", ".join(str(o.get("id")) for o in found)
             raise PpdmError("%s: %d objects match %s=%s (ids: %s)" % (resource, len(found), key, value, ids))
@@ -233,3 +238,28 @@ def client_from_module(module):
     except PpdmError as err:
         fail_from(module, err)
     return client
+
+
+def info_main(resource, argument_spec, secret_fields=()):
+    """Shared main() of the read-only *_info modules."""
+    module = AnsibleModule(
+        argument_spec=dict(connection_argument_spec(), **argument_spec), supports_check_mode=True,
+        mutually_exclusive=[("id", "name"), ("id", "filter")],
+    )
+    p = module.params
+    client = client_from_module(module)
+    try:
+        if p["id"]:
+            try:
+                found = [client.request("GET", client._route(resource, "GET", p["id"]))]
+            except PpdmError as err:
+                if err.status != 404:
+                    raise
+                found = []
+        else:
+            flt = filter_eq("name", p["name"]) if p["name"] else p["filter"]
+            found = client.list_all(resource, filter=flt)
+    except PpdmError as err:
+        fail_from(module, err)
+    items = [{k: v for k, v in o.items() if k not in secret_fields} for o in found]
+    module.exit_json(changed=False, items=items)

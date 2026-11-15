@@ -5,3 +5,7 @@ requires_ansible: ">=2.20.0"
 action_groups:
   ppdm:
     - api
+    - credential_info
+    - inventory_source_info
+    - storage_system_info
+    - certificate_info
