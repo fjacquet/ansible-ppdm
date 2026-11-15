@@ -2,6 +2,7 @@
 
 import io
 import json
+import re
 import urllib.error
 
 import pytest
@@ -624,6 +625,23 @@ def test_uppercase_json_escape_is_masked(pw):
     assert upper not in _out(err)
 
 
+JACKSON_PWS = ["pässw\x1fort-geheim", "pass\x7fw\x1bord1234"]
+
+
+def _jackson(pw):
+    return re.sub(r"\\u([0-9a-f]{4})", lambda m: "\\u" + m.group(1).upper(), json.dumps(pw, ensure_ascii=False)[1:-1])
+
+
+@pytest.mark.parametrize("pw", JACKSON_PWS)
+def test_jackson_escape_is_masked(pw):
+    form = _jackson(pw)
+    assert form != pw and form != json.dumps(pw)[1:-1]
+    json_msg = json.dumps({"message": 'bad request body {"password":"%s"}' % form})
+    for body in (json_msg, "bad request body " + form, json.dumps({form: "v"})):
+        out = _out(_err(body, pw))
+        assert form not in out and "\u001f" not in out and "\u001b" not in out, out
+
+
 def test_scrub_text_property_random():
     import random
     import re
@@ -633,7 +651,12 @@ def test_scrub_text_property_random():
 
     def forms(s):
         j = json.dumps(s)[1:-1]
-        return _forms(s) | {re.sub(r"\\u([0-9a-f]{4})", lambda m: "\\u" + m.group(1).upper(), j)}
+        raw = json.dumps(s, ensure_ascii=False)[1:-1]
+
+        def up(t):
+            return re.sub(r"\\u([0-9a-f]{4})", lambda m: "\\u" + m.group(1).upper(), t)
+
+        return _forms(s) | {up(j), up(raw)}
 
     for _ in range(2000):
         pw = "".join(rnd.choice(alphabet) for _ in range(rnd.randint(1, 6)))

@@ -127,7 +127,10 @@ class PpdmClient:
             if isinstance(x, str) and x:
                 ascii_form = json.dumps(x)[1:-1]
                 upper = re.sub(r"\\u([0-9a-f]{4})", lambda m: "\\u" + m.group(1).upper(), ascii_form)  # Jackson
-                out |= {x, ascii_form, upper, json.dumps(x, ensure_ascii=False)[1:-1], repr(x)[1:-1]}
+                raw_form = json.dumps(x, ensure_ascii=False)[1:-1]
+                # Jackson default: non-ASCII raw, control characters as \\u00XX uppercase, DEL raw
+                raw_upper = re.sub(r"\\u([0-9a-f]{4})", lambda m: "\\u" + m.group(1).upper(), raw_form)
+                out |= {x, ascii_form, upper, raw_form, raw_upper, repr(x)[1:-1]}
         return sorted(out)
 
     def scrub(self, value):
