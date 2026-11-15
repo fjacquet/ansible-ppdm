@@ -18,6 +18,7 @@ Connection settings and secrets come from environment variables, nothing sensiti
 | `VCENTER_PASSWORD` | `sources.add_vcenter` | vCenter password |
 | `PPDM_K8S_TOKEN` | `kubernetes.add_kubernetes` | Kubernetes service account token |
 | `PPDM_LICENSE_KEY` | `bootstrap.set_license` | PPDM license key |
+| `PPDM_NEW_PASSWORD` | `bootstrap.bootstrap` | admin password set by the initial configuration (`applicationUserPassword`) |
 | `CSM_CREDENTIALS` | `sources.add_cloud_snapshot_manager` | Cloud Snapshot Manager credential secret |
 | `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` | `clouddr.configure_account` | Azure account keys for Cloud DR |
 | `CDRS_ADMIN_PASSWORD` | `clouddr.deploy_server` | Admin and monitor password of the Cloud DR server |
@@ -37,9 +38,9 @@ ansible-playbook fjacquet.ppdm.protection.run_policy -e @my-vars.yml
 ansible-playbook playbooks/sources/add_data_domain.yml -e @my-vars.yml   # by path
 ```
 
-Playbooks that change something destructive or service affecting (`assets.restore_vm_copy`, `kubernetes.restore_copy`, `clouddr.disable_component`, `clouddr.deploy_server`, `clouddr.delete_server`, `bootstrap.set_local_user_setting`, `bootstrap.replace_certificate`, `bootstrap.set_license`, `maintenance.install_update_package`, `maintenance.delete_update_package`, `agents.approve_agent_ips`, `agents.delete_whitelist_entries`, `agents.approve_agents_by_hostname`, `kubernetes.add_policy_and_rule`, `kubernetes.trust_root_certificate`, `kubernetes.set_controller_config`) refuse to
+Playbooks that change something destructive or service affecting (`assets.restore_vm_copy`, `kubernetes.restore_copy`, `clouddr.disable_component`, `clouddr.deploy_server`, `clouddr.delete_server`, `bootstrap.set_local_user_setting`, `bootstrap.replace_certificate`, `bootstrap.set_license`, `bootstrap.bootstrap`, `maintenance.install_update_package`, `maintenance.delete_update_package`, `agents.approve_agent_ips`, `agents.delete_whitelist_entries`, `agents.approve_agents_by_hostname`, `kubernetes.add_policy_and_rule`, `kubernetes.trust_root_certificate`, `kubernetes.set_controller_config`) refuse to
 run until their confirm variable (`restore_confirm`, `cloud_dr_confirm`, `local_user_setting_confirm`, `cert_confirm`,
-`license_confirm`, `update_confirm`, `whitelist_approve_confirm`, `whitelist_confirm`, `rule_exec_confirm`,
+`license_confirm`, `bootstrap_confirm`, `update_confirm`, `whitelist_approve_confirm`, `whitelist_confirm`, `rule_exec_confirm`,
 `certificate_trust_confirm`, `inventory_update_confirm`) is set to true. `maintenance.install_update_package` also accepts the product and telemetry EULAs and trusts the package certificate when confirmed.
 
 Other playbooks that write are not guarded (`bootstrap.configure_smtp`, `bootstrap.set_sdr_existing_unit`, `clouddr.configure_account`, `protection.run_policy`): `bootstrap.configure_smtp`, `bootstrap.set_sdr_existing_unit` and `clouddr.configure_account` are idempotent updates of settings the

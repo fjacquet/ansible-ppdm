@@ -21,6 +21,10 @@ smtp_server: smtp.example.com
 smtp_port: 25
 smtp_from: ppdm@example.com
 
+bootstrap_confirm: false
+bootstrap_eula_accept: false
+bootstrap_admin_pw: "{{ lookup('ansible.builtin.env', 'PPDM_NEW_PASSWORD') }}"
+
 sdr_repository_path: SysDR_ppdm
 
 vm_name: vm01.example.com

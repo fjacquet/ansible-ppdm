@@ -38,7 +38,7 @@ MASK = "VALUE_SPECIFIED_IN_NO_LOG_PARAMETER"
 ACTIVITY_TERMINAL_STATES = frozenset(["COMPLETED"])
 
 
-# Fields PPDM never returns in clear (write-only); a GET value is never sent back in a PUT unless the caller supplied it.
+# Write-only fields PPDM does not return in clear: a GET value is never sent back in a PUT unless the caller set it.
 WRITE_ONLY_KEYS = frozenset(
     {"password", "secretKey", "userKey", "credentialPassword", "applicationUserPassword", "token", "privateKey"}
 )

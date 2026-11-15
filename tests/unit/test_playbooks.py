@@ -153,6 +153,7 @@ DESTRUCTIVE = {
     "bootstrap.set_local_user_setting": "local_user_setting_confirm",
     "bootstrap.replace_certificate": "cert_confirm",
     "bootstrap.set_license": "license_confirm",
+    "bootstrap.bootstrap": "bootstrap_confirm",
     "maintenance.install_update_package": "update_confirm",
     "maintenance.delete_update_package": "update_confirm",
     "agents.approve_agent_ips": "whitelist_approve_confirm",
@@ -195,6 +196,8 @@ def _header(path):
 
 
 def _is_write(task):
+    if "ansible.builtin.import_role" in task:
+        return True
     api = task.get("fjacquet.ppdm.api")
     return api is not None and str(api.get("method", "GET")).upper() != "GET"
 
