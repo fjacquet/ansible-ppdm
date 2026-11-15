@@ -27,6 +27,7 @@ build_ignore:
   - .ansible_collections
   - .ansible-lint
   - .github
+  - .gitleaksignore
   - .gitignore
   - .pre-commit-config.yaml
   - .pytest_cache

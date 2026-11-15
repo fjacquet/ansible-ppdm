@@ -1,5 +1,11 @@
 # fjacquet.ppdm
 
+[![CI](https://github.com/fjacquet/ansible-ppdm/actions/workflows/ci.yml/badge.svg)](https://github.com/fjacquet/ansible-ppdm/actions/workflows/ci.yml)
+[![License: GPL v3+](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
+[![Ansible Galaxy](https://img.shields.io/badge/galaxy-fjacquet.ppdm-660198.svg)](https://galaxy.ansible.com/ui/repo/published/fjacquet/ppdm/)
+[![ansible-core](https://img.shields.io/badge/ansible--core-%E2%89%A5%202.20-1A1918.svg)](https://docs.ansible.com/projects/ansible/latest/)
+[![Pre-release](https://img.shields.io/badge/status-0.x%20pre--release-orange.svg)](#)
+
 Ansible collection for Dell PowerProtect Data Manager (PPDM) 20.3.0: modules, a bootstrap role and ready-to-run playbooks
 that talk to the PPDM REST API.
 

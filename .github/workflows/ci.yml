@@ -1,0 +1,74 @@
+---
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: ansible_collections/fjacquet/ppdm
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: Check code style
+        working-directory: ansible_collections/fjacquet/ppdm
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run python tools/generate.py modules --check
+      - name: Lint roles and playbooks
+        working-directory: ansible_collections/fjacquet/ppdm
+        env:
+          ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}
+        run: uv run ansible-lint --profile production
+
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - run: uv run pytest -q
+
+  ansible-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        core: ["2.20", "2.21", "2.22"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: ansible_collections/fjacquet/ppdm
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: Install ansible-core ${{ matrix.core }}
+        run: |
+          uv venv --python 3.13 "$RUNNER_TEMP/venv"
+          uv pip install --python "$RUNNER_TEMP/venv/bin/python" "ansible-core~=${{ matrix.core }}.0"
+      - name: Sanity tests
+        working-directory: ansible_collections/fjacquet/ppdm
+        run: |
+          export PATH="$RUNNER_TEMP/venv/bin:$PATH"
+          ansible-test sanity --python 3.13 --requirements
+      - name: Unit tests
+        working-directory: ansible_collections/fjacquet/ppdm
+        run: |
+          export PATH="$RUNNER_TEMP/venv/bin:$PATH"
+          ansible-test units --python 3.13 --requirements
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - run: uv run ansible-galaxy collection build --force --output-path dist
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: collection
+          path: dist/*.tar.gz

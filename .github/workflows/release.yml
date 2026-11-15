@@ -1,0 +1,35 @@
+---
+# Publishes to Ansible Galaxy when a version tag (vX.Y.Z) is pushed.
+# Needs the repository secret ANSIBLE_GALAXY_API_KEY (Galaxy API token).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: Check the tag matches galaxy.yml
+        run: |
+          version=$(uv run python -c "import yaml;print(yaml.safe_load(open('galaxy.yml'))['version'])")
+          test "v$version" = "$GITHUB_REF_NAME"
+      - run: uv run ansible-galaxy collection build --force --output-path dist
+      - name: Publish to Ansible Galaxy
+        env:
+          ANSIBLE_GALAXY_SERVER_LIST: release_galaxy
+          ANSIBLE_GALAXY_SERVER_RELEASE_GALAXY_URL: https://galaxy.ansible.com/
+          ANSIBLE_GALAXY_SERVER_RELEASE_GALAXY_TOKEN: ${{ secrets.ANSIBLE_GALAXY_API_KEY }}
+        run: uv run ansible-galaxy collection publish dist/*.tar.gz
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.tar.gz --title "$GITHUB_REF_NAME" --prerelease --generate-notes
