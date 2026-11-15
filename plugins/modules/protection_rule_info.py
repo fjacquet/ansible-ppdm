@@ -11,7 +11,7 @@ short_description: Get protection rules from PowerProtect Data Manager
 description:
 - Read-only query of protection rules. Never changes anything.
 - Returns every matching object, all pages.
-version_added: 0.3.0
+version_added: 0.2.0
 author:
 - Frederic Jacquet (@fjacquet)
 extends_documentation_fragment:

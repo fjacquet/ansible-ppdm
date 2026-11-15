@@ -11,37 +11,25 @@ def _check(value, enum, label):
         raise PpdmError("%s must be one of %s, got %r" % (label, ", ".join(ENUMS[enum]), value))
 
 
-MAX_CONDITION_DEPTH = 8
-
-
-def _check_list(values, enum, label):
-    if values is None:
-        return
-    if not isinstance(values, list):
-        raise PpdmError("%s must be a list" % label)
-    for v in values:
-        _check(v, enum, label)
-
-
-def _validate_condition(cond, label, depth):
-    if depth > MAX_CONDITION_DEPTH:
-        raise PpdmError("%s: conditions nested deeper than %d levels" % (label, MAX_CONDITION_DEPTH))
-    if not isinstance(cond, dict):
-        raise PpdmError("%s must be a dict" % label)
-    if "conditions" in cond:  # logical condition
-        _check(cond.get("operator"), "rule_condition.logical_operator", "%s: operator" % label)
-        _validate_conditions(cond["conditions"], label + ".conditions", depth + 1)
-    elif "fieldName" in cond:  # relational condition; fieldData shape is not validated
-        _check(cond.get("operator"), "rule_condition.operator", "%s: operator" % label)
-    else:
-        raise PpdmError("%s must be a logical (conditions) or relational (fieldName) condition" % label)
-
-
-def _validate_conditions(conditions, label, depth):
+def _validate_conditions(conditions, label):
+    """Spec shape: filter.conditions are logical, and each logical condition holds relational ones."""
     if not isinstance(conditions, list):
         raise PpdmError("%s must be a list" % label)
     for i, cond in enumerate(conditions):
-        _validate_condition(cond, "%s[%d]" % (label, i), depth)
+        clabel = "%s[%d]" % (label, i)
+        if not isinstance(cond, dict):
+            raise PpdmError("%s must be a dict" % clabel)
+        if "conditions" not in cond:
+            raise PpdmError("%s must be a logical condition (operator and conditions)" % clabel)
+        _check(cond.get("operator"), "rule_condition.logical_operator", "%s: operator" % clabel)
+        rels = cond["conditions"]
+        if not isinstance(rels, list):
+            raise PpdmError("%s.conditions must be a list" % clabel)
+        for j, rel in enumerate(rels):
+            rlabel = "%s.conditions[%d]" % (clabel, j)
+            if not isinstance(rel, dict) or "fieldName" not in rel:
+                raise PpdmError("%s must be a relational condition (fieldName, operator, fieldData)" % rlabel)
+            _check(rel.get("operator"), "rule_condition.operator", "%s: operator" % rlabel)
 
 
 def validate_filters(filters):
@@ -59,17 +47,8 @@ def validate_filters(filters):
         _check(f.get("type"), "rule_filter.type", label + ": type")
         _check(f.get("operator"), "rule_filter.operator", label + ": operator")
         if f.get("conditions") is not None:
-            _validate_conditions(f["conditions"], label + ".conditions", 1)
+            _validate_conditions(f["conditions"], label + ".conditions")
 
 
-def validate_rule_body(rule):
-    """Checks on a raw v3 Rule body; the argument spec cannot check nested values."""
-    action = rule.get("action")
-    if action is not None:
-        if not isinstance(action, dict):
-            raise PpdmError("rule.action must be a dict")
-        _check(action.get("name"), "rule.action_name", "rule.action.name")
-    _check(rule.get("variant"), "rule.variant", "rule.variant")
-    _check_list(rule.get("scopes"), "rule.scope", "rule.scopes")
-    _check_list(rule.get("categories"), "rule.category", "rule.categories")
-    validate_filters(rule.get("filters"))
+# server-owned, never sent (ROUTES lists none for rules)
+READONLY = ("createdAt", "updatedAt", "lastRunAt", "lastMigratedAt", "status", "uniqueHash")

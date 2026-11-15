@@ -7,7 +7,7 @@ description:
   - Run a protection rule now (C(POST /api/v3/rule-execution)) so that PPDM applies it to the matching assets.
   - With I(preview=true) the module instead asks PPDM which conflicts the rule would cause, through C(POST /api/v3/protection-policy-rule-conflict-preview). This is read-only, it never changes anything and reports C(changed=false), also in check mode.
   - A run always reports C(changed=true) when it sends the request, it is not idempotent. In check mode nothing is sent and C(changed=true) is reported.
-version_added: 0.3.0
+version_added: 0.2.0
 attributes:
   check_mode:
     support: full
@@ -29,12 +29,14 @@ options:
     type: str
     required: true
   action_name:
+    version_added: 0.3.0
     description:
       - Action of the rules to execute (the C(actionName) field of the execution request).
       - Defaults to the action of the rule, the module fails when that action cannot be executed.
     type: str
     choices: [ASSIGN_PROTECTION_POLICY, ASSIGN_RESOURCE_GROUP]
   object_subtypes:
+    version_added: 0.3.0
     description:
       - Object subtypes to run the rule on (the C(objectSubtypes) field). Not sent when omitted.
     type: list

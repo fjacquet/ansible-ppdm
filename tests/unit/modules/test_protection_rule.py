@@ -193,12 +193,13 @@ def test_policy_with_wrong_action_fails_before_request(monkeypatch):
 
 
 def test_name_and_id_forms_are_exclusive(monkeypatch):
-    for kw in (
-        {"protection_policy": "a", "protection_policy_id": "b"},
-        {"resource_group": "a", "resource_group_id": "b"},
+    for action, kw in (
+        ("ASSIGN_PROTECTION_POLICY", {"protection_policy": "a", "protection_policy_id": "b"}),
+        ("ASSIGN_RESOURCE_GROUP", {"resource_group": "a", "resource_group_id": "b"}),
     ):
         op = FakeOpener()
-        assert run(monkeypatch, op, action="ASSIGN_PROTECTION_POLICY", **kw)["failed"] and op.calls == []
+        out = run(monkeypatch, op, action=action, **kw)
+        assert out["failed"] and "mutually exclusive" in out["msg"] and op.calls == []
 
 
 def test_invalid_input_fails_before_any_request(monkeypatch):

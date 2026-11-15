@@ -15,7 +15,7 @@ description:
   C(changed=false), also in check mode.
 - A run always reports C(changed=true) when it sends the request, it is not idempotent. In check mode
   nothing is sent and C(changed=true) is reported.
-version_added: 0.3.0
+version_added: 0.2.0
 author:
 - Frederic Jacquet (@fjacquet)
 extends_documentation_fragment:
@@ -44,6 +44,7 @@ options:
     - Action of the rules to execute (the C(actionName) field of the execution request).
     - Defaults to the action of the rule, the module fails when that action cannot be executed.
     type: str
+    version_added: 0.3.0
     choices:
     - ASSIGN_PROTECTION_POLICY
     - ASSIGN_RESOURCE_GROUP
@@ -51,6 +52,7 @@ options:
     description:
     - Object subtypes to run the rule on (the C(objectSubtypes) field). Not sent when omitted.
     type: list
+    version_added: 0.3.0
     choices:
     - CLOUD_DIRECTOR_VAPP
     - CLOUD_NATIVE_ENTITY
@@ -185,7 +187,9 @@ from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
     client_from_module,
     connection_argument_spec,
     fail_from,
+    strip_readonly,
 )
+from ansible_collections.fjacquet.ppdm.plugins.module_utils.protection_rule import READONLY
 
 
 def find_rule(client, ref):
@@ -210,9 +214,8 @@ def main():
         rule = find_rule(client, p["rule"])
         if p["preview"]:
             # read-only: sent even in check mode, never changes anything
-            out["preview"] = client.request(
-                "POST", "/api/v3/protection-policy-rule-conflict-preview", body={"rule": rule}
-            )
+            body = {"rule": strip_readonly("rules", rule, READONLY)}
+            out["preview"] = client.request("POST", "/api/v3/protection-policy-rule-conflict-preview", body=body)
             module.exit_json(changed=False, **out)
         action = p["action_name"] or (rule.get("action") or {}).get("name")
         if action not in ENUMS["rule_run.action_name"]:

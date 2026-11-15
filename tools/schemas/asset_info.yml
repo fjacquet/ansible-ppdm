@@ -29,7 +29,7 @@ options:
     description: PPDM filter string, for example C(name lk "prod%"). It is passed to PPDM unchanged and its result is not re-checked. Mutually exclusive with I(name) and I(id).
   id:
     type: str
-    description: Return only the object with this ID. Mutually exclusive with I(name) and I(filter). A 404 answer gives an empty list, a 404 also happens when this PPDM version does not support the endpoint.
+    description: Return only the object with this ID. Mutually exclusive with I(name) and I(filter). A 404 or 204 answer gives an empty list, a 404 also happens when this PPDM version does not support the endpoint.
 examples: |
   - name: List all assets
     fjacquet.ppdm.asset_info:

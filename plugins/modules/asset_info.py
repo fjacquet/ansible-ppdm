@@ -60,8 +60,8 @@ options:
     type: str
   id:
     description:
-    - Return only the object with this ID. Mutually exclusive with I(name) and I(filter). A 404 answer
-      gives an empty list, a 404 also happens when this PPDM version does not support the endpoint.
+    - Return only the object with this ID. Mutually exclusive with I(name) and I(filter). A 404 or 204
+      answer gives an empty list, a 404 also happens when this PPDM version does not support the endpoint.
     type: str
 attributes:
   platform:

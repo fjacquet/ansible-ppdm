@@ -592,9 +592,9 @@ def info_main(
                     raise
                 found = []
             else:
-                if not isinstance(body, dict):
+                if body is not None and not isinstance(body, dict):
                     raise PpdmError("GET %s/%s failed: unexpected response" % (resource, p["id"]))
-                found = [body]
+                found = [] if body is None else [body]  # 204 (no body) means not found
         else:
             terms = [filter_eq("name", p["name"])] if p["name"] else []
             terms += [filter_eq(f, p[o]) for o, f in extra.items() if p[o] is not None]

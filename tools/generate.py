@@ -23,6 +23,7 @@ OPTION_KEYS = {
     "aliases",
     "description",
     "no_log",
+    "version_added",
 }
 BEGIN, END = "# BEGIN GENERATED", "# END GENERATED"
 ROUTES_FILE = Path(__file__).resolve().parents[1] / "plugins" / "module_utils" / "_routes.py"
@@ -214,6 +215,8 @@ def render_module_blocks(schema):
             "description": [o["description"]] if isinstance(o["description"], str) else o["description"],
             "type": o["type"],
         }
+        if "version_added" in o:  # documentation only, not part of argument_spec
+            d["version_added"] = o["version_added"]
         s = {"type": o["type"]}
         for k in ("required", "choices", "default", "elements", "aliases"):
             if k in o:

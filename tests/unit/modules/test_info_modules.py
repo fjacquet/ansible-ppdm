@@ -140,6 +140,12 @@ def test_info_by_id_404_is_empty(monkeypatch, mod, base, key):
 
 
 @ALL
+def test_info_by_id_204_is_empty(monkeypatch, mod, base, key):
+    out = run(monkeypatch, mod, FakeOpener(Resp(None, 204)), id="zz")
+    assert out["failed"] is False and out[key] == []
+
+
+@ALL
 def test_info_by_id_other_error_fails(monkeypatch, mod, base, key):
     out = run(monkeypatch, mod, FakeOpener(http_error(500, {"message": "boom"})), id="zz")
     assert out["failed"] and out["status"] == 500

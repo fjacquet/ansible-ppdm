@@ -77,11 +77,15 @@ def test_check_mode_sends_no_execution(monkeypatch):
 
 def test_preview_sends_rule_even_in_check_mode(monkeypatch):
     conflicts = {"content": [{"name": "other"}]}
-    op = FakeOpener(listing(RULE), Resp(conflicts))
+    server = dict(RULE, createdAt="t", updatedAt="t", lastRunAt="t", lastMigratedAt="t", status="OK", uniqueHash="h")
+    server["_links"] = {"self": {"href": "x"}}
+    op = FakeOpener(listing(server), Resp(conflicts))
     out = run(monkeypatch, op, preview=True, check_mode=True)
     assert out["changed"] is False and out["preview"] == conflicts and methods(op) == ["GET", "POST"]
     assert urlsplit(op.calls[1][0]).path == "/api/v3/protection-policy-rule-conflict-preview"
-    assert post_body(op, 1) == {"rule": RULE}
+    sent = post_body(op, 1)["rule"]
+    assert sent == RULE  # id kept
+    assert not {"createdAt", "updatedAt", "lastRunAt", "lastMigratedAt", "status", "uniqueHash", "_links"} & set(sent)
 
 
 def test_preview_with_wait_fails_before_any_request(monkeypatch):

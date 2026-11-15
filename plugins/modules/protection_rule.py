@@ -15,7 +15,7 @@ description:
 - Updates use PATCH.
 - Rule names are assumed to be unique (the rule is found by exact name); if two rules share the name the
   module fails and lists the IDs.
-version_added: 0.3.0
+version_added: 0.2.0
 author:
 - Frederic Jacquet (@fjacquet)
 extends_documentation_fragment:
@@ -82,24 +82,29 @@ options:
       C(PROTECTION_POLICY_ID) action argument). The module fails when no policy or several policies have
       this name. Mutually exclusive with I(protection_policy_id).
     type: str
+    version_added: 0.3.0
   protection_policy_id:
     description:
     - Id of the protection policy, used as is. Mutually exclusive with I(protection_policy).
     type: str
+    version_added: 0.3.0
   resource_group:
     description:
     - Name of the resource group the matching assets are assigned to, resolved to its id (sent as the
       C(RESOURCE_GROUP_ID) action argument). The module fails when no group or several groups have this
       name. Mutually exclusive with I(resource_group_id).
     type: str
+    version_added: 0.3.0
   resource_group_id:
     description:
     - Id of the resource group, used as is. Mutually exclusive with I(resource_group).
     type: str
+    version_added: 0.3.0
   variant:
     description:
     - Variant of the rule.
     type: str
+    version_added: 0.3.0
     choices:
     - ADVANCED
     - EXCLUDE_FILE_NAME_AND_PATH
@@ -111,6 +116,7 @@ options:
     description:
     - Scopes of the rule.
     type: list
+    version_added: 0.3.0
     choices:
     - ASSET
     - GENERAL
@@ -120,6 +126,7 @@ options:
     description:
     - Categories of the rule.
     type: list
+    version_added: 0.3.0
     choices:
     - LIST_VIEW
     - TREE_VIEW
@@ -129,10 +136,11 @@ options:
     - Filters that select the assets, passed to PPDM as is after validation (the C(filters) field). The
       list replaces the whole list on PPDM and is compared in order.
     - Each filter is a dict with C(objectType), C(objectSubtype), C(type) (C(INCLUDE) or C(EXCLUDE)),
-      C(operator) and C(conditions). Each condition is either logical (C(operator) C(AND) or C(OR) and
-      a nested C(conditions) list) or relational (C(fieldName), C(operator) and C(fieldData)). The enum
-      values are checked, nesting is limited to 8 levels.
+      C(operator) and C(conditions). The C(conditions) of a filter are logical conditions (C(operator)
+      C(AND) or C(OR) and a C(conditions) list), and each of those holds relational conditions (C(fieldName),
+      C(operator) and C(fieldData)). The tree has exactly these two levels. The enum values are checked.
     type: list
+    version_added: 0.3.0
     elements: dict
   config:
     description:
@@ -246,10 +254,10 @@ from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
     fail_from,
     merge_config,
 )
-from ansible_collections.fjacquet.ppdm.plugins.module_utils.protection_rule import validate_filters
-
-# server-owned, never sent (ROUTES lists none for rules)
-READONLY = ("createdAt", "updatedAt", "lastRunAt", "lastMigratedAt", "status", "uniqueHash")
+from ansible_collections.fjacquet.ppdm.plugins.module_utils.protection_rule import (
+    READONLY,
+    validate_filters,
+)
 
 # (action, name option, id option, resource, action argument name)
 TARGETS = (

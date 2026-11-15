@@ -106,18 +106,18 @@ plugins:
       description: Manage protection rules on PowerProtect Data Manager
       name: protection_rule
       namespace: ''
-      version_added: 0.3.0
+      version_added: 0.2.0
     protection_rule_info:
       description: Get protection rules from PowerProtect Data Manager
       name: protection_rule_info
       namespace: ''
-      version_added: 0.3.0
+      version_added: 0.2.0
     protection_rule_run:
       description: Run a protection rule or preview its conflicts on PowerProtect
         Data Manager
       name: protection_rule_run
       namespace: ''
-      version_added: 0.3.0
+      version_added: 0.2.0
     resource_group:
       description: Manage resource groups on PowerProtect Data Manager
       name: resource_group

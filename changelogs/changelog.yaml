@@ -90,18 +90,30 @@ releases:
   0.3.0:
     changes:
       breaking_changes:
-      - protection_rule, protection_rule_info and protection_rule_run - now use the
-        v3 rule API. The options ``conditions`` and ``condition_connector`` are replaced
-        by ``filters``, ``inventory_source_type`` by ``object_subtypes``, ``tenant``
-        is removed, ``policy`` is replaced by ``action`` plus ``protection_policy``
-        (or ``protection_policy_id``), ``rules`` by ``rule`` (protection_rule_run),
-        and ``preview_action`` by ``action_name`` with ``preview``. The ``protection.create_rule``
-        and ``protection.run_rule`` playbook variables changed accordingly.
+      - 'protection_rule - now uses the v3 rule API. The options ``conditions`` and ``condition_connector``
+        are replaced by ``filters`` (the object subtype goes in ``filters[].objectSubtype``,
+        there is no ``object_subtypes`` option), ``tenant`` is removed, ``policy`` is replaced
+        by ``action`` plus ``protection_policy`` (or ``protection_policy_id``), and ``action``
+        lost ``MOVE_TO_GROUP`` and takes the v3 action names. New options are ``variant``,
+        ``scopes``, ``categories``, ``resource_group`` and ``resource_group_id``.'
+      - protection_rule and protection_rule_info - the returned objects (``protection_rule``,
+        ``protection_rules``) now have the v3 shape, for example ``action`` is a dict
+        instead of a string, and ``inventorySourceType`` and ``conditions`` are gone.
+      - protection_rule_run - ``rule`` keeps its name but is now a required rule name
+        or id (a string), no longer a ProtectionRule dict (the preview body). The module
+        runs one rule per call, the old ``rules`` list ran several rules or all rules
+        of an inventory source type. ``inventory_source_type`` is replaced by ``object_subtypes``,
+        and ``preview_action`` is removed (``action_name`` is the run action, the preview
+        ignores it).
+      - 'kubernetes.add_policy_and_rule playbook - now creates or updates the rule (before,
+        it only created it when missing) and runs only that rule (before, all Kubernetes
+        rules). The ``protection.create_rule`` and ``protection.run_rule`` playbook variables
+        changed accordingly.'
       minor_changes:
       - Adds the modules resource_group, resource_group_info, protection_group, protection_group_info,
         asset_info and host_info.
-      - asset_info masks the top-level ``credentials`` field of the assets it returns;
-        host_info masks nothing.
+      - asset_info omits the top-level ``credentials`` field of the assets it returns;
+        host_info omits nothing.
       release_summary: Moves the protection rule modules to the v3 rule API and adds
         resource group, protection group, asset and host modules.
     fragments:

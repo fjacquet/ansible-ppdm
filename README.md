@@ -31,9 +31,10 @@ Lab checklist before 1.0.0:
 - `protection.add_file_system_policy` and `protection.add_mssql_policy` compare the policy with `startTime`/`duration`: confirm GET returns them exactly as sent (else the fs/mssql policy playbooks PATCH on every run).
 - Rule `filters`: confirm the `fieldName`/`fieldData` shapes PPDM accepts (a minimal tag or name condition per asset type). The `tags` (VMs) and `userTags` (Kubernetes) `fieldName` values are unverified guesses.
 - Rule `args` items `{name, values}` for `PROTECTION_POLICY_ID` and `RESOURCE_GROUP_ID`: confirm the shape.
-- Rule `protectionPolicyRef` and group `protectionPolicyRef`: confirm PPDM accepts `{id}` only on POST/PATCH, and whether `autoAssignToPolicy` without a policy reference is rejected.
+- Rules carry no `protectionPolicyRef`, the policy is the `action.args[PROTECTION_POLICY_ID]` item. Protection group `protectionPolicyRef`: confirm PPDM accepts `{id}` only on POST/PATCH, and whether `autoAssignToPolicy` without a policy reference is rejected.
 - Confirm whether PPDM re-orders `filters` conditions or `natural_ids` (a flapping `changed`).
-- Protection group `PATCH` of `rules`: confirm it replaces whole lists.
+- Protection group `PATCH` of `naturalIds`: confirm it replaces the whole list (protection groups have no `rules`).
+- Rule `scopes` and `categories` are compared in order: confirm PPDM keeps the order it stores (else a flapping `changed`).
 - `protection_rule_run`: confirm the 202 body of `rule-execution` (activity or not), the preview semantics, that an explicit `action_name` differing from the rule action is handled, and that preview accepts the rule body including read-only fields.
 - `protection_policy_run` requires `asset_ids` or `protection_group_ids` and cannot set `operation.backupLevel`; `Source` has no required field in the spec.
 - `protection_rule_run` preview POSTs even in check mode (documented as read-only): confirm it changes nothing.
