@@ -1,10 +1,10 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import annotations
 
 # BEGIN GENERATED
+# fmt: off
 DOCUMENTATION = r'''
 module: credential
 short_description: Manage credentials on PowerProtect Data Manager
@@ -120,23 +120,57 @@ diff:
 ARGUMENT_SPEC = dict(
     state=dict(type='str', choices=['present', 'absent'], default='present'),
     name=dict(type='str', required=True),
-    type=dict(type='str', choices=['DATADOMAIN', 'POWERPROTECT', 'DBUSER', 'OS', 'RMAN', 'STANDARD', 'VCENTER', 'KUBERNETES', 'CDR', 'SAPHANA_DB_USER', 'SAPHANA_SYSTEMDB_USER', 'DDBOOST', 'NAS', 'CLOUD_SNAPSHOT_MANAGER', 'CLOUD_DIRECTOR', 'AVAMAR', 'HYPERV', 'DELL_ECS', 'NUTANIX', 'NATIVE_EDGE', 'MS_AZURE', 'MS_GMSA', 'NT_AUTHORITY', 'AMAZON_S3', 'GENERIC_S3']),
+    type=dict(
+        type='str',
+        choices=[
+            'DATADOMAIN',
+            'POWERPROTECT',
+            'DBUSER',
+            'OS',
+            'RMAN',
+            'STANDARD',
+            'VCENTER',
+            'KUBERNETES',
+            'CDR',
+            'SAPHANA_DB_USER',
+            'SAPHANA_SYSTEMDB_USER',
+            'DDBOOST',
+            'NAS',
+            'CLOUD_SNAPSHOT_MANAGER',
+            'CLOUD_DIRECTOR',
+            'AVAMAR',
+            'HYPERV',
+            'DELL_ECS',
+            'NUTANIX',
+            'NATIVE_EDGE',
+            'MS_AZURE',
+            'MS_GMSA',
+            'NT_AUTHORITY',
+            'AMAZON_S3',
+            'GENERIC_S3',
+        ],
+    ),
     method=dict(type='str', choices=['BASIC', 'TOKEN', 'CONFIG', 'USER_KEY', 'OIDC_REFRESH_TOKEN']),
     cred_username=dict(type='str'),
     cred_password=dict(type='str', no_log=True),
     update_password=dict(type='str', choices=['on_create', 'always'], default='on_create'),
 )
+# fmt: on
 # END GENERATED
 
-from ansible.module_utils.basic import AnsibleModule  # noqa: E402
-from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (  # noqa: E402
-    PpdmError, client_from_module, connection_argument_spec, fail_from,
+from ansible.module_utils.basic import AnsibleModule
+from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
+    PpdmError,
+    client_from_module,
+    connection_argument_spec,
+    fail_from,
 )
 
 
 def main():
     module = AnsibleModule(
-        argument_spec=dict(connection_argument_spec(), **ARGUMENT_SPEC), supports_check_mode=True,
+        argument_spec=dict(connection_argument_spec(), **ARGUMENT_SPEC),
+        supports_check_mode=True,
         required_if=[("state", "present", ("type", "cred_username"))],
     )
     p = module.params
@@ -145,11 +179,21 @@ def main():
         if p["state"] == "absent":
             res = client.remove("credentials", "name", p["name"], check_mode=module.check_mode)
         else:
-            desired = {"name": p["name"], "type": p["type"], "username": p["cred_username"],
-                       "method": p["method"], "password": p["cred_password"]}
+            desired = {
+                "name": p["name"],
+                "type": p["type"],
+                "username": p["cred_username"],
+                "method": p["method"],
+                "password": p["cred_password"],
+            }
             desired = {k: v for k, v in desired.items() if v is not None}
-            res = client.ensure("credentials", desired, check_mode=module.check_mode,
-                                secret_keys=("password",), update_secrets=p["update_password"])
+            res = client.ensure(
+                "credentials",
+                desired,
+                check_mode=module.check_mode,
+                secret_keys=("password",),
+                update_secrets=p["update_password"],
+            )
     except PpdmError as err:
         fail_from(module, err)
     module.exit_json(changed=res["changed"], credential=res.get("object", {}), diff=res["diff"])

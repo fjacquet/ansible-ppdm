@@ -1,11 +1,32 @@
 import json
 
 from ansible_collections.fjacquet.ppdm.plugins.modules import inventory_source
-from ansible_collections.fjacquet.ppdm.tests.unit.helpers import FakeOpener, Resp, listing, methods, run_module
+from ansible_collections.fjacquet.ppdm.tests.unit.helpers import (
+    FakeOpener,
+    Resp,
+    listing,
+    methods,
+    run_module,
+)
 
-ARGS = dict(name="vc1", type="VCENTER", address="vc.example.com", source_port=443, credential_id="c1")
-EXISTING = {"id": "1", "name": "vc1", "type": "VCENTER", "address": "vc.example.com", "port": 443,
-            "credentials": {"id": "c1"}, "version": "8", "lastDiscovered": "t", "_links": {}}
+ARGS = dict(
+    name="vc1",
+    type="VCENTER",
+    address="vc.example.com",
+    source_port=443,
+    credential_id="c1",
+)
+EXISTING = {
+    "id": "1",
+    "name": "vc1",
+    "type": "VCENTER",
+    "address": "vc.example.com",
+    "port": 443,
+    "credentials": {"id": "c1"},
+    "version": "8",
+    "lastDiscovered": "t",
+    "_links": {},
+}
 
 
 def run(monkeypatch, op, **kw):
@@ -17,8 +38,13 @@ def test_inventory_source_create(monkeypatch):
     out = run(monkeypatch, op, config={"details": {"vCenter": {"x": 1}}})
     assert out["changed"] and methods(op) == ["GET", "POST"]
     assert json.loads(op.calls[1][1]["data"]) == {
-        "name": "vc1", "type": "VCENTER", "address": "vc.example.com", "port": 443,
-        "credentials": {"id": "c1"}, "details": {"vCenter": {"x": 1}}}
+        "name": "vc1",
+        "type": "VCENTER",
+        "address": "vc.example.com",
+        "port": 443,
+        "credentials": {"id": "c1"},
+        "details": {"vCenter": {"x": 1}},
+    }
 
 
 def test_inventory_source_idempotent(monkeypatch):

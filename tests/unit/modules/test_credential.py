@@ -1,7 +1,13 @@
 import json
 
 from ansible_collections.fjacquet.ppdm.plugins.modules import credential
-from ansible_collections.fjacquet.ppdm.tests.unit.helpers import FakeOpener, Resp, listing, methods, run_module
+from ansible_collections.fjacquet.ppdm.tests.unit.helpers import (
+    FakeOpener,
+    Resp,
+    listing,
+    methods,
+    run_module,
+)
 
 ARGS = dict(name="c1", type="OS", cred_username="root", cred_password="pw-secret")
 EXISTING = {"id": "1", "name": "c1", "type": "OS", "username": "root", "createdAt": "t"}
@@ -16,7 +22,12 @@ def test_credential_create(monkeypatch):
     out = run(monkeypatch, op)
     assert out["changed"] and methods(op) == ["GET", "POST"]
     body = json.loads(op.calls[1][1]["data"])
-    assert body == {"name": "c1", "type": "OS", "username": "root", "password": "pw-secret"}
+    assert body == {
+        "name": "c1",
+        "type": "OS",
+        "username": "root",
+        "password": "pw-secret",
+    }
 
 
 def test_credential_rerun_no_put_when_get_omits_password(monkeypatch):

@@ -3,16 +3,23 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from ansible.module_utils.testing import patch_module_args
-
 from ansible_collections.fjacquet.ppdm.plugins.module_utils import ppdm
-from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import PpdmClient, filter_eq
+from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
+    PpdmClient,
+    filter_eq,
+)
 from ansible_collections.fjacquet.ppdm.plugins.modules import (
     certificate_info,
     credential_info,
     inventory_source_info,
     storage_system_info,
 )
-from ansible_collections.fjacquet.ppdm.tests.unit.helpers import Exit, FakeOpener, Resp, http_error
+from ansible_collections.fjacquet.ppdm.tests.unit.helpers import (
+    Exit,
+    FakeOpener,
+    Resp,
+    http_error,
+)
 
 CONN = dict(hostname="h", username="u", password="s3cret")
 MODULES = [
@@ -125,7 +132,13 @@ def test_info_id_conflicts_with_name_or_filter(monkeypatch, mod, base, key, extr
 
 
 def test_credential_info_has_no_secret_fields(monkeypatch):
-    cred = {"id": "1", "name": "c", "username": "u", "password": "hunter2", "secretId": "s"}
+    cred = {
+        "id": "1",
+        "name": "c",
+        "username": "u",
+        "password": "hunter2",
+        "secretId": "s",
+    }
     out = run(monkeypatch, credential_info, FakeOpener(page([cred], 1, 1)))
     assert "password" not in out["credentials"][0] and "hunter2" not in json.dumps(out)
     out = run(monkeypatch, credential_info, FakeOpener(Resp(dict(cred))), id="1")

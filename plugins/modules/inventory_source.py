@@ -1,10 +1,10 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import annotations
 
 # BEGIN GENERATED
+# fmt: off
 DOCUMENTATION = r'''
 module: inventory_source
 short_description: Manage inventory sources on PowerProtect Data Manager
@@ -83,7 +83,7 @@ options:
     description:
     - Extra request body fields passed through as is, for example C(details) for type-specific settings
       such as C(details.vCenter).
-    - The 20.3.0 request body has no certificate trust field, trust is handled separately with M(fjacquet.ppdm.certificate).
+    - The 20.3.0 request body has no certificate trust field, trust is handled with M(fjacquet.ppdm.certificate).
     - Each top-level key replaces the whole value of that field.
     - Do not put secrets here, values are not masked in diff or return values.
     type: dict
@@ -130,23 +130,61 @@ diff:
 ARGUMENT_SPEC = dict(
     state=dict(type='str', choices=['present', 'absent'], default='present'),
     name=dict(type='str', required=True),
-    type=dict(type='str', choices=['APP_HOST', 'CLOUD_DIRECTOR', 'CLOUD_SNAPSHOT_MANAGER', 'CDR', 'DATA_MANAGER_APPLIANCE', 'DATA_MANAGER_APPLIANCE_CLUSTER', 'DATADOMAINMANAGEMENTCENTER', 'DDSYSTEM', 'DEFAULTAPPGROUP', 'EXTERNALDATADOMAIN', 'GENERICNASMANAGEMENTSERVER', 'HYPERV_CLUSTER', 'HYPERV_SERVER', 'KUBERNETES', 'NATIVEEDGE_CLUSTER', 'NATIVEEDGE_ENDPOINT', 'NATIVEEDGE_ORCHESTRATOR', 'NETAPP_MANAGEMENT_SERVER', 'NUTANIX_CLUSTER', 'NUTANIX_SERVER', 'ORACLEGROUP', 'POWERSCALEMANAGEMENTSERVER', 'POWERSTOREMANAGEMENTSERVER', 'PPDM', 'PRISM_CENTRAL', 'SQLGROUPS', 'UNITYMANAGEMENTSERVER', 'UNISPHERE', 'VCENTER']),
+    type=dict(
+        type='str',
+        choices=[
+            'APP_HOST',
+            'CLOUD_DIRECTOR',
+            'CLOUD_SNAPSHOT_MANAGER',
+            'CDR',
+            'DATA_MANAGER_APPLIANCE',
+            'DATA_MANAGER_APPLIANCE_CLUSTER',
+            'DATADOMAINMANAGEMENTCENTER',
+            'DDSYSTEM',
+            'DEFAULTAPPGROUP',
+            'EXTERNALDATADOMAIN',
+            'GENERICNASMANAGEMENTSERVER',
+            'HYPERV_CLUSTER',
+            'HYPERV_SERVER',
+            'KUBERNETES',
+            'NATIVEEDGE_CLUSTER',
+            'NATIVEEDGE_ENDPOINT',
+            'NATIVEEDGE_ORCHESTRATOR',
+            'NETAPP_MANAGEMENT_SERVER',
+            'NUTANIX_CLUSTER',
+            'NUTANIX_SERVER',
+            'ORACLEGROUP',
+            'POWERSCALEMANAGEMENTSERVER',
+            'POWERSTOREMANAGEMENTSERVER',
+            'PPDM',
+            'PRISM_CENTRAL',
+            'SQLGROUPS',
+            'UNITYMANAGEMENTSERVER',
+            'UNISPHERE',
+            'VCENTER',
+        ],
+    ),
     address=dict(type='str'),
     source_port=dict(type='int'),
     credential_id=dict(type='str'),
     config=dict(type='dict'),
 )
+# fmt: on
 # END GENERATED
 
-from ansible.module_utils.basic import AnsibleModule  # noqa: E402
-from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (  # noqa: E402
-    PpdmError, client_from_module, connection_argument_spec, fail_from,
+from ansible.module_utils.basic import AnsibleModule
+from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
+    PpdmError,
+    client_from_module,
+    connection_argument_spec,
+    fail_from,
 )
 
 
 def main():
     module = AnsibleModule(
-        argument_spec=dict(connection_argument_spec(), **ARGUMENT_SPEC), supports_check_mode=True,
+        argument_spec=dict(connection_argument_spec(), **ARGUMENT_SPEC),
+        supports_check_mode=True,
         required_if=[("state", "present", ("type",))],
     )
     p = module.params
@@ -155,7 +193,12 @@ def main():
         if p["state"] == "absent":
             res = client.remove("inventory-sources", "name", p["name"], check_mode=module.check_mode)
         else:
-            desired = {"name": p["name"], "type": p["type"], "address": p["address"], "port": p["source_port"]}
+            desired = {
+                "name": p["name"],
+                "type": p["type"],
+                "address": p["address"],
+                "port": p["source_port"],
+            }
             if p["credential_id"] is not None:
                 desired["credentials"] = {"id": p["credential_id"]}
             desired = {k: v for k, v in desired.items() if v is not None}

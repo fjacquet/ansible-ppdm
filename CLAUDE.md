@@ -21,6 +21,13 @@ uv run pytest
 
 `tests/unit/conftest.py` registers `ansible_collections.fjacquet.ppdm` to point at the repo root when it is not already importable, so tests can import `ansible_collections.fjacquet.ppdm.plugins...`. CI does not need a symlink.
 
+Lint and format (ruff, config in pyproject.toml; `_routes.py` is generated and excluded):
+
+```
+uv run ruff check .
+uv run ruff format --check .
+```
+
 Ansible test runs (`ansible-test` needs the cwd to be a physical `.../ansible_collections/fjacquet/ppdm/` path; a symlink is rejected because the cwd resolves to the real repo path). Use a git worktree outside the repo:
 
 ```

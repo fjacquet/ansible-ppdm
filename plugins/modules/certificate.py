@@ -1,10 +1,10 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import annotations
 
 # BEGIN GENERATED
+# fmt: off
 DOCUMENTATION = r'''
 module: certificate
 short_description: Trust or remove a host certificate on PowerProtect Data Manager
@@ -119,11 +119,15 @@ ARGUMENT_SPEC = dict(
     fingerprint=dict(type='str'),
     accept_any_certificate=dict(type='bool', default=False),
 )
+# fmt: on
 # END GENERATED
 
-from ansible.module_utils.basic import AnsibleModule  # noqa: E402
-from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (  # noqa: E402
-    PpdmError, client_from_module, connection_argument_spec, fail_from,
+from ansible.module_utils.basic import AnsibleModule
+from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
+    PpdmError,
+    client_from_module,
+    connection_argument_spec,
+    fail_from,
 )
 
 PATH = "/api/v2/certificates"
@@ -136,13 +140,16 @@ def norm(fp):
 
 def main():
     module = AnsibleModule(
-        argument_spec=dict(connection_argument_spec(), **ARGUMENT_SPEC), supports_check_mode=True
+        argument_spec=dict(connection_argument_spec(), **ARGUMENT_SPEC),
+        supports_check_mode=True,
     )
     p = module.params
     present = p["state"] == "present"
     if present and not p["fingerprint"] and not p["accept_any_certificate"]:
-        module.fail_json(msg="state=present requires fingerprint, or set accept_any_certificate=true "
-                             "(insecure: trusts whatever certificate the host presents)")
+        module.fail_json(
+            msg="state=present requires fingerprint, or set accept_any_certificate=true "
+            "(insecure: trusts whatever certificate the host presents)"
+        )
     if present and p["accept_any_certificate"]:
         module.warn("accept_any_certificate=true trusts whatever certificate the host presents")
     client = client_from_module(module)
@@ -152,12 +159,22 @@ def main():
     try:
         found = client.get_all(PATH, query)
         found = found if isinstance(found, list) else []
-        matches = [c for c in found if str(c.get("host") or "").lower() == p["host"].lower()
-                   and str(c.get("port")) == str(p["port"])
-                   and str(c.get("type") or "").lower() == p["type"].lower()]
+        matches = [
+            c
+            for c in found
+            if str(c.get("host") or "").lower() == p["host"].lower()
+            and str(c.get("port")) == str(p["port"])
+            and str(c.get("type") or "").lower() == p["type"].lower()
+        ]
         if len(matches) > 1:
-            module.fail_json(msg="more than one certificate matches %s:%s: %s" % (
-                p["host"], p["port"], ", ".join("%s (%s)" % (c.get("id"), c.get("fingerprint")) for c in matches)))
+            module.fail_json(
+                msg="more than one certificate matches %s:%s: %s"
+                % (
+                    p["host"],
+                    p["port"],
+                    ", ".join("%s (%s)" % (c.get("id"), c.get("fingerprint")) for c in matches),
+                )
+            )
         cert = matches[0] if matches else None
         state = cert.get("state") if cert else None
         if not present:
@@ -170,16 +187,19 @@ def main():
             module.fail_json(msg="PPDM returned no certificate for %s:%s" % (p["host"], p["port"]))
         if p["fingerprint"]:
             if norm(cert.get("fingerprint")) != norm(p["fingerprint"]):
-                module.fail_json(msg="certificate fingerprint %s does not match the expected %s (state %s)"
-                                 % (cert.get("fingerprint"), p["fingerprint"], state))
+                module.fail_json(
+                    msg="certificate fingerprint %s does not match the expected %s (state %s)"
+                    % (cert.get("fingerprint"), p["fingerprint"], state)
+                )
             acceptable = PIN_ACCEPTS
         else:
             acceptable = ("UNKNOWN",)
         if state == "ACCEPTED":
             module.exit_json(changed=False, certificate=cert, diff={"before": cert, "after": cert})
         if state not in acceptable:
-            module.fail_json(msg="certificate for %s:%s is in state %s, refusing to accept it"
-                             % (p["host"], p["port"], state))
+            module.fail_json(
+                msg="certificate for %s:%s is in state %s, refusing to accept it" % (p["host"], p["port"], state)
+            )
         after = dict(cert, state="ACCEPTED")
         if not module.check_mode:
             if cert.get("id"):

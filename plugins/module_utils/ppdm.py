@@ -1,11 +1,8 @@
-# -*- coding: utf-8 -*-
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 """PowerProtect Data Manager REST client (HTTP only via ansible open_url)."""
 
-from __future__ import absolute_import, annotations, division, print_function
-
-__metaclass__ = type
+from __future__ import annotations
 
 import json
 import time
@@ -15,7 +12,6 @@ from urllib.parse import quote, urlencode
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback
 from ansible.module_utils.urls import open_url
-
 from ansible_collections.fjacquet.ppdm.plugins.module_utils._routes import ROUTES
 
 PAGE_SIZE = 100
@@ -48,8 +44,18 @@ class PpdmError(Exception):
 
 
 class PpdmClient:
-    def __init__(self, hostname, username, password, port=8443, validate_certs=True,
-                 ca_path=None, timeout=30, opener=open_url, sleep=time.sleep):
+    def __init__(
+        self,
+        hostname,
+        username,
+        password,
+        port=8443,
+        validate_certs=True,
+        ca_path=None,
+        timeout=30,
+        opener=open_url,
+        sleep=time.sleep,
+    ):
         self.base_url = "https://%s:%s" % (hostname, port)
         self.username = username
         self.password = password
@@ -88,9 +94,13 @@ class PpdmClient:
             headers["Authorization"] = "Bearer " + self.token
         try:
             resp = self.opener(
-                url, method=method, headers=headers,
+                url,
+                method=method,
+                headers=headers,
                 data=None if body is None else json.dumps(body),
-                validate_certs=self.validate_certs, ca_path=self.ca_path, timeout=self.timeout,
+                validate_certs=self.validate_certs,
+                ca_path=self.ca_path,
+                timeout=self.timeout,
             )
             raw = resp.read()
             status = getattr(resp, "status", None) or resp.getcode()
@@ -103,16 +113,22 @@ class PpdmClient:
                 err_body = raw.decode("utf-8", "replace")
             err_body = self._scrub(err_body)
             detail = err_body.get("message") if isinstance(err_body, dict) else err_body
-            raise PpdmError("%s %s failed: HTTP %s%s" % (method, path, e.code, ": %s" % detail if detail else ""),
-                            status=e.code, body=err_body)
+            raise PpdmError(
+                "%s %s failed: HTTP %s%s" % (method, path, e.code, ": %s" % detail if detail else ""),
+                status=e.code,
+                body=err_body,
+            ) from None
         except (URLError, OSError, HTTPException) as e:
-            raise PpdmError(self._scrub("%s %s failed: %s" % (method, path, e)))
+            raise PpdmError(self._scrub("%s %s failed: %s" % (method, path, e))) from None
         if status == 204 or not raw:
             return None
         try:
             return json.loads(raw)
         except ValueError:
-            raise PpdmError("%s %s failed: HTTP %s response is not valid JSON" % (method, path, status), status=status)
+            raise PpdmError(
+                "%s %s failed: HTTP %s response is not valid JSON" % (method, path, status),
+                status=status,
+            ) from None
 
     def get_all(self, path, query=None):
         """GET path; a {content, page} envelope is paged to the end and returned as a list, anything else as is."""
@@ -165,8 +181,15 @@ class PpdmClient:
             return route["base"]
         return route["item"].replace("{id}", str(obj_id))
 
-    def ensure(self, resource, desired, key="name", check_mode=False, secret_keys=(),
-               update_secrets="on_create"):
+    def ensure(
+        self,
+        resource,
+        desired,
+        key="name",
+        check_mode=False,
+        secret_keys=(),
+        update_secrets="on_create",
+    ):
         if update_secrets not in ("on_create", "always"):
             raise PpdmError("update_secrets must be 'on_create' or 'always', got %r" % (update_secrets,))
         secret_keys = set(secret_keys)
@@ -175,20 +198,38 @@ class PpdmClient:
         if existing is None:
             path = self._route(resource, "POST")
             obj = want if check_mode else (self.request("POST", path, body=want) or want)
-            return {"changed": True, "object": _mask(obj, secret_keys),
-                    "diff": {"before": {}, "after": _mask(want, secret_keys)}}
+            return {
+                "changed": True,
+                "object": _mask(obj, secret_keys),
+                "diff": {"before": {}, "after": _mask(want, secret_keys)},
+            }
         before = strip_readonly(resource, existing)
         after = dict(before, **want)
+
         # Secrets are write-only (GET omits/masks them): never part of the comparison.
-        plain = lambda o: {k: v for k, v in o.items() if k not in secret_keys}  # noqa: E731
+        def plain(o):
+            return {k: v for k, v in o.items() if k not in secret_keys}
+
         force = update_secrets == "always" and bool(secret_keys & set(want))
         if plain(after) == plain(before) and not force:
-            return {"changed": False, "object": _mask(existing, secret_keys),
-                    "diff": {"before": _mask(before, secret_keys), "after": _mask(after, secret_keys)}}
+            return {
+                "changed": False,
+                "object": _mask(existing, secret_keys),
+                "diff": {
+                    "before": _mask(before, secret_keys),
+                    "after": _mask(after, secret_keys),
+                },
+            }
         path = self._route(resource, "PUT", existing["id"])
         obj = after if check_mode else (self.request("PUT", path, body=after) or after)
-        return {"changed": True, "object": _mask(obj, secret_keys),
-                "diff": {"before": _mask(before, secret_keys), "after": _mask(after, secret_keys)}}
+        return {
+            "changed": True,
+            "object": _mask(obj, secret_keys),
+            "diff": {
+                "before": _mask(before, secret_keys),
+                "after": _mask(after, secret_keys),
+            },
+        }
 
     def remove(self, resource, key, value, check_mode=False):
         existing = self.find_one(resource, key, value)
@@ -197,7 +238,10 @@ class PpdmClient:
         path = self._route(resource, "DELETE", existing["id"])
         if not check_mode:
             self.request("DELETE", path)
-        return {"changed": True, "diff": {"before": strip_readonly(resource, existing), "after": {}}}
+        return {
+            "changed": True,
+            "diff": {"before": strip_readonly(resource, existing), "after": {}},
+        }
 
     def wait_activity(self, activity_id, timeout, interval=5):
         path = self._route("activities", "GET", activity_id)
@@ -207,8 +251,14 @@ class PpdmClient:
             if isinstance(act, dict) and act.get("state") in ACTIVITY_TERMINAL_STATES:
                 return act
             if waited >= timeout:
-                raise PpdmError("activity %s timed out after %ss (state %s)" % (
-                    activity_id, timeout, act.get("state") if isinstance(act, dict) else None))
+                raise PpdmError(
+                    "activity %s timed out after %ss (state %s)"
+                    % (
+                        activity_id,
+                        timeout,
+                        act.get("state") if isinstance(act, dict) else None,
+                    )
+                )
             self.sleep(interval)
             waited += interval
 
@@ -217,7 +267,12 @@ def connection_argument_spec():
     return dict(
         hostname=dict(type="str", required=True, fallback=(env_fallback, ["PPDM_HOSTNAME"])),
         username=dict(type="str", required=True, fallback=(env_fallback, ["PPDM_USERNAME"])),
-        password=dict(type="str", required=True, no_log=True, fallback=(env_fallback, ["PPDM_PASSWORD"])),
+        password=dict(
+            type="str",
+            required=True,
+            no_log=True,
+            fallback=(env_fallback, ["PPDM_PASSWORD"]),
+        ),
         port=dict(type="int", default=8443, fallback=(env_fallback, ["PPDM_PORT"])),
         validate_certs=dict(type="bool", default=True),
         ca_path=dict(type="path"),
@@ -231,8 +286,15 @@ def fail_from(module, err):
 
 def client_from_module(module):
     p = module.params
-    client = PpdmClient(p["hostname"], p["username"], p["password"], port=p["port"],
-                        validate_certs=p["validate_certs"], ca_path=p["ca_path"], timeout=p["timeout"])
+    client = PpdmClient(
+        p["hostname"],
+        p["username"],
+        p["password"],
+        port=p["port"],
+        validate_certs=p["validate_certs"],
+        ca_path=p["ca_path"],
+        timeout=p["timeout"],
+    )
     try:
         client.login()
     except PpdmError as err:
@@ -243,7 +305,8 @@ def client_from_module(module):
 def info_main(resource, result_key, argument_spec, secret_fields=()):
     """Shared main() of the read-only *_info modules."""
     module = AnsibleModule(
-        argument_spec=dict(connection_argument_spec(), **argument_spec), supports_check_mode=True,
+        argument_spec=dict(connection_argument_spec(), **argument_spec),
+        supports_check_mode=True,
         mutually_exclusive=[("id", "name"), ("id", "filter")],
     )
     p = module.params

@@ -26,3 +26,11 @@ def test_item_param_normalized_and_eulas_skipped():
     routes = build_routes(SPECS)
     assert "eulas" not in routes
     assert all(r["item"].endswith("/{id}") for r in routes.values() if r["item"])
+
+
+def test_rendered_routes_lines_are_short():
+    from tools.generate import render_routes
+
+    text = render_routes(build_routes(SPECS))
+    assert max(len(line) for line in text.splitlines()) <= 120
+    assert text == render_routes(build_routes(SPECS))

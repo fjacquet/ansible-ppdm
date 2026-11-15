@@ -1,11 +1,21 @@
 import json
 
 import pytest
-
 from ansible_collections.fjacquet.ppdm.plugins.modules import certificate
-from ansible_collections.fjacquet.ppdm.tests.unit.helpers import FakeOpener, Resp, methods, run_module
+from ansible_collections.fjacquet.ppdm.tests.unit.helpers import (
+    FakeOpener,
+    Resp,
+    methods,
+    run_module,
+)
 
-BASE = {"id": "c1", "host": "dd01", "port": "3009", "type": "HOST", "fingerprint": "AB:CD"}
+BASE = {
+    "id": "c1",
+    "host": "dd01",
+    "port": "3009",
+    "type": "HOST",
+    "fingerprint": "AB:CD",
+}
 
 
 def cert(state, **kw):
@@ -13,7 +23,12 @@ def cert(state, **kw):
 
 
 def run(monkeypatch, op, **kw):
-    return run_module(monkeypatch, certificate, op, **dict(dict(host="dd01", port=3009, fingerprint="AB:CD"), **kw))
+    return run_module(
+        monkeypatch,
+        certificate,
+        op,
+        **dict(dict(host="dd01", port=3009, fingerprint="AB:CD"), **kw),
+    )
 
 
 def test_present_without_fingerprint_fails_before_any_request(monkeypatch):
@@ -24,7 +39,12 @@ def test_present_without_fingerprint_fails_before_any_request(monkeypatch):
 
 def test_accept_any_warns_and_accepts_unknown(monkeypatch):
     warns = []
-    monkeypatch.setattr(certificate.AnsibleModule, "warn", lambda self, m: warns.append(m), raising=False)
+    monkeypatch.setattr(
+        certificate.AnsibleModule,
+        "warn",
+        lambda self, m: warns.append(m),
+        raising=False,
+    )
     op = FakeOpener(Resp([cert("UNKNOWN")]), Resp(cert("ACCEPTED")))
     out = run(monkeypatch, op, fingerprint=None, accept_any_certificate=True)
     assert out["changed"] and methods(op) == ["GET", "PUT"] and warns

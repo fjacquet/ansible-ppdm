@@ -2,7 +2,6 @@ import json
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
-
 from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
     PpdmClient,
     PpdmError,
@@ -43,7 +42,13 @@ def test_ensure_no_put_when_identical():
 
 
 def test_ensure_puts_when_different_and_strips_links():
-    obj = {"id": "1", "name": "c1", "type": "X", "createdAt": "t", "_links": {"self": 1}}
+    obj = {
+        "id": "1",
+        "name": "c1",
+        "type": "X",
+        "createdAt": "t",
+        "_links": {"self": 1},
+    }
     c, op, _ = mk(page([obj], 1, 1), Resp({"id": "1", "name": "c1", "type": "Y"}))
     r = c.ensure("credentials", {"name": "c1", "type": "Y"})
     assert r["changed"]
@@ -76,23 +81,36 @@ def test_ensure_secret_masked_by_get_is_idempotent():
 def test_ensure_put_includes_secret_and_masks_diff():
     obj = {"id": "1", "name": "c1", "type": "X"}
     c, op, _ = mk(page([obj], 1, 1), Resp({"id": "1", "name": "c1", "type": "Y"}))
-    r = c.ensure("credentials", {"name": "c1", "type": "Y", "password": "pw"}, secret_keys=["password"])
+    r = c.ensure(
+        "credentials",
+        {"name": "c1", "type": "Y", "password": "pw"},
+        secret_keys=["password"],
+    )
     assert r["changed"] and json.loads(writes(op)[0][1]["data"])["password"] == "pw"
     assert "pw" not in json.dumps(r)
 
 
 def test_ensure_update_secrets_always_forces_put():
     c, op, _ = mk(page([{"id": "1", "name": "c1"}], 1, 1), Resp({"id": "1", "name": "c1"}))
-    r = c.ensure("credentials", {"name": "c1", "password": "pw"}, secret_keys=["password"],
-                 update_secrets="always")
+    r = c.ensure(
+        "credentials",
+        {"name": "c1", "password": "pw"},
+        secret_keys=["password"],
+        update_secrets="always",
+    )
     assert r["changed"] and writes(op)[0][1]["method"] == "PUT"
     assert json.loads(writes(op)[0][1]["data"])["password"] == "pw"
 
 
 def test_ensure_update_secrets_always_check_mode_sends_nothing():
     c, op, _ = mk(page([{"id": "1", "name": "c1"}], 1, 1))
-    assert c.ensure("credentials", {"name": "c1", "password": "pw"}, secret_keys=["password"],
-                    update_secrets="always", check_mode=True)["changed"]
+    assert c.ensure(
+        "credentials",
+        {"name": "c1", "password": "pw"},
+        secret_keys=["password"],
+        update_secrets="always",
+        check_mode=True,
+    )["changed"]
     assert writes(op) == []
 
 
@@ -146,7 +164,10 @@ def test_strip_readonly_pure():
 
 
 def test_wait_activity_returns_on_terminal_state():
-    c, op, sleeps = mk(Resp({"state": "RUNNING"}), Resp({"state": "COMPLETED", "result": {"status": "OK"}}))
+    c, op, sleeps = mk(
+        Resp({"state": "RUNNING"}),
+        Resp({"state": "COMPLETED", "result": {"status": "OK"}}),
+    )
     assert c.wait_activity("x", timeout=60)["state"] == "COMPLETED"
     assert op.calls[0][0].endswith("/api/v3/activities/x") and len(sleeps) == 1
 

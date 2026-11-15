@@ -1,10 +1,10 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import annotations
 
 # BEGIN GENERATED
+# fmt: off
 DOCUMENTATION = r'''
 module: eula
 short_description: Accept an end user license agreement on PowerProtect Data Manager
@@ -58,17 +58,22 @@ ARGUMENT_SPEC = dict(
     name=dict(type='str', choices=['PPDM', 'TELEMETRY', 'data-manager'], default='PPDM'),
     accepted=dict(type='bool', default=True),
 )
+# fmt: on
 # END GENERATED
 
-from ansible.module_utils.basic import AnsibleModule  # noqa: E402
-from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (  # noqa: E402
-    PpdmError, client_from_module, connection_argument_spec, fail_from,
+from ansible.module_utils.basic import AnsibleModule
+from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
+    PpdmError,
+    client_from_module,
+    connection_argument_spec,
+    fail_from,
 )
 
 
 def main():
     module = AnsibleModule(
-        argument_spec=dict(connection_argument_spec(), **ARGUMENT_SPEC), supports_check_mode=True
+        argument_spec=dict(connection_argument_spec(), **ARGUMENT_SPEC),
+        supports_check_mode=True,
     )
     p = module.params
     path = "/api/v2/eulas/" + p["name"]

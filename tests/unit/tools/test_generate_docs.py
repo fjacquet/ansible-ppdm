@@ -3,10 +3,14 @@ import re
 
 import pytest
 import yaml
+from ansible_collections.fjacquet.ppdm.plugins.doc_fragments.ppdm import (
+    ModuleDocFragment,
+)
+from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
+    connection_argument_spec,
+)
 
 from tools import generate
-from ansible_collections.fjacquet.ppdm.plugins.doc_fragments.ppdm import ModuleDocFragment
-from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import connection_argument_spec
 
 TQ = "'" * 3
 SCHEMA = {
@@ -18,7 +22,12 @@ SCHEMA = {
     "description": ["Create or remove widgets."],
     "options": {
         "name": {"type": "str", "required": True, "description": "Widget name."},
-        "mode": {"type": "str", "choices": ["a", "b"], "default": "a", "description": "Mode."},
+        "mode": {
+            "type": "str",
+            "choices": ["a", "b"],
+            "default": "a",
+            "description": "Mode.",
+        },
         "secret": {"type": "str", "no_log": True, "description": "A secret."},
     },
     "examples": "- name: x\n  fjacquet.ppdm.widget:\n    name: w\n",
@@ -121,8 +130,11 @@ def test_missing_or_reordered_markers_clear_error(tmp_path):
     generate.main(["modules"], s, m)
     path = m / "widget.py"
     good = path.read_text()
-    for bad in (good.replace(generate.BEGIN, ""), good.replace(generate.END, ""),
-                generate.END + "\n" + good.replace(generate.END, "")):
+    for bad in (
+        good.replace(generate.BEGIN, ""),
+        good.replace(generate.END, ""),
+        generate.END + "\n" + good.replace(generate.END, ""),
+    ):
         path.write_text(bad)
         with pytest.raises(ValueError, match="widget.py.*markers"):
             generate.update_module_text(bad, SCHEMA, str(path))
@@ -131,7 +143,10 @@ def test_missing_or_reordered_markers_clear_error(tmp_path):
 
 
 def test_alias_round_trip():
-    opts = {**SCHEMA["options"], "name": {**SCHEMA["options"]["name"], "aliases": ["n"]}}
+    opts = {
+        **SCHEMA["options"],
+        "name": {**SCHEMA["options"]["name"], "aliases": ["n"]},
+    }
     doc, src = generate.render_module_blocks({**SCHEMA, "options": opts})
     assert yaml.safe_load(doc)["options"]["name"]["aliases"] == ["n"]
     assert _spec(src)["name"]["aliases"] == ["n"]
@@ -161,3 +176,9 @@ def test_env_name_mismatch_detected():
     assert _env_names(" ".join(opts["hostname"]["description"])) != set(
         connection_argument_spec()["hostname"]["fallback"][1]
     )
+
+
+def test_generated_block_is_wrapped_in_fmt_off_on():
+    lines = generate.render_generated_block(SCHEMA).splitlines()
+    assert lines[:2] == [generate.BEGIN, "# fmt: off"]
+    assert lines[-2:] == ["# fmt: on", generate.END]

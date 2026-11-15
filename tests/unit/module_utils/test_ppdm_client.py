@@ -6,7 +6,6 @@ from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
-
 from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
     PpdmClient,
     PpdmError,
@@ -130,12 +129,15 @@ class RawResp(Resp):
         self._raw = raw
 
 
-@pytest.mark.parametrize("exc", [
-    TimeoutError("timed out S3cret!"),
-    ConnectionResetError("reset"),
-    http.client.RemoteDisconnected("closed"),
-    ssl.SSLError("tls S3cret!"),
-])
+@pytest.mark.parametrize(
+    "exc",
+    [
+        TimeoutError("timed out S3cret!"),
+        ConnectionResetError("reset"),
+        http.client.RemoteDisconnected("closed"),
+        ssl.SSLError("tls S3cret!"),
+    ],
+)
 def test_transport_errors_become_ppdm_error(exc):
     op = FakeOpener(exc)
     with pytest.raises(PpdmError) as e:

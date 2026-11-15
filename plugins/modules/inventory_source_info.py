@@ -1,10 +1,10 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import annotations
 
 # BEGIN GENERATED
+# fmt: off
 DOCUMENTATION = r'''
 module: inventory_source_info
 short_description: Get inventory sources from PowerProtect Data Manager
@@ -60,13 +60,14 @@ ARGUMENT_SPEC = dict(
     filter=dict(type='str'),
     id=dict(type='str'),
 )
+# fmt: on
 # END GENERATED
 
-from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import info_main  # noqa: E402
+from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import info_main
 
 
 def main():
-    info_main('inventory-sources', 'inventory_sources', ARGUMENT_SPEC, secret_fields=())
+    info_main("inventory-sources", "inventory_sources", ARGUMENT_SPEC, secret_fields=())
 
 
 if __name__ == "__main__":

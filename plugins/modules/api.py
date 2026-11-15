@@ -1,10 +1,10 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import annotations
 
 # BEGIN GENERATED
+# fmt: off
 DOCUMENTATION = r'''
 module: api
 short_description: Call any PowerProtect Data Manager REST endpoint
@@ -108,12 +108,13 @@ ARGUMENT_SPEC = dict(
     wait=dict(type='bool', default=False),
     wait_timeout=dict(type='int', default=600),
 )
+# fmt: on
 # END GENERATED
 
-import re  # noqa: E402
+import re
 
-from ansible.module_utils.basic import AnsibleModule  # noqa: E402
-from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (  # noqa: E402
+from ansible.module_utils.basic import AnsibleModule
+from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
     PpdmError,
     client_from_module,
     connection_argument_spec,
@@ -123,13 +124,16 @@ from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (  # noq
 
 def main():
     module = AnsibleModule(
-        argument_spec=dict(connection_argument_spec(), **ARGUMENT_SPEC), supports_check_mode=True
+        argument_spec=dict(connection_argument_spec(), **ARGUMENT_SPEC),
+        supports_check_mode=True,
     )
     p = module.params
     method, path = p["method"], p["path"]
-    if not path.startswith("/api/") or re.search(r"\.\.|%2e|[?#\s]", path, re.I):
-        module.fail_json(msg="path must start with /api/ and contain no '..', '%2e', '?', '#' or whitespace "
-                             "(use the query option for parameters)")
+    if not path.startswith("/api/") or re.search(r"\.\.|%2e|[?#\s]", path, re.IGNORECASE):
+        module.fail_json(
+            msg="path must start with /api/ and contain no '..', '%2e', '?', '#' or whitespace "
+            "(use the query option for parameters)"
+        )
     if method != "GET" and module.check_mode:
         module.exit_json(changed=True, skipped_write=True, status=None, result=None)
     client = client_from_module(module)
@@ -148,7 +152,10 @@ def main():
             if status == "OK_WITH_ERRORS":
                 module.warn("activity %s completed with errors" % activity_id)
             elif status != "OK":
-                module.fail_json(msg="activity %s finished with status %s" % (activity_id, status), **out)
+                module.fail_json(
+                    msg="activity %s finished with status %s" % (activity_id, status),
+                    **out,
+                )
     except PpdmError as err:
         fail_from(module, err)
     module.exit_json(**out)

@@ -1,10 +1,10 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import annotations
 
 # BEGIN GENERATED
+# fmt: off
 DOCUMENTATION = r'''
 module: storage_system
 short_description: Update a storage system on PowerProtect Data Manager
@@ -79,28 +79,39 @@ ARGUMENT_SPEC = dict(
     dd_location_id=dict(type='str'),
     config=dict(type='dict'),
 )
+# fmt: on
 # END GENERATED
 
-from ansible.module_utils.basic import AnsibleModule  # noqa: E402
-from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (  # noqa: E402
-    PpdmError, client_from_module, connection_argument_spec, fail_from,
+from ansible.module_utils.basic import AnsibleModule
+from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
+    PpdmError,
+    client_from_module,
+    connection_argument_spec,
+    fail_from,
 )
 
 
 def main():
     module = AnsibleModule(
-        argument_spec=dict(connection_argument_spec(), **ARGUMENT_SPEC), supports_check_mode=True
+        argument_spec=dict(connection_argument_spec(), **ARGUMENT_SPEC),
+        supports_check_mode=True,
     )
     p = module.params
     client = client_from_module(module)
-    desired = {"name": p["name"], "description": p["description"], "locationId": p["location_id"],
-               "ddLocationId": p["dd_location_id"]}
+    desired = {
+        "name": p["name"],
+        "description": p["description"],
+        "locationId": p["location_id"],
+        "ddLocationId": p["dd_location_id"],
+    }
     desired = {k: v for k, v in desired.items() if v is not None}
     desired.update(p["config"] or {})
     try:
         if client.find_one("storage-systems", "name", p["name"]) is None:
-            module.fail_json(msg="storage system %r not found: storage systems cannot be created through the "
-                                 "API, add the matching inventory source first" % p["name"])
+            module.fail_json(
+                msg="storage system %r not found: storage systems cannot be created through the "
+                "API, add the matching inventory source first" % p["name"]
+            )
         res = client.ensure("storage-systems", desired, check_mode=module.check_mode)
     except PpdmError as err:
         fail_from(module, err)

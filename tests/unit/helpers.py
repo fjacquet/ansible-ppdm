@@ -51,9 +51,19 @@ def run_module(monkeypatch, mod, opener, check_mode=False, **args):
 
     monkeypatch.setattr(mod.AnsibleModule, "exit_json", exit_json)
     monkeypatch.setattr(mod.AnsibleModule, "fail_json", fail_json)
-    with patch_module_args(dict(hostname="h", username="u", password="s3cret", _ansible_check_mode=check_mode, **args)):
-        with pytest.raises(Exit) as e:
-            mod.main()
+    with (
+        patch_module_args(
+            dict(
+                hostname="h",
+                username="u",
+                password="s3cret",
+                _ansible_check_mode=check_mode,
+                **args,
+            )
+        ),
+        pytest.raises(Exit) as e,
+    ):
+        mod.main()
     return e.value.kwargs
 
 

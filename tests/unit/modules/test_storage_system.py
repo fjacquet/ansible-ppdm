@@ -1,10 +1,23 @@
 import json
 
 from ansible_collections.fjacquet.ppdm.plugins.modules import storage_system
-from ansible_collections.fjacquet.ppdm.tests.unit.helpers import FakeOpener, Resp, listing, methods, run_module
+from ansible_collections.fjacquet.ppdm.tests.unit.helpers import (
+    FakeOpener,
+    Resp,
+    listing,
+    methods,
+    run_module,
+)
 
-EXISTING = {"id": "1", "name": "dd1", "type": "DATA_DOMAIN_SYSTEM", "description": "old",
-            "lastDiscoveryAt": "t", "_embedded": {}, "_links": {}}
+EXISTING = {
+    "id": "1",
+    "name": "dd1",
+    "type": "DATA_DOMAIN_SYSTEM",
+    "description": "old",
+    "lastDiscoveryAt": "t",
+    "_embedded": {},
+    "_links": {},
+}
 
 
 def run(monkeypatch, op, check_mode=False, **kw):

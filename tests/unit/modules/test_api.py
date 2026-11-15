@@ -3,11 +3,14 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from ansible.module_utils.testing import patch_module_args
-
 from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import PpdmClient
 from ansible_collections.fjacquet.ppdm.plugins.modules import api
-from ansible_collections.fjacquet.ppdm.tests.unit.helpers import Exit, FakeOpener, Resp, http_error
-
+from ansible_collections.fjacquet.ppdm.tests.unit.helpers import (
+    Exit,
+    FakeOpener,
+    Resp,
+    http_error,
+)
 
 CONN = dict(hostname="h", username="u", password="s3cret")
 
@@ -60,7 +63,14 @@ def test_post_marks_changed(monkeypatch):
 
 def test_check_mode_does_not_send_post(monkeypatch):
     op = FakeOpener()
-    out = run(monkeypatch, op, check_mode=True, method="POST", path="/api/v3/alerts", body={"a": 1})
+    out = run(
+        monkeypatch,
+        op,
+        check_mode=True,
+        method="POST",
+        path="/api/v3/alerts",
+        body={"a": 1},
+    )
     assert out["changed"] is True and out["skipped_write"] is True
     assert op.calls == []
 
@@ -100,9 +110,17 @@ def test_wait_warns_on_ok_with_errors(monkeypatch):
     assert out["failed"] is False and out["_warnings"]
 
 
-@pytest.mark.parametrize("path", [
-    "/api/../x", "/api/%2e%2e/x", "/api/%2E%2E/x", "/api/v2/x?y=1", "/api/v2/x#f", "/api/v2/ x",
-])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/../x",
+        "/api/%2e%2e/x",
+        "/api/%2E%2E/x",
+        "/api/v2/x?y=1",
+        "/api/v2/x#f",
+        "/api/v2/ x",
+    ],
+)
 def test_unsafe_paths_rejected_before_request(monkeypatch, path):
     op = FakeOpener()
     out = run(monkeypatch, op, path=path)
@@ -111,5 +129,9 @@ def test_unsafe_paths_rejected_before_request(monkeypatch, path):
 
 
 def test_activities_path_accepted(monkeypatch):
-    out = run(monkeypatch, FakeOpener(Resp({"content": [], "page": {"totalPages": 0}})), path="/api/v2/activities")
+    out = run(
+        monkeypatch,
+        FakeOpener(Resp({"content": [], "page": {"totalPages": 0}})),
+        path="/api/v2/activities",
+    )
     assert out["failed"] is False

@@ -1,7 +1,12 @@
 import json
 
 from ansible_collections.fjacquet.ppdm.plugins.modules import eula
-from ansible_collections.fjacquet.ppdm.tests.unit.helpers import FakeOpener, Resp, methods, run_module
+from ansible_collections.fjacquet.ppdm.tests.unit.helpers import (
+    FakeOpener,
+    Resp,
+    methods,
+    run_module,
+)
 
 
 def test_eula_already_accepted_no_patch(monkeypatch):
