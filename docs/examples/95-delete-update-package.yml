@@ -1,0 +1,34 @@
+---
+# Delete the active update package; refuses to run unless update_confirm is true.
+# Inspired by bottkars/ansible_ppdm `9.9-playbook_delete_ppdm_update_package.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Delete the active update package
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Check that the deletion was confirmed
+      ansible.builtin.assert:
+        that: update_confirm | bool
+        fail_msg: Set update_confirm to true to delete the update package.
+
+    - name: Get the active update package
+      fjacquet.ppdm.api:
+        path: /api/v2/upgrade-packages
+        query:
+          filter: category eq "ACTIVE"
+      register: update_packages
+
+    - name: Delete the active update package
+      fjacquet.ppdm.api:
+        method: DELETE
+        path: "/api/v2/upgrade-packages/{{ update_packages.result[0].id }}"
+      when: update_packages.result | length > 0

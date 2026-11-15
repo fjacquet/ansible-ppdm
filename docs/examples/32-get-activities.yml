@@ -1,0 +1,29 @@
+---
+# List activities, optionally filtered with a PPDM filter string (read-only).
+# Inspired by bottkars/ansible_ppdm `31.1-playbook_get_activities.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: List PPDM activities
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Get the activities
+      fjacquet.ppdm.api:
+        path: /api/v3/activities
+        query: "{{ {'filter': activity_filter} if activity_filter else omit }}"
+      register: ppdm_activities
+
+    - name: Show the activities
+      ansible.builtin.debug:
+        msg: "{{ item.name | default('') }} {{ item.id }} {{ item.state | default('') }}"
+      loop: "{{ ppdm_activities.result }}"
+      loop_control:
+        label: "{{ item.id }}"

@@ -1,0 +1,22 @@
+---
+# Delete the whitelist entries listed in whitelist_ids.
+# Inspired by bottkars/ansible_ppdm `100.8_delete_whitelistentry.yaml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Delete agent whitelist entries
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Delete the whitelist entry
+      fjacquet.ppdm.api:
+        method: DELETE
+        path: "/api/v2/whitelist/{{ item }}"
+      loop: "{{ whitelist_ids }}"

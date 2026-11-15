@@ -1,0 +1,34 @@
+---
+# Start a discovery on the Kubernetes inventory source (change k8s_hostname for another source).
+# Inspired by bottkars/ansible_ppdm `130.3_playbook_start_k8s_discoveries_by_query.yaml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Run a discovery on an inventory source
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Get the inventory source
+      fjacquet.ppdm.inventory_source_info:
+        name: "{{ k8s_hostname }}"
+      register: discovery_source
+
+    - name: Check that the inventory source exists
+      ansible.builtin.assert:
+        that: discovery_source.inventory_sources | length == 1
+        fail_msg: No inventory source named {{ k8s_hostname }}.
+
+    - name: Start the discovery
+      fjacquet.ppdm.api:
+        method: POST
+        path: /api/v2/discoveries
+        body:
+          start: "/inventory-sources/{{ discovery_source.inventory_sources[0].id }}"
+          level: DataCopies

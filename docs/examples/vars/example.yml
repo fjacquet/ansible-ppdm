@@ -1,0 +1,42 @@
+---
+# Placeholder values for the example playbooks. Copy and edit; never put secrets here
+# (secrets come from environment variables, see the README).
+ddve_hostname: ddve.example.com
+ddve_port: 3009
+ddve_fingerprint: "00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33"
+ddve_username: sysadmin
+ddve_credential_name: ddve-sysadmin
+
+vcenter_hostname: vcenter.example.com
+vcenter_fingerprint: "00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33"
+vcenter_username: administrator@vsphere.example.com
+vcenter_credential_name: vcenter-admin
+
+k8s_hostname: k8s.example.com
+k8s_port: 6443
+k8s_fingerprint: "00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33"
+k8s_credential_name: ppdm-discovery-k8s
+
+smtp_server: smtp.example.com
+smtp_port: 25
+smtp_from: ppdm@example.com
+
+sdr_repository_path: SysDR_ppdm
+
+vm_name: vm01.example.com
+restore_confirm: false
+
+asset_filter: ""
+activity_filter: ""
+inventory_filter: ""
+policy_name: example-policy
+backup_level: FULL
+
+agent_ips:
+  - 192.0.2.10
+whitelist_ids: []
+
+certificate_chain_file: /path/to/chain.pem
+private_key_file: /path/to/key.pem
+
+update_confirm: false

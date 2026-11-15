@@ -1,0 +1,25 @@
+---
+# Replace the appliance certificate with a private key and a certificate chain read from local files.
+# Inspired by bottkars/ansible_ppdm `9.0-playbook_replace_certs.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Replace the PPDM web certificate
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Replace the PPDM certificate
+      fjacquet.ppdm.api:
+        method: POST
+        path: /api/v2/certificates-replacement
+        body:
+          certificateChain: "{{ lookup('ansible.builtin.file', certificate_chain_file) }}"
+          privateKey: "{{ lookup('ansible.builtin.file', private_key_file) }}"
+      no_log: true

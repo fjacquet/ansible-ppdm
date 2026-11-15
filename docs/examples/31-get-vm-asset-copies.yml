@@ -1,0 +1,40 @@
+---
+# Find a protected VM asset by name and list its copies (read-only).
+# Inspired by bottkars/ansible_ppdm `30.1-playbook_get_vm_asset_copies.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: List the copies of a protected virtual machine
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Get the VM asset
+      fjacquet.ppdm.api:
+        path: /api/v2/assets
+        query:
+          filter: type eq "VMWARE_VIRTUAL_MACHINE" and protectionStatus eq "PROTECTED" and name eq "{{ vm_name }}"
+      register: vm_assets
+
+    - name: Check that exactly one asset matches
+      ansible.builtin.assert:
+        that: vm_assets.result | length == 1
+        fail_msg: Expected exactly one protected VM named {{ vm_name }}.
+
+    - name: Get the copies of the asset
+      fjacquet.ppdm.api:
+        path: "/api/v2/assets/{{ vm_assets.result[0].id }}/copies"
+      register: vm_copies
+
+    - name: Show the copies
+      ansible.builtin.debug:
+        msg: "{{ item.id }} {{ item.createTime | default('') }}"
+      loop: "{{ vm_copies.result }}"
+      loop_control:
+        label: "{{ item.id }}"

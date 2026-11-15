@@ -1,0 +1,29 @@
+---
+# List assets, optionally filtered with a PPDM filter string (read-only).
+# Inspired by bottkars/ansible_ppdm `30.0-playbook_get_assets.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: List PPDM assets
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Get the assets
+      fjacquet.ppdm.api:
+        path: /api/v2/assets
+        query: "{{ {'filter': asset_filter} if asset_filter else omit }}"
+      register: ppdm_assets
+
+    - name: Show the assets
+      ansible.builtin.debug:
+        msg: "{{ item.name }} {{ item.id }} {{ item.type }} {{ item.protectionStatus | default('') }}"
+      loop: "{{ ppdm_assets.result }}"
+      loop_control:
+        label: "{{ item.name }}"
