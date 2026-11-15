@@ -1,5 +1,7 @@
+import http.client
 import io
 import json
+import ssl
 from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlsplit
 
@@ -120,3 +122,58 @@ def test_ca_path_and_validate_certs_passed_to_opener():
     client(op, validate_certs=False, ca_path="/ca.pem", timeout=7).login()
     kw = op.calls[0][1]
     assert kw["validate_certs"] is False and kw["ca_path"] == "/ca.pem" and kw["timeout"] == 7
+
+
+class RawResp(Resp):
+    def __init__(self, raw, status=200):
+        self.status = status
+        self._raw = raw
+
+
+@pytest.mark.parametrize("exc", [
+    TimeoutError("timed out S3cret!"),
+    ConnectionResetError("reset"),
+    http.client.RemoteDisconnected("closed"),
+    ssl.SSLError("tls S3cret!"),
+])
+def test_transport_errors_become_ppdm_error(exc):
+    op = FakeOpener(exc)
+    with pytest.raises(PpdmError) as e:
+        client(op).login()
+    assert "S3cret!" not in e.value.msg
+
+
+def test_read_timeout_becomes_ppdm_error():
+    class Bad:
+        status = 200
+
+        def read(self):
+            raise TimeoutError("read timed out")
+
+    with pytest.raises(PpdmError):
+        client(FakeOpener(Bad())).login()
+
+
+def test_non_json_2xx_body_raises_ppdm_error():
+    op = FakeOpener(Resp({"access_token": "t"}), RawResp(b"<html>proxy</html>"))
+    c = client(op)
+    c.login()
+    with pytest.raises(PpdmError) as e:
+        c.request("GET", "/api/v3/alerts")
+    assert "S3cret!" not in e.value.msg
+
+
+@pytest.mark.parametrize("resp", [Resp({"foo": 1}), Resp(None, 204)])
+def test_login_without_access_token_raises_ppdm_error(resp):
+    with pytest.raises(PpdmError) as e:
+        client(FakeOpener(resp)).login()
+    assert "S3cret!" not in e.value.msg
+
+
+def test_list_all_missing_page_with_content_raises():
+    op = FakeOpener(Resp({"access_token": "t"}), Resp({"content": [{"id": 1}]}))
+    c = client(op)
+    c.login()
+    with pytest.raises(PpdmError) as e:
+        c.list_all("alerts")
+    assert "S3cret!" not in e.value.msg

@@ -8,11 +8,12 @@ from __future__ import absolute_import, annotations, division, print_function
 __metaclass__ = type
 
 import json
+from http.client import HTTPException
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 
 from ansible.module_utils.basic import env_fallback
-from ansible.module_utils.urls import ConnectionError, SSLValidationError, open_url
+from ansible.module_utils.urls import open_url
 
 from ansible_collections.fjacquet.ppdm.plugins.module_utils._routes import ROUTES
 
@@ -51,7 +52,11 @@ class PpdmClient:
     def login(self):
         data = {"username": self.username, "password": self.password}
         self.token = None
-        self.token = self.request("POST", "/api/v2/login", body=data)["access_token"]
+        resp = self.request("POST", "/api/v2/login", body=data)
+        token = resp.get("access_token") if isinstance(resp, dict) else None
+        if not token:
+            raise PpdmError("POST /api/v2/login failed: response has no access_token")
+        self.token = token
 
     def request(self, method, path, query=None, body=None):
         url = self.base_url + path
@@ -78,11 +83,14 @@ class PpdmClient:
             detail = err_body.get("message") if isinstance(err_body, dict) else err_body
             raise PpdmError("%s %s failed: HTTP %s%s" % (method, path, e.code, ": %s" % detail if detail else ""),
                             status=e.code, body=err_body)
-        except (URLError, SSLValidationError, ConnectionError) as e:
+        except (URLError, OSError, HTTPException) as e:
             raise PpdmError(self._scrub("%s %s failed: %s" % (method, path, e)))
         if status == 204 or not raw:
             return None
-        return json.loads(raw)
+        try:
+            return json.loads(raw)
+        except ValueError:
+            raise PpdmError("%s %s failed: HTTP %s response is not valid JSON" % (method, path, status), status=status)
 
     def list_all(self, resource, filter=None, order_by=None):
         path = ROUTES[resource]["base"]
@@ -95,8 +103,15 @@ class PpdmClient:
             if order_by:
                 query["orderby"] = order_by
             data = self.request("GET", path, query=query)
-            items.extend(data.get("content", []))
-            if page >= data.get("page", {}).get("totalPages", 0):
+            if not isinstance(data, dict):
+                raise PpdmError("GET %s failed: unexpected response" % path)
+            content = data.get("content") or []
+            items.extend(content)
+            if "page" not in data:
+                if content:
+                    raise PpdmError("GET %s failed: paginated response has no 'page' envelope" % path)
+                return items
+            if page >= data["page"].get("totalPages", 0):
                 return items
             page += 1
 
