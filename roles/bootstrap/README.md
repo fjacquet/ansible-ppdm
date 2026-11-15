@@ -17,6 +17,12 @@ Brings a freshly deployed PowerProtect Data Manager 20.3.0 to a configured state
 | `bootstrap_eula_accept` | `false` | Accept the PPDM EULA (must be explicit). |
 | `bootstrap_configuration` | unset | SystemConfiguration fields merged over the current configuration and sent with `PUT /api/v2/configurations/{id}`. |
 
+## Tags
+
+`bootstrap_wait`, `bootstrap_eula` and `bootstrap_config` select a stage. The readiness poll provides the configuration the later stages read, so it runs with every one of these tags.
+
+`bootstrap_configuration` may contain passwords (for example `osUsers`). It is not `no_log` in `argument_specs` because that would hide the whole dictionary from validation errors and output; the tasks that handle it are `no_log` instead. Source it from Ansible Vault and do not print it.
+
 ## Example
 
 See `docs/examples/bootstrap.yml`. Certificates are not handled by the role; call `fjacquet.ppdm.certificate` yourself afterwards:

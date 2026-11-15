@@ -6,6 +6,7 @@
       - bootstrap_wait_timeout | int > 0
     fail_msg: bootstrap_wait_delay and bootstrap_wait_timeout must be integers greater than 0.
     quiet: true
+  tags: [bootstrap_wait, bootstrap_eula, bootstrap_config]
 
 - name: Bootstrap PowerProtect Data Manager
   module_defaults:
@@ -27,11 +28,13 @@
       retries: "{{ __bootstrap_retries }}"
       delay: "{{ bootstrap_wait_delay }}"
       ignore_errors: true  # reported by the explicit fail below, with a clear cause
+      tags: [bootstrap_wait, bootstrap_eula, bootstrap_config]
 
     - name: Fail when authentication is refused
       ansible.builtin.fail:
         msg: "PPDM authentication failed (HTTP {{ __bootstrap_configurations.status }}): {{ __bootstrap_configurations.msg | default('') }}"
       when: __bootstrap_configurations is failed and (__bootstrap_configurations.status | default(0)) in [401, 403]
+      tags: [bootstrap_wait, bootstrap_eula, bootstrap_config]
 
     - name: Fail when the API did not become ready
       ansible.builtin.fail:
@@ -40,16 +43,19 @@
           (last status {{ __bootstrap_configurations.status | default('none') }}):
           {{ __bootstrap_configurations.msg | default('') }}
       when: __bootstrap_configurations is failed
+      tags: [bootstrap_wait, bootstrap_eula, bootstrap_config]
 
     - name: Accept the PPDM EULA
       fjacquet.ppdm.eula:
         accepted: true
       when: bootstrap_eula_accept | bool
+      tags: bootstrap_eula
 
     - name: Apply the initial configuration
       when:
         - bootstrap_configuration is defined
         - not (__bootstrap_configurations.result.content[0].gettingStartedCompleted | default(false))
+      tags: bootstrap_config
       block:
         - name: Check that a configuration object exists
           ansible.builtin.assert:
@@ -97,7 +103,9 @@
 
             - name: Fail when the configuration failed
               ansible.builtin.fail:
-                msg: "PPDM configuration failed: {{ __bootstrap_config_status.result }}"
+                msg: >-
+                  PPDM configuration failed (status {{ __bootstrap_config_status.result.status }}):
+                  {{ __bootstrap_config_status.result.msg | default('') }}
               when: __bootstrap_config_status.result.status | default('PROGRESS') == 'FAILED'
 
             - name: Fail when the configuration did not finish in time

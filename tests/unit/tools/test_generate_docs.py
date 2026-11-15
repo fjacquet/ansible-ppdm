@@ -182,3 +182,41 @@ def test_generated_block_is_wrapped_in_fmt_off_on():
     lines = generate.render_generated_block(SCHEMA).splitlines()
     assert lines[:2] == [generate.BEGIN, "# fmt: off"]
     assert lines[-2:] == ["# fmt: on", generate.END]
+
+
+@pytest.mark.parametrize("key", ["module", "short_description", "description", "examples", "return"])
+def test_missing_schema_key_names_file_and_key(tmp_path, capsys, key):
+    s, m = _setup(tmp_path, {k: v for k, v in SCHEMA.items() if k != key})
+    assert generate.main(["modules"], s, m) == 2
+    err = capsys.readouterr().err
+    assert "widget.yml" in err and repr(key) in err
+
+
+@pytest.mark.parametrize("key", ["type", "description"])
+def test_missing_option_key_names_file_option_and_key(tmp_path, capsys, key):
+    opts = {"name": {k: v for k, v in SCHEMA["options"]["name"].items() if k != key}}
+    s, m = _setup(tmp_path, {**SCHEMA, "options": opts})
+    assert generate.main(["modules"], s, m) == 2
+    err = capsys.readouterr().err
+    assert "widget.yml" in err and "name" in err and repr(key) in err
+
+
+def test_module_name_must_match_file_name(tmp_path, capsys):
+    s, m = _setup(tmp_path, {**SCHEMA, "module": "gadget"})
+    assert generate.main(["modules"], s, m) == 2
+    assert "widget.yml" in capsys.readouterr().err and not (m / "gadget.py").exists()
+
+
+def test_skeleton_has_no_coding_line_or_noqa():
+    text = generate.module_skeleton(SCHEMA)
+    assert "coding:" not in text and "noqa" not in text
+    ast.parse(text)
+
+
+def test_long_choices_are_wrapped_one_per_line_and_parse():
+    choices = [f"CHOICE_NUMBER_{i:03d}" for i in range(12)]
+    opts = {"mode": {"type": "str", "choices": choices, "description": "Mode."}}
+    _, src = generate.render_module_blocks({**SCHEMA, "options": opts})
+    ast.parse(src)
+    assert all(f"            '{c}',\n" in src for c in choices)
+    assert _spec(src)["mode"]["choices"] == choices

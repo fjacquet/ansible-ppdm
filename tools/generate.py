@@ -166,11 +166,11 @@ def render_generated_block(schema):
 def module_skeleton(schema):
     """New module file: header, marker block, minimal main (hand-written part follows END)."""
     return (
-        "#!/usr/bin/python\n# -*- coding: utf-8 -*-\n"
+        "#!/usr/bin/python\n"
         "# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)\n\n"
         "from __future__ import annotations\n\n" + render_generated_block(schema) + "\n"
-        "from ansible.module_utils.basic import AnsibleModule  # noqa: E402\n"
-        "from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (  # noqa: E402\n"
+        "from ansible.module_utils.basic import AnsibleModule\n"
+        "from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (\n"
         "    connection_argument_spec,\n)\n\n\n"
         "def main():\n"
         "    module = AnsibleModule(\n"
@@ -190,11 +190,25 @@ def update_module_text(text, schema, name="module file"):
     return text[:a] + block + text[b + len(END) :].removeprefix("\n")
 
 
+def validate_schema(schema, path):
+    """Fail with the file and key named instead of a bare KeyError."""
+    for key in ("module", "short_description", "description", "examples", "return"):
+        if key not in schema:
+            raise ValueError(f"{path}: missing required key {key!r}")
+    if schema["module"] != Path(path).stem:
+        raise ValueError(f"{path}: module {schema['module']!r} does not match the file name")
+    for name, o in schema.get("options", {}).items():
+        for key in ("type", "description"):
+            if key not in o:
+                raise ValueError(f"{path}: option {name!r} is missing required key {key!r}")
+
+
 def sync_modules(schemas_dir, modules_dir, check):
     """Rewrite (or, with check, only report) every module whose generated block drifted."""
     drift = []
     for path in sorted(Path(schemas_dir).glob("[!_]*.yml")):  # _*.yml are documentation examples
         schema = yaml.safe_load(path.read_text())
+        validate_schema(schema, path.name)
         target = Path(modules_dir) / f"{schema['module']}.py"
         old = target.read_text() if target.exists() else None
         new = module_skeleton(schema) if old is None else update_module_text(old, schema, str(target))
