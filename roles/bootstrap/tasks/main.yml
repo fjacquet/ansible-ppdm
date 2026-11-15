@@ -1,4 +1,12 @@
 ---
+- name: Validate the wait settings
+  ansible.builtin.assert:
+    that:
+      - bootstrap_wait_delay | int > 0
+      - bootstrap_wait_timeout | int > 0
+    fail_msg: bootstrap_wait_delay and bootstrap_wait_timeout must be integers greater than 0.
+    quiet: true
+
 - name: Bootstrap PowerProtect Data Manager
   module_defaults:
     group/fjacquet.ppdm.ppdm:
@@ -8,49 +16,85 @@
       password: "{{ bootstrap_password }}"
       validate_certs: "{{ bootstrap_validate_certs }}"
       ca_path: "{{ bootstrap_ca_path | default(omit) }}"
+  vars:
+    __bootstrap_retries: "{{ [(bootstrap_wait_timeout | int / bootstrap_wait_delay | int) | round(0, 'ceil') | int, 1] | max }}"
   block:
     - name: Wait for the PPDM REST API
       fjacquet.ppdm.api:
         path: /api/v2/configurations
       register: __bootstrap_configurations
-      until: __bootstrap_configurations is succeeded
-      retries: "{{ (bootstrap_wait_timeout | int / bootstrap_wait_delay | int) | round(0, 'ceil') | int }}"
+      until: __bootstrap_configurations is succeeded or (__bootstrap_configurations.status | default(0)) in [401, 403]
+      retries: "{{ __bootstrap_retries }}"
       delay: "{{ bootstrap_wait_delay }}"
-      no_log: true
+      ignore_errors: true  # reported by the explicit fail below, with a clear cause
+
+    - name: Fail when authentication is refused
+      ansible.builtin.fail:
+        msg: "PPDM authentication failed (HTTP {{ __bootstrap_configurations.status }}): {{ __bootstrap_configurations.msg | default('') }}"
+      when: __bootstrap_configurations is failed and (__bootstrap_configurations.status | default(0)) in [401, 403]
+
+    - name: Fail when the API did not become ready
+      ansible.builtin.fail:
+        msg: >-
+          PPDM API not ready within {{ bootstrap_wait_timeout }} seconds
+          (last status {{ __bootstrap_configurations.status | default('none') }}):
+          {{ __bootstrap_configurations.msg | default('') }}
+      when: __bootstrap_configurations is failed
 
     - name: Accept the PPDM EULA
       fjacquet.ppdm.eula:
         accepted: true
       when: bootstrap_eula_accept | bool
-      no_log: true
 
     - name: Apply the initial configuration
       when:
         - bootstrap_configuration is defined
         - not (__bootstrap_configurations.result.content[0].gettingStartedCompleted | default(false))
       block:
-        - name: Set the current configuration id
+        - name: Check that a configuration object exists
+          ansible.builtin.assert:
+            that: __bootstrap_configurations.result.content | default([]) | length > 0
+            fail_msg: GET /api/v2/configurations returned no configuration object.
+            quiet: true
+
+        - name: Set the configuration id and body
           ansible.builtin.set_fact:
             __bootstrap_config_id: "{{ __bootstrap_configurations.result.content[0].id }}"
+            # _links is dropped; other read-only fields are sent back as returned by GET (unverified on a live PPDM)
+            __bootstrap_config_body: >-
+              {{ __bootstrap_configurations.result.content[0] | ansible.builtin.dict2items
+              | rejectattr('key', 'equalto', '_links') | ansible.builtin.items2dict
+              | ansible.builtin.combine(bootstrap_configuration, recursive=true) }}
+          no_log: true
 
         - name: Submit the configuration
           fjacquet.ppdm.api:
             method: PUT
             path: "/api/v2/configurations/{{ __bootstrap_config_id }}"
-            body: "{{ __bootstrap_configurations.result.content[0] | ansible.builtin.combine(bootstrap_configuration, recursive=true) }}"
-          no_log: true
+            body: "{{ __bootstrap_config_body }}"
+          register: __bootstrap_put
+          no_log: true  # the body may hold passwords
+          ignore_errors: true
+
+        - name: Fail when the configuration was refused
+          ansible.builtin.fail:
+            # only msg and status: never the request body or invocation
+            msg: "PPDM refused the configuration (HTTP {{ __bootstrap_put.status | default('none') }}): {{ __bootstrap_put.msg | default('') }}"
+          when: __bootstrap_put is failed
 
         - name: Wait for the configuration to finish
-          fjacquet.ppdm.api:
-            path: "/api/v2/configurations/{{ __bootstrap_config_id }}/config-status"
-          register: __bootstrap_config_status
-          until: __bootstrap_config_status is succeeded and __bootstrap_config_status.result.status in ['SUCCESS', 'FAILED']
-          retries: "{{ (bootstrap_wait_timeout | int / bootstrap_wait_delay | int) | round(0, 'ceil') | int }}"
-          delay: "{{ bootstrap_wait_delay }}"
-          check_mode: false
-          changed_when: false
+          when: not ansible_check_mode
+          block:
+            - name: Poll the configuration status
+              fjacquet.ppdm.api:
+                path: "/api/v2/configurations/{{ __bootstrap_config_id }}/config-status"
+              register: __bootstrap_config_status
+              until: (__bootstrap_config_status.result.status | default('PROGRESS')) in ['SUCCESS', 'FAILED']
+              retries: "{{ __bootstrap_retries }}"
+              delay: "{{ bootstrap_wait_delay }}"
+              changed_when: false
 
-        - name: Fail when the configuration failed
-          ansible.builtin.fail:
-            msg: "PPDM configuration failed: {{ __bootstrap_config_status.result }}"
-          when: __bootstrap_config_status.result.status == 'FAILED'
+            - name: Fail when the configuration failed
+              ansible.builtin.fail:
+                msg: "PPDM configuration failed: {{ __bootstrap_config_status.result }}"
+              when: __bootstrap_config_status.result.status | default('PROGRESS') == 'FAILED'

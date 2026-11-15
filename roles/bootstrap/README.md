@@ -32,7 +32,11 @@ See `docs/examples/bootstrap.yml`. Certificates are not handled by the role; cal
 
 ## Idempotency
 
-Re-runs are safe: the EULA module only patches when not accepted, and the configuration PUT is skipped when `gettingStartedCompleted` is already `true` (PPDM allows the initial configuration only once). The readiness and status polls are read-only. Check mode: the readiness poll runs, the EULA module follows its own check mode, the status poll is skipped past the PUT.
+Re-runs are safe: the EULA module only patches when not accepted, and the configuration PUT is skipped when `gettingStartedCompleted` is already `true` (PPDM allows the initial configuration only once). The readiness and status polls are read-only. Check mode: the readiness poll and EULA module run (the latter per its own check mode), the PUT is skipped by the `api` module and the status poll is skipped.
+
+The PUT body is the GET configuration (without `_links`) with `bootstrap_configuration` merged over it: dictionaries merge recursively, lists (`ntpServers`, `networks`, ...) are replaced, not merged. Other read-only fields are sent back as GET returned them (unverified against a live PPDM, which may reject them).
+
+Failures: a 401/403 at readiness fails immediately; a refused connection retries until `bootstrap_wait_timeout`. The PUT task is `no_log`; its failure message shows only the HTTP status and message.
 
 ## Testing
 
