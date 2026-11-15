@@ -61,3 +61,16 @@ def test_put_refusal_message_hides_the_response():
     assert "__bootstrap_put.status" in msg and "see PPDM logs" in msg
     assert not re.search(r"__bootstrap_put\.(msg|body|result|content)|__bootstrap_put\b(?!\.status)", msg)
     assert tasks["Apply the initial configuration"] and tasks["Submit the configuration"]["no_log"] is True
+
+
+def test_config_status_failure_message_prints_status_only():
+    tasks = {t["name"]: t for t in _tasks(yaml.safe_load((ROLE / "tasks" / "main.yml").read_text()))}
+    msg = tasks["Fail when the configuration failed"]["ansible.builtin.fail"]["msg"]
+    assert "__bootstrap_config_status.result.status" in msg
+    assert not re.search(r"__bootstrap_config_status\.result\.(msg|message|body)", msg)
+
+
+def test_config_reads_are_no_log():
+    tasks = {t["name"]: t for t in _tasks(yaml.safe_load((ROLE / "tasks" / "main.yml").read_text()))}
+    assert tasks["Wait for the PPDM REST API"]["no_log"] is True
+    assert tasks["Poll the configuration status"]["no_log"] is True

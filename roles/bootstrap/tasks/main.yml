@@ -24,6 +24,7 @@
       fjacquet.ppdm.api:
         path: /api/v2/configurations
       register: __bootstrap_configurations
+      no_log: true  # the system configuration may hold secrets; the fail tasks below report status only
       until: __bootstrap_configurations is succeeded or (__bootstrap_configurations.status | default(0)) in [401, 403]
       retries: "{{ __bootstrap_retries }}"
       delay: "{{ bootstrap_wait_delay }}"
@@ -97,6 +98,7 @@
               fjacquet.ppdm.api:
                 path: "/api/v2/configurations/{{ __bootstrap_config_id }}/config-status"
               register: __bootstrap_config_status
+              no_log: true  # the status payload may carry configuration data
               until: (__bootstrap_config_status.result.status | default('PROGRESS')) in ['SUCCESS', 'FAILED']
               retries: "{{ __bootstrap_retries }}"
               delay: "{{ bootstrap_wait_delay }}"
@@ -106,8 +108,8 @@
             - name: Fail when the configuration failed
               ansible.builtin.fail:
                 msg: >-
-                  PPDM configuration failed (status {{ __bootstrap_config_status.result.status }}):
-                  {{ __bootstrap_config_status.result.msg | default('') }}
+                  PPDM configuration failed (status {{ __bootstrap_config_status.result.status }});
+                  see PPDM logs, the status message is hidden because it may contain secrets
               when: __bootstrap_config_status.result.status | default('PROGRESS') == 'FAILED'
 
             - name: Fail when the configuration did not finish in time

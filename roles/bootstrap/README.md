@@ -42,7 +42,7 @@ Re-runs are safe: the EULA module only patches when not accepted, and the config
 
 The PUT body is the GET configuration (without `_links`) with `bootstrap_configuration` merged over it: dictionaries merge recursively, lists (`ntpServers`, `networks`, ...) are replaced, not merged. Other read-only fields are sent back as GET returned them (unverified against a live PPDM, which may reject them).
 
-Failures: a 401/403 at readiness fails immediately; a refused connection retries until `bootstrap_wait_timeout`. The PUT task is `no_log`; its failure message shows only the HTTP status and a fixed text (the response is hidden because PPDM may echo initial passwords in it; see the PPDM logs).
+Failures: a 401/403 at readiness fails immediately; a refused connection retries until `bootstrap_wait_timeout`. The PUT task is `no_log`; its failure message shows only the HTTP status and a fixed text (the response is hidden because PPDM may echo initial passwords in it; see the PPDM logs). The readiness and configuration-status polls are `no_log` too (they read the system configuration, which may contain secrets), and the configuration-failed message prints the status only, never the status message.
 
 ## Testing
 
