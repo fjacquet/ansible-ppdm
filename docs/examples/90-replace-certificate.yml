@@ -1,5 +1,5 @@
 ---
-# Replace the appliance certificate with a private key and a certificate chain read from local files.
+# Replace the appliance certificate with a key and chain read from local files; refuses to run unless cert_confirm is true.
 # Inspired by bottkars/ansible_ppdm `9.0-playbook_replace_certs.yml` (workflow only; rewritten for fjacquet.ppdm).
 # Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
 - name: Replace the PPDM web certificate
@@ -15,6 +15,11 @@
       password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
       port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
   tasks:
+    - name: Check that the replacement was confirmed
+      ansible.builtin.assert:
+        that: cert_confirm | bool
+        fail_msg: Set cert_confirm to true, replacing the appliance certificate is service affecting.
+
     - name: Replace the PPDM certificate
       fjacquet.ppdm.api:
         method: POST

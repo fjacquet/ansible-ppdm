@@ -18,6 +18,11 @@
         path: /api/v2/components
       register: ppdm_components
 
+    - name: Check that the Cloud DR component exists
+      ansible.builtin.assert:
+        that: ppdm_components.result | selectattr('componentServiceName', 'equalto', 'cdr') | list | length == 1
+        fail_msg: Expected exactly one component with componentServiceName cdr.
+
     - name: Pick the Cloud DR component
       ansible.builtin.set_fact:
         cdr_component: "{{ ppdm_components.result | selectattr('componentServiceName', 'equalto', 'cdr') | first }}"

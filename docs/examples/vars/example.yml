@@ -40,3 +40,6 @@ certificate_chain_file: /path/to/chain.pem
 private_key_file: /path/to/key.pem
 
 update_confirm: false
+cert_confirm: false
+license_confirm: false
+whitelist_confirm: false

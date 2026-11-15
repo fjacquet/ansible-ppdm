@@ -19,6 +19,7 @@
         query:
           filter: category eq "ACTIVE"
       register: update_packages
+      no_log: true
 
     - name: Check that an update package is active
       ansible.builtin.assert:
@@ -30,11 +31,13 @@
         method: POST
         path: "/api/v2/upgrade-packages/{{ update_packages.result[0].id }}/precheck"
         wait: true
+      no_log: true
 
     - name: Read the package after the precheck
       fjacquet.ppdm.api:
         path: "/api/v2/upgrade-packages/{{ update_packages.result[0].id }}"
       register: update_package
+      no_log: true
 
     - name: Show the validation details
       ansible.builtin.debug:

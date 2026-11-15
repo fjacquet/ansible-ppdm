@@ -26,6 +26,7 @@
         query:
           filter: category eq "ACTIVE"
       register: update_packages
+      no_log: true
 
     - name: Delete the active update package
       fjacquet.ppdm.api:

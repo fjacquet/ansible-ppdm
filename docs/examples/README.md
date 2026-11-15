@@ -29,8 +29,15 @@ export PPDM_HOSTNAME=ppdm.example.com PPDM_USERNAME=admin PPDM_PASSWORD=...
 ansible-playbook -i localhost, docs/examples/20-add-data-domain.yml
 ```
 
-Examples that change something destructive (40, 94, 95) refuse to run until `restore_confirm` or `update_confirm`
-is set to true.
+Examples that change something destructive or service affecting (40, 90, 91, 94, 95, 102) refuse to run until
+their confirm variable (`restore_confirm`, `cert_confirm`, `license_confirm`, `update_confirm`, `whitelist_confirm`)
+is set to true. 94 also accepts the product and telemetry EULAs and trusts the package certificate when confirmed.
+
+## Unverified details
+
+- 22: the `consumersCount` filter is marked `x-ppdm-filter: false` in the spec, PPDM may reject it.
+- 23: the `start` operation of the component management call has no enum in the spec.
+- 25: `repositoryHost` is set to the storage system id, as in the original workflow.
 
 ## Converted
 

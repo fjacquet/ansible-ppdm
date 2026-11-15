@@ -1,3 +1,4 @@
+import json
 import pathlib
 import re
 
@@ -95,12 +96,11 @@ def test_no_literal_secrets():
 
 def test_header_has_credit_line_and_no_disclaimer():
     for path in FILES:
-        if path.name == "bootstrap.yml":
-            continue
         text = path.read_text()
-        assert "# Inspired by bottkars/ansible_ppdm `" in text.split("\n- name:")[0], path.name
-        assert "(workflow only; rewritten for fjacquet.ppdm)" in text, path.name
-        assert "PPDM_HOSTNAME" in text.split("\n- name:")[0], path.name
+        header = text.split("\n- name:")[0]
+        assert "# Inspired by bottkars/ansible_ppdm `" in header, path.name
+        assert "(workflow only; rewritten for fjacquet.ppdm)" in header, path.name
+        assert "PPDM_" in header, path.name
 
 
 def test_disclaimer_only_in_readme():
@@ -116,3 +116,51 @@ def test_readme_indexes_every_example_and_skipped_source():
     for name in SKIPPED:
         assert name in README, name
     assert "NOTICE" in README
+
+
+DESTRUCTIVE = {
+    "40-restore-vm-copy.yml": "restore_confirm",
+    "90-replace-certificate.yml": "cert_confirm",
+    "91-set-license.yml": "license_confirm",
+    "94-install-update-package.yml": "update_confirm",
+    "95-delete-update-package.yml": "update_confirm",
+    "102-delete-whitelist-entries.yml": "whitelist_confirm",
+}
+SECRET_RE = re.compile(r"password|token|license_key|privatekey|cred_password|\"key\":", re.I)
+
+
+def _is_write(task):
+    api = task.get("fjacquet.ppdm.api")
+    return api is not None and str(api.get("method", "GET")).upper() != "GET"
+
+
+def test_destructive_examples_are_guarded_by_a_preceding_assert():
+    defaults = yaml.safe_load((EXAMPLES / "vars" / "example.yml").read_text())
+    for name, var in DESTRUCTIVE.items():
+        tasks = list(_tasks(EXAMPLES / name))
+        guards = [
+            i
+            for i, t in enumerate(tasks)
+            if "ansible.builtin.assert" in t and var in str(t["ansible.builtin.assert"].get("that"))
+        ]
+        writes = [i for i, t in enumerate(tasks) if _is_write(t)]
+        assert guards and writes, name
+        assert guards[0] < writes[0], name
+        assert defaults[var] is False, var
+
+
+def test_readme_lists_the_destructive_set():
+    match = re.search(r"destructive or service affecting \(([\d, ]+)\)", README)
+    assert match
+    listed = {n.strip() for n in match.group(1).split(",")}
+    assert listed == {name.split("-")[0] for name in DESTRUCTIVE}
+
+
+def test_secret_bearing_tasks_have_no_log():
+    for path in FILES:
+        for task in _tasks(path):
+            args = {k: v for k, v in task.items() if k.startswith(("fjacquet.", "ansible."))}
+            dump = json.dumps(args)
+            returns_package = "/upgrade-packages" in dump and "DELETE" not in dump
+            if SECRET_RE.search(dump) or returns_package:
+                assert task.get("no_log") is True, (path.name, task.get("name"))

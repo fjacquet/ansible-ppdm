@@ -20,7 +20,11 @@
         query:
           filter: category eq "{{ update_category | default('ACTIVE') }}"
       register: update_packages
+      no_log: true
 
     - name: Show the update packages
       ansible.builtin.debug:
-        var: update_packages.result
+        msg: "{{ item.name | default('') }} {{ item.packageVersion | default('') }} {{ item.state }}"
+      loop: "{{ update_packages.result }}"
+      loop_control:
+        label: "{{ item.id }}"

@@ -1,11 +1,13 @@
 ---
-# Apply a license key to the appliance license object.
+# Apply a license key to the appliance license object; refuses to run unless license_confirm is true.
 # Inspired by bottkars/ansible_ppdm `9.1-playbook_replace_license.yml` (workflow only; rewritten for fjacquet.ppdm).
 # Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional), PPDM_LICENSE_KEY.
 - name: Set the PPDM license key
   hosts: localhost
   connection: local
   gather_facts: false
+  vars_files:
+    - vars/example.yml
   module_defaults:
     group/fjacquet.ppdm.ppdm:
       hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
@@ -13,6 +15,11 @@
       password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
       port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
   tasks:
+    - name: Check that the license change was confirmed
+      ansible.builtin.assert:
+        that: license_confirm | bool
+        fail_msg: Set license_confirm to true, it overwrites the current license key.
+
     - name: Get the license object
       fjacquet.ppdm.api:
         path: /api/v2/licenses

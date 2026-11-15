@@ -1,5 +1,6 @@
 ---
-# Install the active update package; refuses to run unless update_confirm is true. Accepts the EULAs on your behalf.
+# Install the active update package; refuses to run unless update_confirm is true.
+# Confirming accepts the product and telemetry EULAs and trusts the package certificate on your behalf.
 # Inspired by bottkars/ansible_ppdm `9.9-playbook_install_update_ppdm.yml` (workflow only; rewritten for fjacquet.ppdm).
 # Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
 - name: Install the active update package
@@ -18,7 +19,7 @@
     - name: Check that the install was confirmed
       ansible.builtin.assert:
         that: update_confirm | bool
-        fail_msg: Set update_confirm to true, it installs the update and accepts the product and telemetry EULAs.
+        fail_msg: Set update_confirm to true, it installs the update, accepts the product and telemetry EULAs and trusts the package certificate.
 
     - name: Get the active update package
       fjacquet.ppdm.api:
@@ -26,6 +27,7 @@
         query:
           filter: category eq "ACTIVE"
       register: update_packages
+      no_log: true
 
     - name: Check that an update package is active
       ansible.builtin.assert:
@@ -36,6 +38,7 @@
       fjacquet.ppdm.api:
         path: "/api/v2/upgrade-packages/{{ update_packages.result[0].id }}"
       register: update_package
+      no_log: true
 
     - name: Install the update package
       fjacquet.ppdm.api:
@@ -47,3 +50,4 @@
             'certificateTrustedByUser': true,
             'eula': {'productEulaAccepted': true, 'telemetryEulaAccepted': true}
           }) }}
+      no_log: true

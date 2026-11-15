@@ -1,5 +1,5 @@
 ---
-# Delete the whitelist entries listed in whitelist_ids.
+# Delete the whitelist entries listed in whitelist_ids; refuses to run unless whitelist_confirm is true.
 # Inspired by bottkars/ansible_ppdm `100.8_delete_whitelistentry.yaml` (workflow only; rewritten for fjacquet.ppdm).
 # Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
 - name: Delete agent whitelist entries
@@ -15,6 +15,11 @@
       password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
       port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
   tasks:
+    - name: Check that the deletion was confirmed
+      ansible.builtin.assert:
+        that: whitelist_confirm | bool
+        fail_msg: Set whitelist_confirm to true to delete the listed whitelist entries.
+
     - name: Delete the whitelist entry
       fjacquet.ppdm.api:
         method: DELETE
