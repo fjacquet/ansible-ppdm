@@ -418,3 +418,10 @@ def test_get_playbooks_print_a_filtered_projection_of_secret_bearing_results():
 def test_asset_filter_playbooks_refuse_an_empty_filter():
     for name in ("run_policy", "assign_assets_to_policy"):
         assert "asset_filter | length > 0" in (PLAYBOOKS / "protection" / f"{name}.yml").read_text(), name
+
+
+def test_no_playbook_uses_the_v2_rule_api():
+    for path in FILES:
+        text = path.read_text()
+        for v2 in ("/api/v2/protection-rules", "/api/v2/rules", "protection-rules-execution"):
+            assert v2 not in text, (_short(path), v2)

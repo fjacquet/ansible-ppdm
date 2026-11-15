@@ -1,6 +1,6 @@
 ---
-# Run a protection rule now so PPDM applies it to the matching assets (no activity is returned). Refuses to run unless rule_run_confirm is true.
-# The v2 protection rule API is deprecated since PPDM 20.2 and removed in 20.6; the modules will move to v3.
+# Run a v3 protection rule now so PPDM applies it to the matching assets (the rule is found by name).
+# Refuses to run unless rule_run_confirm is true.
 # Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
 - name: Run a protection rule now
   hosts: "{{ target | default('localhost') }}"
@@ -22,5 +22,4 @@
 
     - name: Run the protection rule
       fjacquet.ppdm.protection_rule_run:
-        rules:
-          - "{{ rule_name }}"
+        rule: "{{ rule_name }}"

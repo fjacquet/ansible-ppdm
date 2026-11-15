@@ -77,7 +77,21 @@ k8s_policy_name: example-k8s-policy
 k8s_namespace_policy_name: example-k8s-namespace-policy
 vm_policy_name: example-vm-policy
 rule_name: example-vm-rule
-rule_tag: gold
+rule_priority: 10
+rule_filters:
+  - objectType: ASSET
+    objectSubtype: VMWARE_VIRTUAL_MACHINE
+    type: INCLUDE
+    operator: AND
+    conditions:
+      - operator: AND
+        conditions:
+          - fieldName: tags
+            operator: EQUALS
+            fieldData:
+              type: STRING
+              values:
+                - gold
 discovery_inventory_source: vcenter.example.com
 k8s_rule_name: Kubernetes label rule example
 k8s_rule_label: ppdm_policy=example

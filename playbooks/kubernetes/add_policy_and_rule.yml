@@ -1,5 +1,5 @@
 ---
-# Create a Kubernetes policy, a rule moving namespaces with a label to it, and run the rules.
+# Create a Kubernetes policy, a v3 rule assigning the Kubernetes assets with a label to it, and run the rule.
 # Assumptions, not verified live: storageContainerId is the Data Domain storage system id, and the objective id is a to_uuid of the policy name.
 # Inspired by bottkars/ansible_ppdm `130.2_playbook_add_k8s_policy_and_rule.yaml` (workflow only; rewritten for fjacquet.ppdm).
 # Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
@@ -82,51 +82,29 @@
       when: existing_policy.result | length == 0
       register: created_policy
 
-    - name: Get the policy id
-      fjacquet.ppdm.api:
-        path: /api/v3/protection-policies
-        query:
-          filter: name eq "{{ k8s_policy_name }}"
-      register: k8s_policy
+    - name: Ensure the protection rule
+      fjacquet.ppdm.protection_rule:
+        name: "{{ k8s_rule_name }}"
+        action: ASSIGN_PROTECTION_POLICY
+        priority: 1
+        protection_policy: "{{ k8s_policy_name }}"
+        filters:
+          - objectType: ASSET
+            objectSubtype: KUBERNETES
+            type: INCLUDE
+            operator: AND
+            conditions:
+              - operator: AND
+                conditions:
+                  - fieldName: userTags
+                    operator: EQUALS
+                    fieldData:
+                      type: STRING
+                      values:
+                        - "{{ k8s_rule_label }}"
 
-    - name: Get the rule of that name
-      fjacquet.ppdm.api:
-        path: /api/v2/protection-rules
-        query:
-          filter: name eq "{{ k8s_rule_name }}"
-      register: existing_rule
-
-    - name: Create the protection rule
-      fjacquet.ppdm.api:
-        method: POST
-        path: /api/v2/protection-rules
-        body:
-          name: "{{ k8s_rule_name }}"
-          category: COMPOUND
-          action: MOVE_TO_GROUP
-          actionResult: "{{ k8s_policy.result[0].id }}"
-          inventorySourceType: KUBERNETES
-          priority: 1
-          conditionConnector: OR
-          logicalOperator: OR
-          conditions: &k8s_label_condition
-            - assetAttributeName: userTags
-              operator: EQUALS
-              assetAttributeValue: "{{ k8s_rule_label }}"
-              assetAttributeValues:
-                - "{{ k8s_rule_label }}"
-          rules:
-            - category: PRIMITIVE
-              inventorySourceType: KUBERNETES
-              priority: -1
-              conditionConnector: AND
-              logicalOperator: AND
-              conditions: *k8s_label_condition
-      when: existing_rule.result | length == 0
-
-    - name: Run the protection rules for Kubernetes
-      fjacquet.ppdm.api:
-        method: POST
-        path: /api/v2/protection-rules-execution
-        body:
-          inventorySourceType: KUBERNETES
+    - name: Run the protection rule
+      fjacquet.ppdm.protection_rule_run:
+        rule: "{{ k8s_rule_name }}"
+        object_subtypes:
+          - KUBERNETES

@@ -1,7 +1,7 @@
 ---
-# Create a rule moving the VMs with a tag to a protection policy, or update it when it differs (idempotent).
+# Create a v3 rule assigning the assets selected by rule_filters (VMs with a tag by default) to a protection policy,
+# or update it when it differs (idempotent). Edit the rule_filters variable to select other assets.
 # The policy from protection.create_vm_policy (vm_policy_name) must exist first.
-# The v2 protection rule API is deprecated since PPDM 20.2 and removed in 20.6; the modules will move to v3.
 # Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
 - name: Create a protection rule
   hosts: "{{ target | default('localhost') }}"
@@ -19,12 +19,7 @@
     - name: Ensure the protection rule
       fjacquet.ppdm.protection_rule:
         name: "{{ rule_name }}"
-        action: MOVE_TO_GROUP
-        inventory_source_type: VMWARE_VIRTUAL_MACHINE
-        priority: 10
-        policy: "{{ vm_policy_name }}"
-        conditions:
-          - assetAttributeName: tag
-            operator: EQUALS
-            assetAttributeValues:
-              - "{{ rule_tag }}"
+        action: ASSIGN_PROTECTION_POLICY
+        priority: "{{ rule_priority }}"
+        protection_policy: "{{ vm_policy_name }}"
+        filters: "{{ rule_filters }}"
