@@ -186,7 +186,10 @@ def main():
                 % (
                     p["host"],
                     p["port"],
-                    ", ".join("%s (%s)" % (c.get("id"), c.get("fingerprint")) for c in matches),
+                    ", ".join(
+                        "%s (%s)" % (client.scrub_text(c.get("id"), 64), client.scrub_text(c.get("fingerprint"), 128))
+                        for c in matches[:10]
+                    ),
                 )
             )
         cert = matches[0] if matches else None
@@ -203,7 +206,7 @@ def main():
             if norm(cert.get("fingerprint")) != norm(p["fingerprint"]):
                 module.fail_json(
                     msg="certificate fingerprint %s does not match the expected %s (state %s)"
-                    % (cert.get("fingerprint"), p["fingerprint"], state)
+                    % (client.scrub_text(cert.get("fingerprint"), 128), p["fingerprint"], client.scrub_text(state, 64))
                 )
             acceptable = PIN_ACCEPTS
         else:
@@ -212,7 +215,8 @@ def main():
             module.exit_json(changed=False, certificate=cert, diff={"before": cert, "after": cert})
         if state not in acceptable:
             module.fail_json(
-                msg="certificate for %s:%s is in state %s, refusing to accept it" % (p["host"], p["port"], state)
+                msg="certificate for %s:%s is in state %s, refusing to accept it"
+                % (p["host"], p["port"], client.scrub_text(state, 64))
             )
         after = dict(cert, state="ACCEPTED")
         if not module.check_mode:

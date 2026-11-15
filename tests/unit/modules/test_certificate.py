@@ -174,3 +174,21 @@ def test_server_supplied_id_is_quoted_in_put_and_delete(monkeypatch, bad_id):
     for path in (put_path, del_path):
         tail = path[len("/api/v2/certificates/") :]
         assert path.startswith("/api/v2/certificates/") and not set("/?#") & set(tail) and tail.strip(".") != ""
+
+
+def test_duplicate_message_scrubs_server_values(monkeypatch):
+    op = FakeOpener(Resp([cert("UNKNOWN", id="s3cret"), cert("UNKNOWN", id="c2", fingerprint="s3cret")]))
+    out = run(monkeypatch, op)
+    assert out["failed"] and "s3cret" not in out["msg"]
+
+
+def test_mismatch_message_scrubs_server_values(monkeypatch):
+    op = FakeOpener(Resp([cert("s3cret", fingerprint="s3cret")]))
+    out = run(monkeypatch, op, fingerprint="EE:FF")
+    assert out["failed"] and "s3cret" not in out["msg"]
+
+
+def test_wrong_state_message_scrubs_server_values(monkeypatch):
+    op = FakeOpener(Resp([cert("s3cret")]))
+    out = run(monkeypatch, op)
+    assert out["failed"] and "s3cret" not in out["msg"]

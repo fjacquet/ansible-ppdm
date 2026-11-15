@@ -61,23 +61,24 @@ def quote_id(value):
     return quoted.replace(".", "%2E") if quoted in (".", "..") else quoted
 
 
+DNS_NAME = re.compile(r"[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\.?")
+
+
 def _host_netloc(hostname):
-    """Bare host name or IP literal -> URL host part (IPv6 bracketed); PpdmError otherwise."""
+    """Allowlist: a DNS name or an IPv4/IPv6 literal -> URL host part (IPv6 bracketed); PpdmError otherwise."""
     host = hostname if isinstance(hostname, str) else ""
-    if not host or re.search(r"[\s@/?#\\%]", host):
-        raise PpdmError("hostname must be a bare host name or IP address (no scheme, user, port, path or spaces)")
-    inner = host[1:-1] if host.startswith("[") and host.endswith("]") else host
-    if ":" in inner:
+    if 0 < len(host) <= 253 and DNS_NAME.fullmatch(host):
+        return host
+    inner = host[1:-1] if host.startswith("[") and host.endswith("]") and ":" in host else host
+    if inner and "%" not in inner:
         try:
-            ipaddress.IPv6Address(inner)
+            return "[%s]" % ipaddress.IPv6Address(inner) if ":" in inner else str(ipaddress.IPv4Address(inner))
         except ValueError:
-            raise PpdmError(
-                "hostname must not contain a port (use the port option) and IPv6 must be a valid literal"
-            ) from None
-        return "[%s]" % inner
-    if "[" in host or "]" in host:
-        raise PpdmError("hostname has misplaced brackets")
-    return host
+            pass
+    raise PpdmError(
+        "hostname must be a DNS name or an IP address, without scheme, user, port, path or spaces "
+        "(use the port option for the port)"
+    )
 
 
 def _mask(obj, secret_keys):
@@ -116,25 +117,44 @@ class PpdmClient:
         self.token = None
         self.last_status = None
 
-    def _scrub(self, value):
-        """Replace the password and the token inside string values only (keys kept); never raises."""
-        # one pass, longest first: sequential replacement could leave a token tail next to a replaced password
-        secrets = sorted({self.password, self.token} - {None, ""}, key=len, reverse=True)
-        pattern = re.compile("|".join(re.escape(x) for x in secrets)) if secrets else None
-
-        def walk(v):
-            if isinstance(v, str):
-                return pattern.sub("********", v) if pattern else v
-            if isinstance(v, dict):
-                return {k: walk(x) for k, x in v.items()}
-            if isinstance(v, list):
-                return [walk(x) for x in v]
-            return v
-
+    def scrub(self, value):
+        """Mask the password and the token in every string of value (dict keys too); never raises."""
         try:
+            secrets = [x for x in (self.password, self.token) if isinstance(x, str) and x]
+
+            def mask(text):
+                # every occurrence of every secret (overlaps included), merged, then masked once per run
+                spans = sorted(m.span(1) for x in secrets for m in re.finditer("(?=(%s))" % re.escape(x), text))
+                merged = []
+                for start, end in spans:
+                    if merged and start <= merged[-1][1]:
+                        merged[-1][1] = max(merged[-1][1], end)
+                    else:
+                        merged.append([start, end])
+                out, pos = [], 0
+                for start, end in merged:
+                    out += [text[pos:start], "********"]
+                    pos = end
+                return "".join(out) + text[pos:]
+
+            def walk(v):
+                if isinstance(v, str):
+                    return mask(v)
+                if isinstance(v, dict):
+                    return {(mask(k) if isinstance(k, str) else k): walk(x) for k, x in v.items()}
+                if isinstance(v, list):
+                    return [walk(x) for x in v]
+                return v
+
             return walk(value)
         except Exception:  # e.g. RecursionError on a hostile body: hide it rather than risk a leak
             return "********"
+
+    _scrub = scrub
+
+    def scrub_text(self, value, limit=200):
+        """str(value) scrubbed, then cut to limit characters: safe to put server data in a message."""
+        return self.scrub(str(value))[:limit]
 
     @staticmethod
     def _read(resp, method, path):
@@ -150,7 +170,7 @@ class PpdmClient:
         self.token = None
         resp = self.request("POST", "/api/v2/login", body=data)
         token = resp.get("access_token") if isinstance(resp, dict) else None
-        if not token:
+        if not isinstance(token, str) or not token:
             raise PpdmError("POST /api/v2/login failed: response has no access_token")
         self.token = token
 
@@ -187,8 +207,9 @@ class PpdmClient:
                 err_body = json.loads(raw) if raw else None
             except (ValueError, RecursionError):
                 err_body = raw.decode("utf-8", "replace")
-            err_body = self._scrub(err_body)
             detail = err_body.get("message") if isinstance(err_body, dict) else err_body
+            detail = self.scrub_text(detail, 1000) if detail else ""
+            err_body = self.scrub(err_body)
             raise PpdmError(
                 "%s %s failed: HTTP %s%s" % (method, path, e.code, ": %s" % detail if detail else ""),
                 status=e.code,
@@ -235,8 +256,8 @@ class PpdmClient:
                 not isinstance(total, int) or isinstance(total, bool) or total < 0 or total > MAX_PAGES
             ):
                 raise PpdmError(
-                    "GET %s failed: invalid page.totalPages %.40r (must be an integer 0..%d)"
-                    % (path, self._scrub(total), MAX_PAGES)
+                    "GET %s failed: invalid page.totalPages %s (must be an integer 0..%d)"
+                    % (path, self.scrub_text(repr(total), 40), MAX_PAGES)
                 )
             if total is None:
                 if content:
@@ -266,7 +287,7 @@ class PpdmClient:
         # make ensure/remove write to or delete another object)
         found = [o for o in found if isinstance(o, dict) and o.get(key) == value]
         if len(found) > 1:
-            ids = ", ".join(self._scrub(str(o.get("id")))[:64] for o in found[:10])
+            ids = ", ".join(self.scrub_text(o.get("id"), 64) for o in found[:10])
             raise PpdmError(
                 self._scrub("%s: %d objects match %s=%s (ids: %s)" % (resource, len(found), key, value, ids))
             )
@@ -277,10 +298,18 @@ class PpdmClient:
         if verb not in route["methods"]:
             raise PpdmError("%s does not support %s" % (resource, verb))
         if obj_id is None:
+            if verb in ("PUT", "PATCH", "DELETE"):  # item verbs must never fall back to the collection path
+                raise PpdmError("%s %s: id is required" % (resource, verb))
             return route["base"]
         if str(obj_id) == "":
             raise PpdmError("%s %s: id must not be empty" % (resource, verb))
         return route["item"].replace("{id}", quote_id(obj_id))
+
+    def _item_id(self, resource, existing):
+        obj_id = existing.get("id")
+        if not isinstance(obj_id, str) or not obj_id:
+            raise PpdmError("%s: the existing object has no usable id" % resource)
+        return obj_id
 
     def ensure(
         self,
@@ -322,7 +351,7 @@ class PpdmClient:
                     "after": _mask(after, secret_keys),
                 },
             }
-        path = self._route(resource, "PUT", existing["id"])
+        path = self._route(resource, "PUT", self._item_id(resource, existing))
         obj = after if check_mode else (self.request("PUT", path, body=after) or after)
         return {
             "changed": True,
@@ -337,7 +366,7 @@ class PpdmClient:
         existing = self.find_one(resource, key, value)
         if existing is None:
             return {"changed": False, "diff": {"before": {}, "after": {}}}
-        path = self._route(resource, "DELETE", existing["id"])
+        path = self._route(resource, "DELETE", self._item_id(resource, existing))
         if not check_mode:
             self.request("DELETE", path)
         return {
@@ -363,9 +392,9 @@ class PpdmClient:
                 raise PpdmError(
                     "activity %s timed out after %ss (state %s)"
                     % (
-                        activity_id,
+                        self.scrub_text(activity_id, 64),
                         timeout,
-                        act.get("state") if isinstance(act, dict) else None,
+                        self.scrub_text(act.get("state") if isinstance(act, dict) else None, 64),
                     )
                 )
             self.sleep(interval)

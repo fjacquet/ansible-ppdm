@@ -166,3 +166,160 @@ def test_client_from_module_fails_cleanly_on_bad_hostname():
 
     with pytest.raises(SystemExit, match="hostname"):
         ppdm.client_from_module(M())
+
+
+# Fix round 1
+
+TOK = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiJ9.sig"
+
+
+def _no_run_of_8(text, secret):
+    return not any(secret[i : i + 8] in text for i in range(len(secret) - 7))
+
+
+def _logged(pw):
+    c, _ = mk(Resp({"access_token": TOK}), password=pw)
+    c.login()
+    return c
+
+
+@pytest.mark.parametrize(
+    "pw",
+    [
+        "echo Bearer " + TOK[:38],  # left edge overlap
+        TOK[10:] + " tail",  # right edge overlap
+        "x" + TOK[10:30] + "y",  # middle
+        "Bearer " + TOK[:20],
+        TOK[:25],
+    ],
+)
+def test_scrub_overlap_leaves_no_token_run(pw):
+    c = _logged(pw)
+    for text in ("echo Bearer " + TOK, TOK + " " + pw, pw + TOK):
+        out = c.scrub(text)
+        assert TOK[38:] not in out and _no_run_of_8(out, TOK), (pw, text, out)
+
+
+def test_scrub_equal_length_overlapping_secrets():
+    c, _ = mk(password="abcdefghij")
+    c.token = "efghijklmn"
+    out = c.scrub("..abcdefghijklmn..")
+    assert out == "..********.." and "klmn" not in out
+
+
+@pytest.mark.parametrize("which", ["password", "token"])
+@pytest.mark.parametrize("shape", ["key", "nested", "list", "detail_key"])
+def test_scrub_covers_dict_keys_and_messages(which, shape):
+    c = _logged("S3cret!")
+    secret = "S3cret!" if which == "password" else TOK
+    value = {
+        "key": {secret: 1},
+        "nested": {"a": [{secret: 1}]},
+        "list": [secret, [secret]],
+        "detail_key": {"message": {secret: 1}},
+    }[shape]
+    assert secret not in repr(c.scrub(value))
+    # totalPages and HTTP error detail
+    c2 = _logged("S3cret!")
+    c2.opener = FakeOpener(page([], value))
+    with pytest.raises(PpdmError) as e:
+        c2.list_all("credentials")
+    assert secret not in e.value.msg
+    c2.opener = FakeOpener(
+        __import__("ansible_collections.fjacquet.ppdm.tests.unit.helpers", fromlist=["x"]).http_error(
+            400, {"message": value}
+        )
+    )
+    with pytest.raises(PpdmError) as e:
+        c2.request("GET", "/x")
+    assert secret not in e.value.msg and secret not in repr(e.value.body)
+
+
+def test_scrub_never_raises_on_odd_secrets():
+    c, _ = mk(password=12345)
+    c.token = ["x"]
+    assert c.scrub("a 12345 b") == "a 12345 b"
+
+
+@pytest.mark.parametrize("tok", [12345, [], "", None, {"a": 1}])
+def test_login_requires_string_token(tok):
+    c, _ = mk(Resp({"access_token": tok}))
+    with pytest.raises(PpdmError, match="access_token"):
+        c.login()
+    assert c.token is None
+
+
+@pytest.mark.parametrize("bad", [None, ""])
+def test_item_verbs_never_fall_back_to_collection(bad):
+    c, _ = mk()
+    for verb in ("PUT", "DELETE", "PATCH"):
+        if verb in ppdm.ROUTES["credentials"]["methods"]:
+            with pytest.raises(PpdmError):
+                c._route("credentials", verb, bad)
+
+
+@pytest.mark.parametrize(
+    "entry", [{"name": "a", "id": None}, {"name": "a"}, {"name": "a", "id": ""}, {"name": "a", "id": 5}]
+)
+def test_remove_and_ensure_require_string_id(entry):
+    c, op = mk(page([entry], 1))
+    with pytest.raises(PpdmError, match="id"):
+        c.remove("credentials", "name", "a")
+    assert len(op.calls) == 1  # the listing only
+    c, op = mk(page([entry], 1))
+    with pytest.raises(PpdmError, match="id"):
+        c.ensure("credentials", {"name": "a", "type": "x"})
+    assert len(op.calls) == 1
+
+
+def test_wait_activity_timeout_scrubs_state():
+    c = _logged("S3cret!")
+    c.opener = FakeOpener(Resp({"id": "a", "state": TOK}))
+    with pytest.raises(PpdmError) as e:
+        c.wait_activity("a", 0)
+    assert TOK not in e.value.msg
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        "a\x00b",
+        "a\x7fb",
+        "a;b",
+        "a<b",
+        "a>b",
+        'a"b',
+        "a{b}",
+        "a|b",
+        "a^b",
+        "a​b",
+        "a．b",
+        "bücher.de",
+        "a" * 5000,
+        "a.b\n",
+        "-a.b",
+        "a-.b",
+        "a..b",
+        "a b",
+        "[1.2.3.4]",
+        "fe80::1%eth0",
+        "::g",
+        "[::1]x",
+        "a" * 64 + ".com",
+    ],
+)
+def test_hostname_allowlist_rejects(host):
+    with pytest.raises(PpdmError, match="hostname"):
+        mk(host=host)
+
+
+@pytest.mark.parametrize(
+    "host", ["localhost", "a-b.c1.example.com", "host.", "1.2.3.4", "A.B", "a" * 63, "[2001:DB8::1]"]
+)
+def test_hostname_allowlist_accepts(host):
+    mk(host=host)
+
+
+def test_hostname_ipv6_normalised():
+    c, _ = mk(host="2001:DB8:0:0:0:0:0:1")
+    assert c.base_url == "https://[2001:db8::1]:8443"

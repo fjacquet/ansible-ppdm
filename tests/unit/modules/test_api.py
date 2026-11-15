@@ -169,3 +169,16 @@ def test_no_body_warning_when_all_pages_false(monkeypatch):
 def test_warns_when_wait_but_no_activity_id(monkeypatch):
     out = run(monkeypatch, FakeOpener(Resp({"ok": 1})), method="POST", path="/api/v3/x", wait=True)
     assert out["failed"] is False and any("activityId" in w for w in out["_warnings"])
+
+
+def test_wait_failure_message_scrubs_server_status(monkeypatch):
+    act = {"id": "a1", "state": "COMPLETED", "result": {"status": "s3cret"}}
+    out = run(monkeypatch, _async(act), method="POST", path="/api/v3/x", wait=True)
+    assert out["failed"] and "s3cret" not in out["msg"]
+
+
+def test_wait_ok_with_errors_warning_scrubs_activity_id(monkeypatch):
+    act = {"id": "a1", "state": "COMPLETED", "result": {"status": "OK_WITH_ERRORS"}}
+    op = FakeOpener(Resp({"activityId": "s3cret"}, status=202), Resp(act))
+    out = run(monkeypatch, op, method="POST", path="/api/v3/x", wait=True)
+    assert not any("s3cret" in w for w in out["_warnings"])

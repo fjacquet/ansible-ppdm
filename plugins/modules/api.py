@@ -168,10 +168,11 @@ def main():
             out["activity"] = activity
             status = (activity.get("result") or {}).get("status")
             if status == "OK_WITH_ERRORS":
-                module.warn("activity %s completed with errors" % activity_id)
+                module.warn("activity %s completed with errors" % client.scrub_text(activity_id, 64))
             elif status != "OK":
                 module.fail_json(
-                    msg="activity %s finished with status %s" % (activity_id, status),
+                    msg="activity %s finished with status %s"
+                    % (client.scrub_text(activity_id, 64), client.scrub_text(status, 64)),
                     **out,
                 )
     except PpdmError as err:
