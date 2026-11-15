@@ -1,0 +1,51 @@
+module: protection_rule_info
+resource: protection-rules
+key: name
+kind: info
+short_description: Get protection rules from PowerProtect Data Manager
+description:
+  - Read-only query of protection rules. Never changes anything.
+  - Returns every matching object, all pages.
+version_added: 0.2.0
+attributes:
+  check_mode:
+    support: full
+    details: Read-only, behaves the same in check mode.
+  diff_mode:
+    support: none
+notes:
+  - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
+seealso:
+  - module: fjacquet.ppdm.protection_rule
+    description: Manage protection rules.
+options:
+  name:
+    type: str
+    description: Return only the object whose name equals this value exactly (case-sensitive, checked again on the result, whatever the server filter returns). Mutually exclusive with I(filter) and I(id).
+  filter:
+    type: str
+    description: PPDM filter string, for example C(name lk "gold%"). It is passed to PPDM unchanged and its result is not re-checked. Mutually exclusive with I(name) and I(id).
+  id:
+    type: str
+    description: Return only the object with this ID. Mutually exclusive with I(name) and I(filter). A 404 answer gives an empty list.
+examples: |
+  - name: List all protection rules
+    fjacquet.ppdm.protection_rule_info:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+    register: result
+
+  - name: Get one by name
+    fjacquet.ppdm.protection_rule_info:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      name: gold-vms
+return: |
+  protection_rules:
+    description: Matching objects, an empty list when nothing matches.
+    returned: always
+    type: list
+    elements: dict
+    sample: [{"id": "1", "name": "gold-vms", "action": "MOVE_TO_GROUP", "inventorySourceType": "VMWARE_VIRTUAL_MACHINE"}]

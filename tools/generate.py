@@ -144,6 +144,9 @@ def build_enums(openapi_dir):
                 required.add(k)
     dspec, disc = get("Discovery")
     rspec, rule = get("ProtectionRule")
+    cspec, cond = get("Condition")
+    espec, execu = get("ProtectionRuleExecution")
+    vspec, prev = get("ProtectionRulesConflictPreviewRequest")
     enums = {
         "protection_policy.asset_type": asset,
         "protection_policy.purpose": purpose,
@@ -151,6 +154,10 @@ def build_enums(openapi_dir):
         "discovery.level": set(_prop(dspec, disc, "level")["enum"]),
         "protection_rule.action": set(_prop(rspec, rule, "action")["enum"]),
         "protection_rule.inventory_source_type": set(_prop(rspec, rule, "inventorySourceType")["enum"]),
+        "protection_rule.condition_connector": set(_prop(rspec, rule, "conditionConnector")["enum"]),
+        "condition.operator": set(_prop(cspec, cond, "operator")["enum"]),
+        "protection_rule_run.inventory_source_type": set(_prop(espec, execu, "inventorySourceType")["enum"]),
+        "protection_rule_run.preview_action": set(_prop(vspec, prev, "previewAction")["enum"]),
     }
     return {k: tuple(sorted(v)) for k, v in sorted(enums.items())}, tuple(sorted(required))
 

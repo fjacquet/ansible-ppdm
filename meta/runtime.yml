@@ -19,3 +19,6 @@ action_groups:
     - protection_policy_run
     - discovery
     - certificate
+    - protection_rule
+    - protection_rule_info
+    - protection_rule_run
