@@ -1,0 +1,10 @@
+fjacquet.ppdm
+Copyright (C) 2026 Frederic Jacquet
+Licensed under the GNU General Public License v3.0 or later (see LICENSE).
+
+This is an unofficial collection. It is not affiliated with, endorsed by, or
+supported by Dell Technologies. PowerProtect is a trademark of Dell Technologies.
+
+Attribution: the Lot 1 workflows (endpoint ordering and bootstrap sequence) are
+reused from the Ansible workflows of bottkars/ansible_ppdm, ported into Python
+modules. No YAML from that project is copied.
