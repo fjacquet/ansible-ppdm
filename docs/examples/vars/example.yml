@@ -43,3 +43,37 @@ update_confirm: false
 cert_confirm: false
 license_confirm: false
 whitelist_confirm: false
+
+sdr_short_name: ppdm
+csm_tenant: tenant-0000
+
+namespace_name: demo-namespace
+target_namespace_name: demo-namespace-restored
+restore_type: TO_ALTERNATE
+
+cloud_dr_confirm: false
+azure_subscription_id: 00000000-0000-0000-0000-000000000000
+azure_tenant_domain: 00000000-0000-0000-0000-000000000001
+azure_storage_account: examplestorageaccount
+cdrs_cidr_block: 10.0.0.0/26
+cdrs_email: admin@example.com
+
+fs_policy_name: example-fs-policy
+mssql_policy_name: example-mssql-policy
+exchange_policy_name: example-exchange-policy
+k8s_policy_name: example-k8s-policy
+k8s_rule_name: Kubernetes label rule example
+k8s_rule_label: ppdm_policy=example
+app_credential_name: example-app-credential
+app_credential_username: svc_backup
+policy_window_start: "2026-01-01T19:00:00Z"
+
+k8s_config_key: k8s.velero.exclude.resources
+k8s_config_value: secrets, events
+
+local_user_setting_name: maxAge
+local_user_setting_value: P90D
+vib_resource_id: 00000000-0000-0000-0000-000000000002
+agent_hostnames:
+  - agent01.example.com
+agent_enable_lookups: true
