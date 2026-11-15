@@ -10,7 +10,7 @@ description:
   - With a I(fingerprint) pin, the states C(UNKNOWN), C(MISMATCHED) and C(REJECTED) are accepted, C(EXPIRED), C(MALFORMED) and any other state fail. A certificate already C(ACCEPTED) with a different fingerprint than the pin fails, it is never reported as unchanged.
   - With I(accept_any_certificate=true) only C(UNKNOWN) is accepted, every other non-C(ACCEPTED) state fails.
   - With C(state=absent) the entry is deleted when it is currently C(ACCEPTED).
-  - A real C(state=present) run does the GET without C(nocache), per the API this retrieves the remote certificate and stores it in the trust store in a non-accepted state, BEFORE the I(fingerprint) pin is checked, and the entry stays there when the pin does not match (by design: PPDM exposes no side-effect-free way to read the presented certificate). Check mode and C(state=absent) use C(nocache=true) so they never write to the trust store.
+  - A real C(state=present) run does the GET without C(nocache), per the API this retrieves the remote certificate and stores it in the trust store in a non-accepted state, BEFORE the I(fingerprint) pin is checked, and the entry stays there when the pin does not match (by design, PPDM exposes no side-effect-free way to read the presented certificate). Check mode and C(state=absent) use C(nocache=true) so they never write to the trust store.
   - Entries are matched on exact I(host) (case-insensitive), I(port) and I(type). More than one match fails.
   - With C(state=absent) an API entry without a C(type) is not matched, so C(changed=false) can mean "not found by this module".
 options:

@@ -251,3 +251,11 @@ def test_bad_module_name_rejected(tmp_path):
 def test_render_refuses_bad_option_name_directly():
     with pytest.raises(ValueError, match="widget.*option"):
         generate.render_module_blocks({**SCHEMA, "options": {EVIL: {"type": "str", "description": "d"}}})
+
+
+def test_description_entry_that_parses_as_mapping_rejected(tmp_path):
+    s, m = tmp_path / "s", tmp_path / "m"
+    s.mkdir()
+    m.mkdir()
+    (s / "widget.yml").write_text(yaml.safe_dump({**SCHEMA, "description": ["ok"]}).replace("- ok", "- a (b: c)"))
+    assert generate.main(["modules"], s, m) == 2

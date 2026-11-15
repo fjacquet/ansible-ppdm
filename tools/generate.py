@@ -205,6 +205,9 @@ def validate_schema(schema, path):
     for key in ("module", "short_description", "description", "examples", "return"):
         if key not in schema:
             raise ValueError(f"{path}: missing required key {key!r}")
+    desc = schema["description"]
+    if not all(isinstance(x, str) for x in ([desc] if isinstance(desc, str) else desc)):
+        raise ValueError(f"{path}: every 'description' entry must be a string (quote text containing ': ')")
     check_name("module", schema["module"], path)
     if schema["module"] != Path(path).stem:
         raise ValueError(f"{path}: module {schema['module']!r} does not match the file name")
