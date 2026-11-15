@@ -1,9 +1,13 @@
 """Q2 client residuals: id encoding, scrub of server text, response bounds, hostname validation."""
 
+import io
+import json
+import urllib.error
+
 import pytest
 from ansible_collections.fjacquet.ppdm.plugins.module_utils import ppdm
 from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import PpdmClient, PpdmError, quote_id
-from ansible_collections.fjacquet.ppdm.tests.unit.helpers import FakeOpener, Resp
+from ansible_collections.fjacquet.ppdm.tests.unit.helpers import FakeOpener, Resp, http_error
 
 
 def mk(*responses, password="S3cret!", host="ppdm.local"):
@@ -323,3 +327,76 @@ def test_hostname_allowlist_accepts(host):
 def test_hostname_ipv6_normalised():
     c, _ = mk(host="2001:DB8:0:0:0:0:0:1")
     assert c.base_url == "https://[2001:db8::1]:8443"
+
+
+# Fix round 2: repr escapes must not hide a secret from the scrubber
+
+NASTY = ["p\\w", "a\nb", "it's\"x", "z​z", "\x07bell", "t\tab", "smile\U0001f600x"]
+
+
+def _forms(secret):
+    return {secret, repr(secret)[1:-1], json.dumps(secret)[1:-1], json.dumps(secret, ensure_ascii=False)[1:-1]}
+
+
+def _shapes(secret):
+    return {
+        "key": {secret: 1},
+        "nested": {"a": [{secret: [secret]}]},
+        "list": [secret, [secret]],
+        "plain": secret,
+    }
+
+
+def _leaks(secret, text):
+    return [f for f in _forms(secret) if f in text]
+
+
+@pytest.fixture(params=NASTY)
+def nasty(request):
+    return request.param
+
+
+@pytest.mark.parametrize("shape", ["key", "nested", "list", "plain"])
+@pytest.mark.parametrize("which", ["password", "token"])
+def test_messages_hide_escaped_secrets(nasty, shape, which):
+    pw, tok = (nasty, TOK) if which == "password" else ("S3cret!", nasty)
+    secret = nasty
+    c, _ = mk(Resp({"access_token": tok}), password=pw)
+    c.login()
+    value = _shapes(secret)[shape]
+    msgs = []
+    # totalPages
+    c.opener = FakeOpener(page([], value))
+    with pytest.raises(PpdmError) as e:
+        c.list_all("credentials")
+    msgs.append(e.value.msg)
+    # HTTP error detail
+    c.opener = FakeOpener(http_error(400, {"message": value}))
+    with pytest.raises(PpdmError) as e:
+        c.request("GET", "/x")
+    msgs += [e.value.msg, repr(e.value.body)]
+    # find_one duplicates
+    c.opener = FakeOpener(page([{"id": value, "name": "a"}, {"id": value, "name": "a"}], 1))
+    with pytest.raises(PpdmError) as e:
+        c.find_one("credentials", "name", "a")
+    msgs.append(e.value.msg)
+    # wait_activity timeout
+    c.opener = FakeOpener(Resp({"id": "a", "state": value}))
+    with pytest.raises(PpdmError) as e:
+        c.wait_activity(value, 0)
+    msgs.append(e.value.msg)
+    for m in msgs:
+        assert not _leaks(secret, m), (secret, shape, m)
+
+
+def test_huge_error_body_is_bounded_and_fast():
+    import time
+
+    big = '{"message": "' + "a" * (5 * 1024 * 1024) + '"}'
+    err = urllib.error.HTTPError("u", 500, "x", {}, io.BytesIO(big.encode()))
+    c, _ = mk(err, password="a")
+    t = time.time()
+    with pytest.raises(PpdmError) as e:
+        c.request("GET", "/x")
+    assert time.time() - t < 1.0
+    assert len(e.value.msg) <= 70 * 1024 and "a" not in e.value.msg.split("HTTP 500", 1)[1]

@@ -143,6 +143,8 @@ PIN_ACCEPTS = ("UNKNOWN", "MISMATCHED", "REJECTED")
 
 
 def item_path(cert_id):
+    if not isinstance(cert_id, str) or not cert_id:
+        raise PpdmError("the certificate has no usable id")
     return "%s/%s" % (PATH, quote_id(cert_id))  # the id comes from the server: it must not change the path
 
 

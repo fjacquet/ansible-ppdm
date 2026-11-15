@@ -192,3 +192,13 @@ def test_wrong_state_message_scrubs_server_values(monkeypatch):
     op = FakeOpener(Resp([cert("s3cret")]))
     out = run(monkeypatch, op)
     assert out["failed"] and "s3cret" not in out["msg"]
+
+
+@pytest.mark.parametrize("bad", [5, ["x"], {"a": 1}])
+def test_non_string_id_fails_without_write(monkeypatch, bad):
+    op = FakeOpener(Resp([cert("UNKNOWN", id=bad)]))
+    out = run(monkeypatch, op)
+    assert out["failed"] and methods(op) == ["GET"]
+    op = FakeOpener(Resp([cert("ACCEPTED", id=bad)]))
+    out = run(monkeypatch, op, state="absent", fingerprint=None)
+    assert out["failed"] and methods(op) == ["GET"]

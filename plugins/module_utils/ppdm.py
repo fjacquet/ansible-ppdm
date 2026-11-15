@@ -8,6 +8,7 @@ Bounds: PAGE_SIZE is the pageSize requested and the most items accepted in one p
 
 from __future__ import annotations
 
+import heapq
 import ipaddress
 import json
 import re
@@ -22,6 +23,7 @@ from ansible_collections.fjacquet.ppdm.plugins.module_utils._routes import ROUTE
 
 PAGE_SIZE = 100
 MAX_BODY_BYTES = 32 * 1024 * 1024
+MAX_ERROR_TEXT = 64 * 1024  # an error body is cut to this before it is parsed and scrubbed
 MAX_PAGES = 10000  # the OpenAPI maximum of the `page` query parameter
 REDIRECT_CODES = frozenset([301, 302, 303, 307, 308])
 MASK = "VALUE_SPECIFIED_IN_NO_LOG_PARAMETER"
@@ -123,10 +125,10 @@ class PpdmClient:
             secrets = [x for x in (self.password, self.token) if isinstance(x, str) and x]
 
             def mask(text):
-                # every occurrence of every secret (overlaps included), merged, then masked once per run
-                spans = sorted(m.span(1) for x in secrets for m in re.finditer("(?=(%s))" % re.escape(x), text))
+                # every occurrence of every secret (overlaps included), merged on the fly, then masked once per run
+                found = ((m.span(1) for m in re.finditer("(?=(%s))" % re.escape(x), text)) for x in secrets)
                 merged = []
-                for start, end in spans:
+                for start, end in heapq.merge(*found):
                     if merged and start <= merged[-1][1]:
                         merged[-1][1] = max(merged[-1][1], end)
                     else:
@@ -153,8 +155,12 @@ class PpdmClient:
     _scrub = scrub
 
     def scrub_text(self, value, limit=200):
-        """str(value) scrubbed, then cut to limit characters: safe to put server data in a message."""
-        return self.scrub(str(value))[:limit]
+        """Scrub the structure, stringify, scrub the text again, cut to limit: safe for a message.
+
+        The structure goes first because repr escapes (backslash, quotes, control characters) hide a secret
+        from a text scrub.
+        """
+        return self.scrub(str(self.scrub(value)))[:limit]
 
     @staticmethod
     def _read(resp, method, path):
@@ -202,7 +208,7 @@ class PpdmClient:
                     % (method, path, e.code),
                     status=e.code,
                 ) from None
-            raw = self._read(e, method, path)
+            raw = self._read(e, method, path)[:MAX_ERROR_TEXT]
             try:
                 err_body = json.loads(raw) if raw else None
             except (ValueError, RecursionError):
@@ -257,7 +263,7 @@ class PpdmClient:
             ):
                 raise PpdmError(
                     "GET %s failed: invalid page.totalPages %s (must be an integer 0..%d)"
-                    % (path, self.scrub_text(repr(total), 40), MAX_PAGES)
+                    % (path, self.scrub_text(total, 40), MAX_PAGES)
                 )
             if total is None:
                 if content:
@@ -386,7 +392,7 @@ class PpdmClient:
         waited = 0
         while True:
             act = self.request("GET", path)
-            if isinstance(act, dict) and act.get("state") in ACTIVITY_TERMINAL_STATES:
+            if isinstance(act, dict) and isinstance(act.get("state"), str) and act["state"] in ACTIVITY_TERMINAL_STATES:
                 return act
             if waited >= timeout:
                 raise PpdmError(
