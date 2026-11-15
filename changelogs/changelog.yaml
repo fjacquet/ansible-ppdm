@@ -87,3 +87,42 @@ releases:
       name: protection_rule_run
       namespace: ''
     release_date: '2026-11-15'
+  0.3.0:
+    changes:
+      breaking_changes:
+      - protection_rule, protection_rule_info and protection_rule_run - now use the
+        v3 rule API. The options ``conditions`` and ``condition_connector`` are replaced
+        by ``filters``, ``inventory_source_type`` by ``object_subtypes``, ``tenant``
+        is removed, ``policy`` is replaced by ``action`` plus ``protection_policy``
+        (or ``protection_policy_id``), ``rules`` by ``rule`` (protection_rule_run),
+        and ``preview_action`` by ``action_name`` with ``preview``. The ``protection.create_rule``
+        and ``protection.run_rule`` playbook variables changed accordingly.
+      minor_changes:
+      - Adds the modules resource_group, resource_group_info, protection_group, protection_group_info,
+        asset_info and host_info.
+      - asset_info masks the top-level ``credentials`` field of the assets it returns;
+        host_info masks nothing.
+      release_summary: Moves the protection rule modules to the v3 rule API and adds
+        resource group, protection group, asset and host modules.
+    fragments:
+    - lot3-rules-v3.yml
+    modules:
+    - description: Get assets from PowerProtect Data Manager
+      name: asset_info
+      namespace: ''
+    - description: Get hosts from PowerProtect Data Manager
+      name: host_info
+      namespace: ''
+    - description: Manage protection groups on PowerProtect Data Manager
+      name: protection_group
+      namespace: ''
+    - description: Get protection groups from PowerProtect Data Manager
+      name: protection_group_info
+      namespace: ''
+    - description: Manage resource groups on PowerProtect Data Manager
+      name: resource_group
+      namespace: ''
+    - description: Get resource groups from PowerProtect Data Manager
+      name: resource_group_info
+      namespace: ''
+    release_date: '2026-11-15'

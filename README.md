@@ -29,7 +29,12 @@ Lab checklist before 1.0.0:
 - `protection_policy` `overrides`: confirm whether GET returns an empty `overrides` list or omits it, since an empty list removes all overrides.
 - `protection_policy` compares reordered `objectives` by index: confirm PPDM keeps the order of the objectives it stores.
 - `protection.add_file_system_policy` and `protection.add_mssql_policy` compare the policy with `startTime`/`duration`: confirm GET returns them exactly as sent (else the fs/mssql policy playbooks PATCH on every run).
-- Rule condition `assetAttributeName: tag` is not in the 20.3.0 spec (the Lot 1 Kubernetes playbook uses `userTags`), and the rule modules send flat `conditions` without COMPOUND/nested `rules`, unlike `kubernetes.add_policy_and_rule`: confirm PPDM accepts both.
+- Rule `filters`: confirm the `fieldName`/`fieldData` shapes PPDM accepts (a minimal tag or name condition per asset type). The `tags` (VMs) and `userTags` (Kubernetes) `fieldName` values are unverified guesses.
+- Rule `args` items `{name, values}` for `PROTECTION_POLICY_ID` and `RESOURCE_GROUP_ID`: confirm the shape.
+- Rule `protectionPolicyRef` and group `protectionPolicyRef`: confirm PPDM accepts `{id}` only on POST/PATCH, and whether `autoAssignToPolicy` without a policy reference is rejected.
+- Confirm whether PPDM re-orders `filters` conditions or `natural_ids` (a flapping `changed`).
+- Protection group `PATCH` of `rules`: confirm it replaces whole lists.
+- `protection_rule_run`: confirm the 202 body of `rule-execution` (activity or not), the preview semantics, that an explicit `action_name` differing from the rule action is handled, and that preview accepts the rule body including read-only fields.
 - `protection_policy_run` requires `asset_ids` or `protection_group_ids` and cannot set `operation.backupLevel`; `Source` has no required field in the spec.
 - `protection_rule_run` preview POSTs even in check mode (documented as read-only): confirm it changes nothing.
 
@@ -89,7 +94,13 @@ To share explicit values across tasks, use the `ppdm` action group:
 | `fjacquet.ppdm.protection_policy_run` | Run a protection policy now |
 | `fjacquet.ppdm.protection_rule_info` | Get protection rules |
 | `fjacquet.ppdm.protection_rule` | Create, update or delete protection rules |
-| `fjacquet.ppdm.protection_rule_run` | Run protection rules or preview their conflicts |
+| `fjacquet.ppdm.protection_rule_run` | Run a protection rule or preview its conflicts |
+| `fjacquet.ppdm.resource_group_info` | Get resource groups |
+| `fjacquet.ppdm.resource_group` | Create, update or delete resource groups |
+| `fjacquet.ppdm.protection_group_info` | Get protection groups |
+| `fjacquet.ppdm.protection_group` | Create, update or delete protection groups |
+| `fjacquet.ppdm.asset_info` | Get assets |
+| `fjacquet.ppdm.host_info` | Get hosts |
 | `fjacquet.ppdm.storage_system_info` | Get storage systems |
 | `fjacquet.ppdm.storage_system` | Update a storage system |
 

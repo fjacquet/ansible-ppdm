@@ -4,6 +4,35 @@ fjacquet.ppdm Release Notes
 
 .. contents:: Topics
 
+v0.3.0
+======
+
+Release Summary
+---------------
+
+Moves the protection rule modules to the v3 rule API and adds resource group, protection group, asset and host modules.
+
+Minor Changes
+-------------
+
+- Adds the modules resource_group, resource_group_info, protection_group, protection_group_info, asset_info and host_info.
+- asset_info masks the top-level ``credentials`` field of the assets it returns; host_info masks nothing.
+
+Breaking Changes / Porting Guide
+--------------------------------
+
+- protection_rule, protection_rule_info and protection_rule_run - now use the v3 rule API. The options ``conditions`` and ``condition_connector`` are replaced by ``filters``, ``inventory_source_type`` by ``object_subtypes``, ``tenant`` is removed, ``policy`` is replaced by ``action`` plus ``protection_policy`` (or ``protection_policy_id``), ``rules`` by ``rule`` (protection_rule_run), and ``preview_action`` by ``action_name`` with ``preview``. The ``protection.create_rule`` and ``protection.run_rule`` playbook variables changed accordingly.
+
+New Modules
+-----------
+
+- asset_info - Get assets from PowerProtect Data Manager
+- host_info - Get hosts from PowerProtect Data Manager
+- protection_group - Manage protection groups on PowerProtect Data Manager
+- protection_group_info - Get protection groups from PowerProtect Data Manager
+- resource_group - Manage resource groups on PowerProtect Data Manager
+- resource_group_info - Get resource groups from PowerProtect Data Manager
+
 v0.2.0
 ======
 
