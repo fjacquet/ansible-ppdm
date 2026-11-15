@@ -22,3 +22,5 @@ action_groups:
     - protection_rule
     - protection_rule_info
     - protection_rule_run
+    - resource_group
+    - resource_group_info

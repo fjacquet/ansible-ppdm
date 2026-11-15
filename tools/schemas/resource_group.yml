@@ -1,0 +1,75 @@
+module: resource_group
+resource: resource-groups
+key: name
+kind: ensure
+short_description: Manage resource groups on PowerProtect Data Manager
+description:
+  - Create, update or remove a resource group, identified by its name.
+  - Updates use PATCH.
+  - Resource group names are assumed to be unique (the group is found by exact name); if two groups share the name the module fails and lists the IDs.
+version_added: 0.3.0
+attributes:
+  check_mode:
+    support: full
+  diff_mode:
+    support: full
+notes:
+  - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
+  - The C(ResourceGroup) schema of the 20.3.0 OpenAPI has no required field.
+  - The server-owned fields C(createdAt), C(createdBy), C(id), C(numberOfResources) and C(updatedAt) are never sent and are ignored by the idempotence check.
+  - A resource group has no member list.
+  - Assets join a group only through a protection rule with C(action=ASSIGN_RESOURCE_GROUP).
+  - See M(fjacquet.ppdm.protection_rule).
+seealso:
+  - module: fjacquet.ppdm.resource_group_info
+    description: List resource groups.
+  - module: fjacquet.ppdm.protection_rule
+    description: Manage protection rules, which assign assets to a resource group.
+options:
+  state:
+    type: str
+    choices: [present, absent]
+    default: present
+    description: Whether the resource group must exist.
+  name:
+    type: str
+    required: true
+    description: Resource group name, used as the key.
+  description:
+    type: str
+    description: Resource group description.
+  config:
+    type: dict
+    description:
+      - Extra request body fields passed through as is.
+      - The module fails when C(config) contains C(id) or C(_links), the server owns them.
+      - The module fails when C(config) contains a key that a named option sets (C(name) and C(description)), use the option instead.
+      - Each top-level key replaces the whole value of that field, the merge with the existing object is shallow (top-level keys only).
+      - Do not put secrets here, values are not masked in diff or return values.
+examples: |
+  - name: Create a resource group
+    fjacquet.ppdm.resource_group:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      name: web
+      description: Web tier
+
+  - name: Remove a resource group
+    fjacquet.ppdm.resource_group:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      name: web
+      state: absent
+return: |
+  resource_group:
+    description: The managed resource group.
+    returned: success
+    type: dict
+    sample: {"id": "1", "name": "web", "description": "Web tier"}
+  diff:
+    description: Before and after.
+    returned: success
+    type: dict
+    sample: {"before": {}, "after": {"name": "web"}}
