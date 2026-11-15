@@ -82,7 +82,7 @@ return: |
     type: list
     elements: dict
   warnings:
-    description: Entries that did not start an activity (without I(wait)), and activities that ended OK_WITH_ERRORS (when waited).
+    description: Entries that did not start an activity (without I(wait)), and OK_WITH_ERRORS activities (when waited).
     returned: when any
     type: list
     elements: str
