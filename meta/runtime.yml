@@ -12,3 +12,5 @@ action_groups:
     - credential
     - inventory_source
     - storage_system
+    - eula
+    - certificate

@@ -83,7 +83,7 @@ options:
     description:
     - Extra request body fields passed through as is, for example C(details) for type-specific settings
       such as C(details.vCenter).
-    - The 20.3.0 request body has no certificate trust field, trust is handled separately.
+    - The 20.3.0 request body has no certificate trust field, trust is handled separately with M(fjacquet.ppdm.certificate).
     - Each top-level key replaces the whole value of that field.
     - Do not put secrets here, values are not masked in diff or return values.
     type: dict

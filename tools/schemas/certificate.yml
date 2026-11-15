@@ -1,0 +1,59 @@
+module: certificate
+resource: certificates
+key: host
+kind: ensure
+short_description: Trust or remove a host certificate on PowerProtect Data Manager
+description:
+  - Manage the trust store entry of a remote host certificate (C(/api/v2/certificates)).
+  - With C(state=present) the certificate presented by I(host):I(port) is fetched through PPDM and, unless its state is already C(ACCEPTED), accepted with a PUT.
+  - With C(state=absent) the entry is deleted when it is currently C(ACCEPTED).
+  - Idempotence key is I(host) and I(port) (the trust store keys on them), pin the presented certificate with I(fingerprint).
+options:
+  state:
+    type: str
+    choices: [present, absent]
+    default: present
+    description: C(present) accepts (trusts) the certificate, C(absent) removes it from the trust store.
+  host:
+    type: str
+    required: true
+    description: Host name or IP address presenting the certificate.
+  port:
+    type: int
+    default: 443
+    description: TLS port of the host.
+  type:
+    type: str
+    choices: [HOST, ROOT, INTERMEDIATE]
+    default: HOST
+    description: Certificate type to fetch.
+  fingerprint:
+    type: str
+    description: Expected fingerprint. When set, the module fails instead of trusting a certificate with a different fingerprint.
+examples: |
+  - name: Trust the certificate of a Data Domain
+    fjacquet.ppdm.certificate:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      host: dd01.example.com
+      port: 3009
+      fingerprint: "AB:CD:..."
+
+  - name: Remove the trust
+    fjacquet.ppdm.certificate:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      host: dd01.example.com
+      port: 3009
+      state: absent
+return: |
+  certificate:
+    description: The certificate entry (empty when absent and nothing was trusted).
+    returned: success
+    type: dict
+  diff:
+    description: Before and after.
+    returned: success
+    type: dict
