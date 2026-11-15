@@ -468,23 +468,14 @@ class PpdmClient:
             "diff": {"before": _mask(strip_readonly(resource, existing), set(secret_keys)), "after": {}},
         }
 
-    def start_action(self, path: str, body: Any, check_mode: bool, wait: bool = False, timeout: int = 600) -> dict:
-        """POST an action; {changed, activity, response}. A 409 is a PpdmError with status 409 (caller decides).
+    def start_action(self, path: str, body: Any, check_mode: bool) -> dict:
+        """POST an action; {changed, response}. A 409 is a PpdmError with status 409 (caller decides).
 
-        With wait the activity is polled to COMPLETED and must end with result.status OK; OK_WITH_ERRORS
-        returns with "warnings" added, anything else is a PpdmError. Nothing is sent in check mode.
+        Nothing is sent in check mode.
         """
         if check_mode:
-            return {"changed": True, "activity": None, "response": None}
-        resp = self.request("POST", path, body=body)
-        activity = resp if isinstance(resp, dict) and resp.get("id") else None
-        out = {"changed": True, "activity": activity, "response": resp}
-        if not wait:
-            return out
-        if activity is None:
-            raise PpdmError("POST %s failed: response has no activity id to wait for" % path)
-        out.update(self.await_activity(activity["id"], timeout))
-        return out
+            return {"changed": True, "response": None}
+        return {"changed": True, "response": self.request("POST", path, body=body)}
 
     def await_activity(self, activity_id: str, timeout: int) -> dict:
         """Poll the activity to COMPLETED; {"activity"} (plus "warnings" on OK_WITH_ERRORS), PpdmError unless OK."""

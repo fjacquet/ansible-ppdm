@@ -74,9 +74,21 @@ def test_wait_ok_with_errors_warns(monkeypatch):
     assert not out["failed"] and out["warnings"]
 
 
-def test_entry_without_activity_warns(monkeypatch):
+def test_entry_without_activity_fails_with_wait(monkeypatch):
     skipped = Resp({"results": [{"objectiveId": "o1", "status": "FAILED", "reason": "disabled"}]}, 202)
     out = run(monkeypatch, FakeOpener(listing(POLICY), skipped), asset_ids=["x1"], wait=True)
+    assert out["failed"] and "disabled" in out["msg"]
+
+
+def test_entry_without_activity_id_not_failed_status_fails_with_wait(monkeypatch):
+    r = Resp({"results": [{"objectiveId": "o1", "status": "SUCCESS"}]}, 202)
+    out = run(monkeypatch, FakeOpener(listing(POLICY), r), asset_ids=["x1"], wait=True)
+    assert out["failed"] and "o1" in out["msg"]
+
+
+def test_entry_without_activity_warns_without_wait(monkeypatch):
+    skipped = Resp({"results": [{"objectiveId": "o1", "status": "FAILED", "reason": "disabled"}]}, 202)
+    out = run(monkeypatch, FakeOpener(listing(POLICY), skipped), asset_ids=["x1"])
     assert not out["failed"] and "disabled" in out["warnings"][0]
 
 
@@ -106,9 +118,9 @@ def test_multi_ok_and_ok_with_errors(monkeypatch):
     assert not out["failed"] and len(out["activities"]) == 2 and len(out["warnings"]) == 1
 
 
-def test_wait_with_empty_results_warns(monkeypatch):
+def test_wait_with_empty_results_fails(monkeypatch):
     out = run(monkeypatch, FakeOpener(listing(POLICY), Resp({"results": []}, 202)), asset_ids=["x1"], wait=True)
-    assert not out["failed"] and out["warnings"]
+    assert out["failed"] and "no result" in out["msg"]
 
 
 def test_failed_entry_warns_without_wait(monkeypatch):

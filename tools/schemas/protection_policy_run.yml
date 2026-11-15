@@ -15,7 +15,7 @@ attributes:
 notes:
   - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
   - The policy is found by name first, then by id.
-  - "The 202 answer of PPDM is C({results: [{activityId, objectiveId, status, reason, remediation}]}), one entry per started activity, not a single activity. With I(wait=true) every C(activityId) is polled to completion, the module fails unless each activity ends C(OK) (C(OK_WITH_ERRORS) only adds a warning). An entry without C(activityId) (the run was not started) adds a warning with its C(reason)."
+  - "The 202 answer of PPDM is C({results: [{activityId, objectiveId, status, reason, remediation}]}), one entry per started activity, not a single activity. With I(wait=true) every C(activityId) is polled to completion, the module fails unless each activity ends C(OK) (C(OK_WITH_ERRORS) only adds a warning). With I(wait=true) an empty C(results) or an entry without C(activityId) or with status C(FAILED) (the run was not started) fails the module with its C(reason); without I(wait) such an entry only adds a warning."
   - At least one of I(asset_ids) and I(protection_group_ids) is required, the module fails before any request otherwise.
 seealso:
   - module: fjacquet.ppdm.protection_policy
@@ -44,7 +44,7 @@ options:
     default: false
     description:
       - Wait for every started activity to complete.
-      - Fails unless each activity C(result.status) is C(OK) or C(OK_WITH_ERRORS) (the latter only warns).
+      - Fails unless each activity C(result.status) is C(OK) or C(OK_WITH_ERRORS) (the latter only warns), and fails when PPDM started no activity.
   wait_timeout:
     type: int
     default: 600
@@ -82,7 +82,7 @@ return: |
     type: list
     elements: dict
   warnings:
-    description: Entries that did not start an activity, and activities that ended OK_WITH_ERRORS (when waited).
+    description: Entries that did not start an activity (without I(wait)), and activities that ended OK_WITH_ERRORS (when waited).
     returned: when any
     type: list
     elements: str

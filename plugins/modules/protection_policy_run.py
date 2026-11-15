@@ -26,7 +26,9 @@ notes:
 - 'The 202 answer of PPDM is C({results: [{activityId, objectiveId, status, reason, remediation}]}), one
   entry per started activity, not a single activity. With I(wait=true) every C(activityId) is polled to
   completion, the module fails unless each activity ends C(OK) (C(OK_WITH_ERRORS) only adds a warning).
-  An entry without C(activityId) (the run was not started) adds a warning with its C(reason).'
+  With I(wait=true) an empty C(results) or an entry without C(activityId) or with status C(FAILED) (the
+  run was not started) fails the module with its C(reason); without I(wait) such an entry only adds a
+  warning.'
 - At least one of I(asset_ids) and I(protection_group_ids) is required, the module fails before any request
   otherwise.
 seealso:
@@ -58,7 +60,8 @@ options:
   wait:
     description:
     - Wait for every started activity to complete.
-    - Fails unless each activity C(result.status) is C(OK) or C(OK_WITH_ERRORS) (the latter only warns).
+    - Fails unless each activity C(result.status) is C(OK) or C(OK_WITH_ERRORS) (the latter only warns),
+      and fails when PPDM started no activity.
     type: bool
     default: false
   wait_timeout:
@@ -110,7 +113,7 @@ activities:
   type: list
   elements: dict
 warnings:
-  description: Entries that did not start an activity, and activities that ended OK_WITH_ERRORS (when waited).
+  description: Entries that did not start an activity (without I(wait)), and activities that ended OK_WITH_ERRORS (when waited).
   returned: when any
   type: list
   elements: str
@@ -170,10 +173,11 @@ def main():
             results = [r for r in resp.get("results") or [] if isinstance(r, dict)]
             out["results"] = results
             if p["wait"] and not results:
-                warnings.append("PPDM answered no result, nothing to wait for")
+                failures.append("PPDM answered no result, nothing to wait for")
             for r in results:
                 if not r.get("activityId") or r.get("status") == "FAILED":
-                    warnings.append(
+                    # with wait the run must have started: a skipped or failed entry is a failure, else a warning
+                    (failures if p["wait"] else warnings).append(
                         client.scrub_text(
                             "objective %s: status %s: %s %s"
                             % (r.get("objectiveId"), r.get("status"), r.get("reason"), r.get("remediation") or ""),

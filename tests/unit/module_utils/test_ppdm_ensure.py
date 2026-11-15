@@ -257,38 +257,14 @@ def test_ensure_put_unchanged_for_existing_resources():
 def test_start_action_check_mode_sends_nothing():
     c, op, _unused = mk()
     r = c.start_action("/api/v3/protections", {"a": 1}, check_mode=True)
-    assert r == {"changed": True, "activity": None, "response": None} and op.calls == []
+    assert r == {"changed": True, "response": None} and op.calls == []
 
 
-def test_start_action_returns_activity_without_wait():
+def test_start_action_returns_response():
     c, op, _unused = mk(Resp({"id": "a1", "state": "QUEUED"}, 202))
     r = c.start_action("/api/v3/protections", {"a": 1}, check_mode=False)
-    assert r["changed"] and r["activity"] == {"id": "a1", "state": "QUEUED"}
+    assert r["changed"] and r["response"] == {"id": "a1", "state": "QUEUED"}
     assert op.calls[0][1]["method"] == "POST"
-
-
-def test_start_action_wait_returns_ok_activity():
-    c, op, _unused = mk(Resp({"id": "a1"}, 202), Resp({"id": "a1", "state": "COMPLETED", "result": {"status": "OK"}}))
-    r = c.start_action("/api/v3/protections", {}, check_mode=False, wait=True)
-    assert r["activity"]["result"]["status"] == "OK" and "warnings" not in r
-
-
-def test_start_action_wait_fails_on_failed_result():
-    c, _op, _unused = mk(
-        Resp({"id": "a1"}, 202),
-        Resp({"id": "a1", "state": "COMPLETED", "result": {"status": "FAILED", "error": {"code": "E1"}}}),
-    )
-    with pytest.raises(PpdmError, match="FAILED"):
-        c.start_action("/api/v3/protections", {}, check_mode=False, wait=True)
-
-
-def test_start_action_wait_warns_on_ok_with_errors():
-    c, _op, _unused = mk(
-        Resp({"id": "a1"}, 202),
-        Resp({"id": "a1", "state": "COMPLETED", "result": {"status": "OK_WITH_ERRORS", "error": {"code": "W1"}}}),
-    )
-    r = c.start_action("/api/v3/protections", {}, check_mode=False, wait=True)
-    assert r["changed"] and len(r["warnings"]) == 1
 
 
 def test_start_action_409_keeps_status():
