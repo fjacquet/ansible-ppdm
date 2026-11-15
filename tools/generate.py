@@ -147,6 +147,13 @@ def build_enums(openapi_dir):
     cspec, cond = get("Condition")
     espec, execu = get("ProtectionRuleExecution")
     vspec, prev = get("ProtectionRulesConflictPreviewRequest")
+    _, r3 = get("Rule")
+    _, ra = get("RuleAction")
+    _, rf = get("RuleFilter")
+    _, rl = get("RuleLogicalCondition")
+    _, rr = get("RuleRelationalCondition")
+    _, rx = get("RuleExecution")
+    _, pg = get("ProtectionGroup")
     enums = {
         "protection_policy.asset_type": asset,
         "protection_policy.purpose": purpose,
@@ -158,6 +165,23 @@ def build_enums(openapi_dir):
         "condition.operator": set(_prop(cspec, cond, "operator")["enum"]),
         "protection_rule_run.inventory_source_type": set(_prop(espec, execu, "inventorySourceType")["enum"]),
         "protection_rule_run.preview_action": set(_prop(vspec, prev, "previewAction")["enum"]),
+        # v3 (additive for now; the v2 keys above go away with the v2 modules)
+        "rule.action_name": set(ra["properties"]["name"]["enum"]),
+        "rule.variant": set(r3["properties"]["variant"]["enum"]),
+        "rule.scope": set(r3["properties"]["scopes"]["items"]["enum"]),
+        "rule.category": set(r3["properties"]["categories"]["items"]["enum"]),
+        "rule_filter.object_type": set(rf["properties"]["objectType"]["enum"]),
+        "rule_filter.object_subtype": set(rf["properties"]["objectSubtype"]["enum"]),
+        "rule_filter.type": set(rf["properties"]["type"]["enum"]),
+        "rule_filter.operator": set(rf["properties"]["operator"]["enum"]),
+        "rule_condition.operator": set(rr["properties"]["operator"]["enum"]),
+        "rule_condition.logical_operator": set(rl["properties"]["operator"]["enum"]),
+        "rule_run.action_name": set(rx["properties"]["actionName"]["enum"]),
+        "rule_run.object_subtype": set(rx["properties"]["objectSubtypes"]["items"]["enum"]),
+        "protection_group.type": set(pg["properties"]["type"]["enum"]),
+        "protection_group.subtype": set(pg["properties"]["subtype"]["enum"]),
+        "protection_group.member_asset_type": set(pg["properties"]["memberAssetType"]["enum"]),
+        "protection_group.backup_strategy": set(pg["properties"]["backupStrategy"]["enum"]),
     }
     return {k: tuple(sorted(v)) for k, v in sorted(enums.items())}, tuple(sorted(required))
 

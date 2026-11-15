@@ -62,3 +62,27 @@ def test_schema_choices_match_enums():
     for (mod, opt), key in pairs.items():
         opts = yaml.safe_load((schemas / (mod + ".yml")).read_text())["options"]
         assert tuple(sorted(opts[opt]["choices"])) == ENUMS[key], (mod, opt)
+
+
+def test_v3_rule_and_group_enums():
+    enums, _unused = build_enums(SPECS)
+    assert {"ASSIGN_PROTECTION_POLICY", "ASSIGN_RESOURCE_GROUP"} <= set(enums["rule.action_name"])
+    assert enums["rule.scope"] == ("ASSET", "GENERAL", "POLICY")
+    assert enums["rule.category"] == ("LIST_VIEW", "TREE_VIEW")
+    assert "ADVANCED" in enums["rule.variant"] and "SIMPLE" in enums["rule.variant"]
+    assert enums["rule_filter.object_type"] == ("ASSET", "COPY", "FILE", "FILEGROUP")
+    assert enums["rule_filter.type"] == ("EXCLUDE", "INCLUDE")
+    assert enums["rule_filter.operator"] == ("AND", "OR")
+    assert "VMWARE_VIRTUAL_MACHINE" in enums["rule_filter.object_subtype"]
+    assert "MATCH_REGEX" in enums["rule_condition.operator"]
+    assert enums["rule_condition.logical_operator"] == ("AND", "OR")
+    assert enums["rule_run.action_name"] == ("ASSIGN_PROTECTION_POLICY", "ASSIGN_RESOURCE_GROUP")
+    assert "ORACLE_DATABASE" in enums["rule_run.object_subtype"]
+    assert enums["protection_group.type"] == (
+        "ORACLE_DATA_GUARD",
+        "POWER_MAX_STORAGE_DIRECT_APPLICATION",
+        "STORAGE_DIRECT_APPLICATION",
+    )
+    assert enums["protection_group.subtype"] == ("GENERIC", "MEDITECH")
+    assert enums["protection_group.member_asset_type"] == ("ORACLE_DATABASE", "POWERSTORE_BLOCK", "POWER_MAX_BLOCK")
+    assert "BACKUP_ALL" in enums["protection_group.backup_strategy"]
