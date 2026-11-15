@@ -220,3 +220,34 @@ def test_long_choices_are_wrapped_one_per_line_and_parse():
     ast.parse(src)
     assert all(f"            '{c}',\n" in src for c in choices)
     assert _spec(src)["mode"]["choices"] == choices
+
+
+EVIL = "x=dict(type='str'), **{__import__('os').system('echo INJECTED-CODE-RAN') and {}}, y"
+
+
+def test_malicious_option_name_rejected(tmp_path, capsys):
+    s, m = _setup(tmp_path, {**SCHEMA, "options": {EVIL: {"type": "str", "description": "d"}}})
+    assert generate.main(["modules"], s, m) == 2
+    assert not (m / "widget.py").exists()
+    err = capsys.readouterr().err
+    assert "widget.yml" in err and "option" in err and "INJECTED-CODE-RAN" not in err.replace(EVIL, "")
+
+
+@pytest.mark.parametrize("name", ["Name", "1a", "a-b", "a b", "", "a.b", "_a", "é"])
+def test_bad_option_names_rejected(tmp_path, name):
+    s, m = _setup(tmp_path, {**SCHEMA, "options": {name: {"type": "str", "description": "d"}}})
+    assert generate.main(["modules"], s, m) == 2
+
+
+def test_bad_module_name_rejected(tmp_path):
+    s, m = tmp_path / "s", tmp_path / "m"
+    s.mkdir()
+    m.mkdir()
+    (s / "Evil-1.yml").write_text(yaml.safe_dump({**SCHEMA, "module": "Evil-1"}))
+    assert generate.main(["modules"], s, m) == 2
+    assert list(m.iterdir()) == []
+
+
+def test_render_refuses_bad_option_name_directly():
+    with pytest.raises(ValueError, match="widget.*option"):
+        generate.render_module_blocks({**SCHEMA, "options": {EVIL: {"type": "str", "description": "d"}}})

@@ -103,10 +103,20 @@ def render_routes(routes):
     return "\n".join(out) + "\n"
 
 
+NAME_RE = re.compile(r"[a-z][a-z0-9_]*")
+
+
+def check_name(kind, name, where):
+    """Names land in generated Python source (ARGUMENT_SPEC keys): only plain identifiers are allowed."""
+    if not isinstance(name, str) or not NAME_RE.fullmatch(name):
+        raise ValueError(f"{where}: {kind} name {name!r} must match {NAME_RE.pattern}")
+
+
 def render_module_blocks(schema):
     """Return (DOCUMENTATION yaml text, ARGUMENT_SPEC python source) from one schema."""
     doc_opts, spec = {}, {}
     for name, o in schema.get("options", {}).items():
+        check_name("option", name, f"module {schema['module']!r}")
         unknown = set(o) - OPTION_KEYS
         if unknown:  # shortcut: no suboptions yet, add when a module needs them
             raise ValueError(f"module {schema['module']!r} option {name!r}: unsupported key(s) {sorted(unknown)}")
@@ -195,9 +205,11 @@ def validate_schema(schema, path):
     for key in ("module", "short_description", "description", "examples", "return"):
         if key not in schema:
             raise ValueError(f"{path}: missing required key {key!r}")
+    check_name("module", schema["module"], path)
     if schema["module"] != Path(path).stem:
         raise ValueError(f"{path}: module {schema['module']!r} does not match the file name")
     for name, o in schema.get("options", {}).items():
+        check_name("option", name, path)
         for key in ("type", "description"):
             if key not in o:
                 raise ValueError(f"{path}: option {name!r} is missing required key {key!r}")
