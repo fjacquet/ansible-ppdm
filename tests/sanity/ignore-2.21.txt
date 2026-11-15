@@ -1,0 +1,4 @@
+plugins/modules/certificate_info.py validate-modules:bad-return-value-key
+plugins/modules/credential_info.py validate-modules:bad-return-value-key
+plugins/modules/inventory_source_info.py validate-modules:bad-return-value-key
+plugins/modules/storage_system_info.py validate-modules:bad-return-value-key
