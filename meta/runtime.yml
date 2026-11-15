@@ -15,4 +15,5 @@ action_groups:
     - storage_system
     - eula
     - protection_policy
+    - protection_policy_assets
     - certificate

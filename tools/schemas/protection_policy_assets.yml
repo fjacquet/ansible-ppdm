@@ -1,0 +1,69 @@
+module: protection_policy_assets
+resource: protection-policies
+key: name
+kind: action
+short_description: Assign or unassign assets to a protection policy on PowerProtect Data Manager
+description:
+  - Assign assets to a protection policy (I(state=present)) or unassign them from it (I(state=absent)), through C(/api/v2/protection-policies/<id>/asset-assignments) and C(asset-unassignments).
+  - The module reads the assets currently protected by the policy and sends only the missing ids (present) or the assigned ids (absent), so it is idempotent.
+  - Only the listed assets are touched, other assets assigned to the policy are left alone.
+version_added: 0.2.0
+attributes:
+  check_mode:
+    support: full
+  diff_mode:
+    support: full
+notes:
+  - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
+  - "Idempotence mode, delta: the v2 API offers C(GET /protection-policies/<id>/asset-assignments) (the assets protected by the policy), so the module computes the delta and sends nothing when there is nothing to do."
+  - The policy is found by name first, then by id. Asset ids are not validated, PPDM rejects an unknown asset.
+seealso:
+  - module: fjacquet.ppdm.protection_policy
+    description: Manage protection policies.
+options:
+  state:
+    type: str
+    choices: [present, absent]
+    default: present
+    description: Whether the assets must be assigned to the policy.
+  policy:
+    type: str
+    required: true
+    description: Protection policy name or id.
+  asset_ids:
+    type: list
+    elements: str
+    required: true
+    description: Ids of the assets to assign or unassign.
+examples: |
+  - name: Protect two VMs with the gold policy
+    fjacquet.ppdm.protection_policy_assets:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      policy: vm-gold
+      asset_ids:
+        - 11111111-2222-3333-4444-555555555555
+        - 66666666-7777-8888-9999-000000000000
+
+  - name: Remove a VM from the policy
+    fjacquet.ppdm.protection_policy_assets:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      policy: vm-gold
+      state: absent
+      asset_ids:
+        - 11111111-2222-3333-4444-555555555555
+return: |
+  assigned:
+    description: Ids of the listed assets that are assigned to the policy after the run.
+    returned: success
+    type: list
+    elements: str
+    sample: ["11111111-2222-3333-4444-555555555555"]
+  diff:
+    description: Before and after, restricted to the listed assets.
+    returned: success
+    type: dict
+    sample: {"before": {"assigned": []}, "after": {"assigned": ["11111111-2222-3333-4444-555555555555"]}}
