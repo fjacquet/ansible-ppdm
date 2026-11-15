@@ -8,7 +8,6 @@ authors:
 description: Unofficial Ansible collection for Dell PowerProtect Data Manager 20.3.0 (not affiliated with Dell)
 license:
   - GPL-3.0-or-later
-license_file: LICENSE
 tags:
   - storage
   - infrastructure
