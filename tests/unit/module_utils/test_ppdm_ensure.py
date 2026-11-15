@@ -211,3 +211,19 @@ def test_ensure_create_false_fails_on_missing_without_post():
     with pytest.raises(PpdmError, match="c1 not found"):
         c.ensure("credentials", {"name": "c1"}, create=False)
     assert writes(op) == []
+
+
+def test_ensure_put_never_sends_back_a_masked_write_only_field():
+    obj = {"id": "1", "name": "c1", "type": "X", "password": "****", "secretKey": "****"}
+    c, op, _unused = mk(page([obj], 1, 1), Resp({"id": "1", "name": "c1", "type": "Y"}))
+    r = c.ensure("credentials", {"name": "c1", "type": "Y"}, secret_keys=["password"])
+    assert r["changed"]
+    assert json.loads(writes(op)[0][1]["data"]) == {"id": "1", "name": "c1", "type": "Y"}
+
+
+def test_ensure_put_keeps_a_write_only_field_the_caller_supplied():
+    obj = {"id": "1", "name": "c1", "type": "X", "password": "****", "userKey": "****"}
+    c, op, _unused = mk(page([obj], 1, 1), Resp({"id": "1", "name": "c1", "type": "Y"}))
+    c.ensure("credentials", {"name": "c1", "type": "Y", "password": "pw"}, secret_keys=["password"])
+    body = json.loads(writes(op)[0][1]["data"])
+    assert body["password"] == "pw" and "userKey" not in body

@@ -15,6 +15,13 @@ PowerProtect is a trademark of Dell Technologies.
 > **0.x pre-release, not yet validated against a live PPDM 20.3.** Endpoints and request bodies follow the 20.3.0
 > OpenAPI files, but nothing has been run against a real appliance. Try it on a lab first.
 
+Lab checklist before 1.0.0:
+
+- PUT-replace with write-only fields: confirm that an update does not clear or overwrite secrets (credential
+  `password`, SMTP `password`, Cloud DR `secretKey`) when they are not part of the request body.
+- `certificate` `state=absent` lists with `nocache=true`: confirm it still finds the stored trust-store entry.
+- Bootstrap readiness: confirm how a 401/403 is handled while the appliance is still starting (the wait stops at the first one).
+
 ## Requirements
 
 - ansible-core 2.20 or later (on the control node).
@@ -87,10 +94,12 @@ See `playbooks/README.md` for the list, the variables and the confirm flags of t
 
 ## Security notes
 
-- Secrets are masked in module output and logs. The masking handles one level of JSON escaping only: a secret
-  inside a doubly escaped string is not masked.
-- For `fjacquet.ppdm.api`, the request `body` and the `config` are not masked. Do not put secrets there unless you
-  also set `no_log: true` on the task.
+- Masked in module output and logs: the login password and token, and the `password` key of `credential` (one level of
+  JSON escaping only: a secret inside a doubly escaped string is not masked). Nothing else is masked: not the `result`
+  of `fjacquet.ppdm.api`, not the `config` option of `inventory_source` and `storage_system`, not nested credential fields.
+- For `fjacquet.ppdm.api`, the request `body` and the returned `result` are not masked. For `inventory_source` and
+  `storage_system`, the `config` is not masked either. Do not put secrets there unless you also set `no_log: true` on
+  the task.
 - The certificate trust gate stores the certificate PPDM presents before the fingerprint pin is checked.
   Verify the fingerprint out of band and review what was stored.
 - HTTP redirects are never followed (`follow_redirects: none`), so the Authorization header is never forwarded.
@@ -117,4 +126,5 @@ uv run python tools/generate.py modules --check
 ```
 
 `ansible-test` needs a checkout under a real `.../ansible_collections/fjacquet/ppdm/` path: use a git worktree, then
-`uv run --project <repo> ansible-test units --python 3.13` from inside it. See `CLAUDE.md` for the exact commands.
+`uv run --project <repo> ansible-test units --python 3.13` from inside it. Create the worktree with
+`git worktree add --detach <dir>/ansible_collections/fjacquet/ppdm HEAD`.

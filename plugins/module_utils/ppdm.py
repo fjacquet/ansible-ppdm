@@ -38,6 +38,12 @@ MASK = "VALUE_SPECIFIED_IN_NO_LOG_PARAMETER"
 ACTIVITY_TERMINAL_STATES = frozenset(["COMPLETED"])
 
 
+# Fields PPDM never returns in clear (write-only); a GET value is never sent back in a PUT unless the caller supplied it.
+WRITE_ONLY_KEYS = frozenset(
+    {"password", "secretKey", "userKey", "credentialPassword", "applicationUserPassword", "token", "privateKey"}
+)
+
+
 def strip_readonly(resource: str, obj: dict) -> dict:
     """Copy of obj without the readOnly properties of the resource (from ROUTES) and without _links."""
     drop = set(ROUTES[resource]["readonly"]) | {"_links"}
@@ -418,7 +424,9 @@ class PpdmClient:
                 },
             }
         path = self._route(resource, "PUT", self._item_id(resource, existing))
-        obj = after if check_mode else (self.request("PUT", path, body=after) or after)
+        drop = (WRITE_ONLY_KEYS | secret_keys) - set(want)
+        body = {k: v for k, v in after.items() if k not in drop}
+        obj = after if check_mode else (self.request("PUT", path, body=body) or after)
         return {
             "changed": True,
             "object": _mask(obj, secret_keys),

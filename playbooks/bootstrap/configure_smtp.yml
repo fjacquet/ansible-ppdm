@@ -36,11 +36,12 @@
       fjacquet.ppdm.api:
         method: PUT
         path: "/api/v2/smtp/{{ ppdm_smtp.result[0].id }}"
-        body:
-          id: "{{ ppdm_smtp.result[0].id }}"
-          mailServer: "{{ smtp_server }}"
-          port: "{{ smtp_port | int }}"
-          mailFrom: "{{ smtp_from }}"
+        # GET body with the desired values merged over it; write-only fields are never sent back (see README, Lab checklist)
+        body: >-
+          {{ ppdm_smtp.result[0] | ansible.builtin.dict2items
+          | rejectattr('key', 'in', ['_links', 'password', 'secretKey', 'token'])
+          | ansible.builtin.items2dict
+          | ansible.builtin.combine({'mailServer': smtp_server, 'port': smtp_port | int, 'mailFrom': smtp_from}) }}
       when:
         - ppdm_smtp.result | length > 0
         - >-
