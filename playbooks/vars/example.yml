@@ -74,6 +74,7 @@ fs_policy_name: example-fs-policy
 mssql_policy_name: example-mssql-policy
 exchange_policy_name: example-exchange-policy
 k8s_policy_name: example-k8s-policy
+k8s_namespace_policy_name: example-k8s-namespace-policy
 vm_policy_name: example-vm-policy
 rule_name: example-vm-rule
 rule_tag: gold

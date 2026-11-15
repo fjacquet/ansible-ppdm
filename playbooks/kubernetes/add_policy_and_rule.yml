@@ -1,6 +1,6 @@
 ---
 # Create a Kubernetes policy, a rule moving namespaces with a label to it, and run the rules.
-# Assumptions, not verified live: storageContainerId is the Data Domain storage system id, and the objective id is generated.
+# Assumptions, not verified live: storageContainerId is the Data Domain storage system id, and the objective id is a to_uuid of the policy name.
 # Inspired by bottkars/ansible_ppdm `130.2_playbook_add_k8s_policy_and_rule.yaml` (workflow only; rewritten for fjacquet.ppdm).
 # Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
 - name: Create a Kubernetes policy and a label rule

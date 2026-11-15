@@ -28,6 +28,10 @@ Lab checklist before 1.0.0:
 - Activity results: confirm the `result.status` values (`OK`, `OK_WITH_ERRORS`, `FAILED`) and that the 202 bodies of `/api/v3/protections` and `/api/v2/discoveries` are not activities (`activityId` and `taskId` are polled).
 - `protection_policy` `overrides`: confirm whether GET returns an empty `overrides` list or omits it, since an empty list removes all overrides.
 - `protection_policy` compares reordered `objectives` by index: confirm PPDM keeps the order of the objectives it stores.
+- `protection.add_file_system_policy` and `protection.add_mssql_policy` compare the policy with `startTime`/`duration`: confirm GET returns them exactly as sent (else the fs/mssql policy playbooks PATCH on every run).
+- Rule condition `assetAttributeName: tag` is not in the 20.3.0 spec (the Lot 1 Kubernetes playbook uses `userTags`), and the rule modules send flat `conditions` without COMPOUND/nested `rules`, unlike `kubernetes.add_policy_and_rule`: confirm PPDM accepts both.
+- `protection_policy_run` requires `asset_ids` or `protection_group_ids` and cannot set `operation.backupLevel`; `Source` has no required field in the spec.
+- `protection_rule_run` preview POSTs even in check mode (documented as read-only): confirm it changes nothing.
 - The v2 protection rule API is deprecated since PPDM 20.2 and removed in 20.6: `protection_rule` and `protection_rule_run` will move to v3.
 - `protection_rule_run` with only `inventory_source_type` (no `rules`) is unverified.
 

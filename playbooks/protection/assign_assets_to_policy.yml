@@ -29,8 +29,10 @@
 
     - name: Check that assets match the filter
       ansible.builtin.assert:
-        that: matched_assets.result | length > 0
-        fail_msg: No asset matches the filter {{ asset_filter }}.
+        that:
+          - asset_filter | length > 0
+          - matched_assets.result | length > 0
+        fail_msg: A non-empty asset_filter is required and at least one asset must match it ({{ asset_filter }}).
 
     - name: Assign the assets to the policy
       fjacquet.ppdm.protection_policy_assets:

@@ -1,5 +1,6 @@
 ---
 # Create a rule moving the VMs with a tag to a protection policy, or update it when it differs (idempotent).
+# The policy from protection.create_vm_policy (vm_policy_name) must exist first.
 # The v2 protection rule API is deprecated since PPDM 20.2 and removed in 20.6; the modules will move to v3.
 # Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
 - name: Create a protection rule

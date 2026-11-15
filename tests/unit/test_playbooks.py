@@ -172,6 +172,8 @@ NOT_GUARDED = {
     "bootstrap.configure_smtp",
     "bootstrap.set_sdr_existing_unit",
     "clouddr.configure_account",
+    "protection.add_file_system_policy",
+    "protection.add_mssql_policy",
 }
 SECRET_RE = re.compile(r"password|token|license_key|privatekey|secretkey|userkey|secret|\"key\":", re.I)
 
@@ -266,8 +268,11 @@ def test_disclaimer_only_in_readme():
 
 def _readme_rows():
     converted_part, skipped_part = README.split("## Index")[1].split("## Not converted")
-    row = r"^\| \[([^\]]+)\]\(([^)]*)\) \|.*\| ([^|]+?) \| (?:converted|new) \|$"
-    converted = re.findall(row, converted_part, re.M)
+    row = r"^\| \[([^\]]+)\]\(([^)]*)\) \|.*\| ([^|]+?) \| (converted|new) \|$"
+    converted = []
+    for fqcn, link, sources, status in re.findall(row, converted_part, re.M):
+        assert (status == "new") == (sources == "-"), f"{fqcn}: status {status} does not match original {sources}"
+        converted.append((fqcn, link, sources))
     skipped = re.findall(r"^\| ([^|]+?) \| [^|]+ \|$", skipped_part, re.M)[1:]
     return converted, skipped
 
@@ -408,3 +413,8 @@ def test_get_playbooks_print_a_filtered_projection_of_secret_bearing_results():
         text = (PLAYBOOKS / f"{name}.yml").read_text()
         assert "rejectattr('key', 'search', hidden_fields_pattern)" in text and "osUsers" in text, name
         assert "var:" not in text, name
+
+
+def test_asset_filter_playbooks_refuse_an_empty_filter():
+    for name in ("run_policy", "assign_assets_to_policy"):
+        assert "asset_filter | length > 0" in (PLAYBOOKS / "protection" / f"{name}.yml").read_text(), name

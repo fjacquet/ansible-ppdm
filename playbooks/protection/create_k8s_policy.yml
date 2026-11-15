@@ -27,7 +27,7 @@
 
     - name: Ensure a Kubernetes protection policy
       fjacquet.ppdm.protection_policy:
-        name: "{{ k8s_policy_name }}"
+        name: "{{ k8s_namespace_policy_name }}"
         asset_type: KUBERNETES
         description: Kubernetes policy created by Ansible
         purpose: CENTRALIZED
