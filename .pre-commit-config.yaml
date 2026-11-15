@@ -1,12 +1,12 @@
 ---
 repos:
   - repo: https://github.com/ansible-network/collection_prep
-    rev: 1.1.1
+    rev: 4429c89a2ce2a06f026d525e788105686f5394d6  # 1.1.1
     hooks:
       - id: update-docs
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+    rev: f71fa2c1f9cf5cb705f73dffe4b21f7c61470ba9  # v4.4.0
     hooks:
       - id: check-merge-conflict
       - id: check-symlinks
@@ -15,23 +15,12 @@ repos:
       - id: trailing-whitespace
 
   - repo: https://github.com/asottile/add-trailing-comma
-    rev: v3.0.0
+    rev: 3adb2d6027e0eda3f803a947e5696f05dd4a3d8c  # v3.0.0
     hooks:
       - id: add-trailing-comma
 
-  - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: "v3.0.0"
-    hooks:
-      - id: prettier
-        entry: env CI=1 bash -c "prettier --list-different . || ec=$? && prettier --loglevel=error --write . && exit $ec"
-        pass_filenames: false
-        args: []
-        additional_dependencies:
-          - prettier
-          - prettier-plugin-toml
-
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.17.5
+    rev: ef6cf06c079dd6b299dfc720b0f14400c9d168e1  # v0.17.5
     hooks:
       - id: ruff-check
       - id: ruff-format
