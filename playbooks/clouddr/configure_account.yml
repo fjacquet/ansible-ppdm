@@ -2,6 +2,7 @@
 # Wait for the Cloud DR component, then create the Azure account or update its keys when it exists.
 # Inspired by bottkars/ansible_ppdm `2.3-playbook_configure_cloud_dr_account.yml`,
 # `2.3-playbook_updarte_cloud_dr_account.yml` (workflow only; rewritten for fjacquet.ppdm).
+# Not idempotent: the keys are write-only and cannot be compared, so an existing account is updated (reports changed) on every run.
 # Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional), AZURE_CLIENT_ID, AZURE_CLIENT_SECRET.
 - name: Configure the Cloud DR cloud account
   hosts: "{{ target | default('localhost') }}"

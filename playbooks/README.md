@@ -43,8 +43,8 @@ run until their confirm variable (`restore_confirm`, `cloud_dr_confirm`, `local_
 `license_confirm`, `bootstrap_confirm`, `update_confirm`, `whitelist_approve_confirm`, `whitelist_confirm`, `rule_exec_confirm`,
 `certificate_trust_confirm`, `inventory_update_confirm`) is set to true. `maintenance.install_update_package` also accepts the product and telemetry EULAs and trusts the package certificate when confirmed.
 
-Other playbooks that write are not guarded (`bootstrap.configure_smtp`, `bootstrap.set_sdr_existing_unit`, `clouddr.configure_account`, `protection.run_policy`): `bootstrap.configure_smtp`, `bootstrap.set_sdr_existing_unit` and `clouddr.configure_account` are idempotent updates of settings the
-playbook itself creates or documents, and `protection.run_policy` starts one backup of an existing policy without changing any state.
+Other playbooks that write are not guarded (`bootstrap.configure_smtp`, `bootstrap.set_sdr_existing_unit`, `clouddr.configure_account`, `protection.run_policy`): `bootstrap.configure_smtp` and `bootstrap.set_sdr_existing_unit` are idempotent updates of settings the
+playbook itself creates or documents, `clouddr.configure_account` updates the account keys on every run (they are write-only, so it always reports changed), and `protection.run_policy` starts one backup of an existing policy without changing any state.
 
 ## Unverified details
 
