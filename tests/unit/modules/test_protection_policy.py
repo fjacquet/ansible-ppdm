@@ -173,3 +173,10 @@ def test_purpose_change_fails_early(monkeypatch):
     op = FakeOpener(listing(REAL))
     out = run(monkeypatch, op, objectives=USER_OBJ, purpose="SELF_SERVICE")
     assert out["failed"] and "purpose" in out["msg"] and methods(op) == ["GET"]
+
+
+def test_unchanged_subset_objectives_send_existing_ones_with_ids(monkeypatch):
+    op = FakeOpener(listing(REAL), listing(REAL), Resp({"id": "p1"}))
+    run(monkeypatch, op, objectives=USER_OBJ, description="new")
+    sent = json.loads(op.calls[2][1]["data"])
+    assert sent["objectives"] == REAL["objectives"] and sent["description"] == "new"

@@ -404,7 +404,8 @@ class PpdmClient:
         With create=False a missing object is a PpdmError instead of a POST. update_verb None means PUT when
         the route offers it, else PATCH. readonly overrides the ROUTES readOnly key set. A desired value of a
         subset_keys key that is a subset of the existing one (see is_subset) counts as unchanged, so server-added
-        ids and defaults do not cause an update; a real update still sends the desired value as given.
+        ids and defaults do not cause an update. An update then sends the existing value (with its ids) for those keys,
+        and the desired value as given for keys that really differ.
         """
         if update_secrets not in ("on_create", "always"):
             raise PpdmError("update_secrets must be 'on_create' or 'always', got %r" % (update_secrets,))
@@ -443,14 +444,14 @@ class PpdmClient:
         verb = update_verb or ("PUT" if "PUT" in ROUTES[resource]["methods"] else "PATCH")
         path = self._route(resource, verb, self._item_id(resource, existing))
         drop = (WRITE_ONLY_KEYS | secret_keys) - set(want)
-        body = {k: v for k, v in after.items() if k not in drop}
-        obj = after if check_mode else (self.request(verb, path, body=body) or after)
+        body = {k: v for k, v in shown.items() if k not in drop}
+        obj = shown if check_mode else (self.request(verb, path, body=body) or shown)
         return {
             "changed": True,
             "object": _mask(obj, secret_keys),
             "diff": {
                 "before": _mask(before, secret_keys),
-                "after": _mask(after, secret_keys),
+                "after": _mask(shown, secret_keys),
             },
         }
 
