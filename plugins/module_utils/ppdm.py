@@ -606,6 +606,6 @@ def info_main(
     except PpdmError as err:
         fail_from(module, err)
     for opt, field in extra.items():  # the server-side filter is advisory
-        found = [o for o in found if p[opt] is None or o.get(field) == p[opt]]
+        found = [o for o in found if isinstance(o, dict) and (p[opt] is None or o.get(field) == p[opt])]
     items = [{k: v for k, v in o.items() if k not in secret_fields} for o in found]
     module.exit_json(**{"changed": False, result_key: items})

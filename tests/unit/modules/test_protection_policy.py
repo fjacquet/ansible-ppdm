@@ -180,3 +180,14 @@ def test_unchanged_subset_objectives_send_existing_ones_with_ids(monkeypatch):
     run(monkeypatch, op, objectives=USER_OBJ, description="new")
     sent = json.loads(op.calls[2][1]["data"])
     assert sent["objectives"] == REAL["objectives"] and sent["description"] == "new"
+
+
+def test_asset_type_required_when_present(monkeypatch):
+    out = run_module(monkeypatch, protection_policy, FakeOpener(), name="gold")
+    assert out["failed"] and "asset_type" in out["msg"]
+
+
+def test_absent_does_not_need_asset_type(monkeypatch):
+    op = FakeOpener(listing(EXISTING), Resp(None, 204))
+    out = run_module(monkeypatch, protection_policy, op, name="gold", state="absent")
+    assert out["changed"] and methods(op) == ["GET", "DELETE"]

@@ -118,7 +118,7 @@ def find_policy(client, ref):
     """The policy named ref, else the one with id ref; PpdmError when neither exists."""
     policy = client.find_one("protection-policies", "name", ref) or client.find_one("protection-policies", "id", ref)
     if not policy:
-        raise PpdmError("protection policy %s not found" % ref)
+        raise PpdmError(client.scrub_text("protection policy %s not found" % ref, 200))
     return policy
 
 
@@ -134,7 +134,11 @@ def main():
     try:
         policy = find_policy(client, p["policy"])
         base = "/api/v2/protection-policies/%s" % quote_id(policy["id"])
-        current = {a.get("id") for a in client.get_all(base + "/asset-assignments") or [] if isinstance(a, dict)}
+        current = {
+            a["id"]
+            for a in client.get_all(base + "/asset-assignments") or []
+            if isinstance(a, dict) and isinstance(a.get("id"), str)
+        }
         before = [i for i in wanted if i in current]
         todo = [i for i in wanted if (i not in current) == present]
         after = wanted if present else []

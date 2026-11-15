@@ -143,7 +143,7 @@ def find_policy(client, ref):
     """The policy named ref, else the one with id ref; PpdmError when neither exists."""
     policy = client.find_one("protection-policies", "name", ref) or client.find_one("protection-policies", "id", ref)
     if not policy:
-        raise PpdmError("protection policy %s not found" % ref)
+        raise PpdmError(client.scrub_text("protection policy %s not found" % ref, 200))
     return policy
 
 

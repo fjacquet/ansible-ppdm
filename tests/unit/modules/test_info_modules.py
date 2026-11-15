@@ -200,3 +200,9 @@ def test_protection_policy_info_user_filter_is_parenthesised(monkeypatch):
     assert parse_qs(urlsplit(op.calls[0][0]).query)["filter"] == [
         '(name lk "a%" or name lk "b%") and assetType eq "KUBERNETES"'
     ]
+
+
+def test_protection_policy_info_asset_type_ignores_non_dict_items(monkeypatch):
+    op = FakeOpener(page(["junk", {"id": "1", "assetType": "FILE_SYSTEM"}], 1, 1))
+    out = run(monkeypatch, protection_policy_info, op, asset_type="FILE_SYSTEM")
+    assert [p["id"] for p in out["protection_policies"]] == ["1"]

@@ -67,3 +67,9 @@ def test_check_mode_sends_nothing(monkeypatch):
     op = FakeOpener(listing(POLICY), assigned())
     out = run(monkeypatch, op, asset_ids=["a1"], check_mode=True)
     assert out["changed"] and set(methods(op)) == {"GET"}
+
+
+def test_non_string_assignment_ids_are_ignored(monkeypatch):
+    op = FakeOpener(listing(POLICY), listing({"id": ["x"]}, {"id": 5}, {"id": "a1"}))
+    out = run(monkeypatch, op, asset_ids=["a1"])
+    assert not out["failed"] and not out["changed"] and set(methods(op)) == {"GET"}

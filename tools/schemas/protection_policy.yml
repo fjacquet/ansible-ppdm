@@ -34,9 +34,8 @@ options:
     description: Policy name, used as the key.
   asset_type:
     type: str
-    required: true
     choices: [CLOUD_DIRECTOR_VAPP, FILE_SYSTEM, GENERIC_APPLICATION_ASSET, HYPERV_VIRTUAL_MACHINE, KUBERNETES, MICROSOFT_EXCHANGE_DATABASE, MICROSOFT_SQL_DATABASE, NAS_SHARE, NATIVEEDGE_VIRTUAL_MACHINE, NUTANIX_VIRTUAL_MACHINE, ORACLE_DATABASE, POWERSTORE_BLOCK, POWER_MAX_BLOCK, SAP_HANA_DATABASE, VMWARE_VIRTUAL_MACHINE]
-    description: Asset type protected by the policy (the C(assetType) discriminator). Cannot be changed on an existing policy.
+    description: Asset type protected by the policy (the C(assetType) discriminator). Required when I(state=present). Cannot be changed on an existing policy.
   description:
     type: str
     description: Policy description.

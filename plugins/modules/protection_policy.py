@@ -49,10 +49,9 @@ options:
     required: true
   asset_type:
     description:
-    - Asset type protected by the policy (the C(assetType) discriminator). Cannot be changed on an existing
-      policy.
+    - Asset type protected by the policy (the C(assetType) discriminator). Required when I(state=present).
+      Cannot be changed on an existing policy.
     type: str
-    required: true
     choices:
     - CLOUD_DIRECTOR_VAPP
     - FILE_SYSTEM
@@ -290,7 +289,6 @@ ARGUMENT_SPEC = dict(
     name=dict(type='str', required=True),
     asset_type=dict(
         type='str',
-        required=True,
         choices=[
             'CLOUD_DIRECTOR_VAPP',
             'FILE_SYSTEM',
@@ -343,6 +341,7 @@ def validate_objectives(objectives):
 def main():
     module = AnsibleModule(
         argument_spec=dict(connection_argument_spec(), **ARGUMENT_SPEC),
+        required_if=[("state", "present", ("asset_type",))],
         supports_check_mode=True,
     )
     p = module.params
@@ -367,12 +366,12 @@ def main():
             if existing and existing.get("assetType") != p["asset_type"]:
                 raise PpdmError(
                     "protection policy %s has asset type %s, it cannot be changed to %s: delete and recreate it"
-                    % (p["name"], existing.get("assetType"), p["asset_type"])
+                    % (p["name"], client.scrub_text(existing.get("assetType"), 64), p["asset_type"])
                 )
             if existing and p["purpose"] and existing.get("purpose") not in (None, p["purpose"]):
                 raise PpdmError(
                     "protection policy %s has purpose %s, PPDM cannot change it to %s through PATCH"
-                    % (p["name"], existing.get("purpose"), p["purpose"])
+                    % (p["name"], client.scrub_text(existing.get("purpose"), 64), p["purpose"])
                 )
             res = client.ensure(
                 "protection-policies",
