@@ -9,31 +9,30 @@ DOCUMENTATION = r'''
 module: protection_rule
 short_description: Manage protection rules on PowerProtect Data Manager
 description:
-- Create, update or remove a protection rule (an automatic assignment rule, called asset rule by the API),
-  identified by its name, through the v2 API.
-- A rule moves the assets that match its I(conditions) to a protection policy (I(action=MOVE_TO_GROUP),
-  the policy is the C(actionResult)).
-- Updates use PUT.
+- Create, update or remove a protection rule, identified by its name, through the v3 rules API.
+- A rule selects assets with I(filters) and applies its I(action), for example assigning them to a protection
+  policy (I(action=ASSIGN_PROTECTION_POLICY)) or to a resource group (I(action=ASSIGN_RESOURCE_GROUP)).
+- Updates use PATCH.
 - Rule names are assumed to be unique (the rule is found by exact name); if two rules share the name the
-  module fails and lists both IDs.
-version_added: 0.2.0
+  module fails and lists the IDs.
+version_added: 0.3.0
 author:
 - Frederic Jacquet (@fjacquet)
 extends_documentation_fragment:
 - fjacquet.ppdm.ppdm
 - action_common_attributes
 notes:
-- The v2 protection rule API is deprecated since PPDM 20.2 and removed in 20.6, the module will move to
-  the v3 API in a later release.
 - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0
   REST API.
-- The C(ProtectionRule) schema of the 20.3.0 OpenAPI has no required field. The conditions are a list
-  of C(Condition) objects (C(assetAttributeName), C(operator), C(assetAttributeValues)), the nested C(rules)
-  list of the API is not a named option, use I(config) for it.
-- The server-owned fields C(assignedAssetsCount), C(displayDescription), C(lastRunAt) and C(_embedded)
-  are never sent back in a PUT and are ignored by the idempotence check.
-- I(conditions) replaces the whole list on PPDM. A run is unchanged when each desired condition is a subset
-  of the existing one at the same index (same list length), so fields PPDM adds do not cause a change.
+- The C(Rule) schema of the 20.3.0 OpenAPI has no required field.
+- The server-owned fields C(createdAt), C(updatedAt), C(lastRunAt), C(lastMigratedAt), C(status) and C(uniqueHash)
+  are never sent and are ignored by the idempotence check.
+- I(filters) replaces the whole list on PPDM, and is compared in order. A run is unchanged when each desired
+  filter is a subset of the existing one at the same index (same list length), so fields PPDM adds do
+  not cause a change.
+- The same subset rule applies to the action, including the C(args) list (same order and length).
+- The nested C(fieldData) of a relational condition is passed to PPDM as given, only the operators and
+  the enum values are checked.
 - The rule is applied to the assets by PPDM on its own schedule, or on demand with M(fjacquet.ppdm.protection_rule_run).
 seealso:
 - module: fjacquet.ppdm.protection_rule_info
@@ -60,73 +59,87 @@ options:
     description:
     - Rule description.
     type: str
-  action:
-    description:
-    - Action of the rule, C(MOVE_TO_GROUP) moves the matching assets to the protection policy of I(policy).
-    type: str
-    choices:
-    - MOVE_TO_GROUP
-  inventory_source_type:
-    description:
-    - Inventory source type the rule is for (the C(inventorySourceType) field).
-    type: str
-    choices:
-    - AVAMAR_ASSET
-    - CLOUD_DIRECTOR_VAPP
-    - CLOUD_NATIVE_ENTITY
-    - FILE_SYSTEM
-    - GENERIC_APPLICATION_ASSET
-    - HYPERV_VIRTUAL_MACHINE
-    - KUBERNETES
-    - MICROSOFT_EXCHANGE_DATABASE
-    - MICROSOFT_SQL_DATABASE
-    - NAS_SHARE
-    - NATIVEEDGE_VIRTUAL_MACHINE
-    - NUTANIX_VIRTUAL_MACHINE
-    - ORACLE_DATABASE
-    - POWERSTORE_BLOCK
-    - POWER_MAX_BLOCK
-    - SAP_HANA_DATABASE
-    - VMWARE_VIRTUAL_MACHINE
   priority:
     description:
-    - Priority of the rule, a rule of high priority runs first.
+    - Priority of the rule, 1 is the highest priority.
     type: int
-  conditions:
+  action:
     description:
-    - Conditions that select the assets, passed to PPDM as is after validation (the C(conditions) field).
-    - Each item is a dict with C(assetAttributeName), C(operator) and C(assetAttributeValues) (a list
-      of strings). C(operator) is checked against C(IN), C(NOT_IN), C(EQUALS), C(CONTAINS), C(BEGINS_WITH),
-      C(ENDS_WITH), C(DOES_NOT_EQUAL), C(DOES_NOT_CONTAIN), C(LESS_THAN), C(GREATER_THAN), C(REGULAR_EXPRESSION),
-      C(MATCH_REGEX), C(DOES_NOT_MATCH_REGEX), C(GREATER_THAN_OR_EQUAL_TO) or C(LESS_THAN_OR_EQUAL_TO),
-      the valid attribute names depend on I(inventory_source_type).
-    type: list
-    elements: dict
-  condition_connector:
-    description:
-    - Operator that joins the conditions (the C(conditionConnector) field, deprecated by PPDM 20.3.0 in
-      favour of C(logicalOperator), which can be set in I(config)).
+    - Action name of the rule (the C(action.name) field).
+    - I(protection_policy) and I(protection_policy_id) require C(ASSIGN_PROTECTION_POLICY), I(resource_group)
+      and I(resource_group_id) require C(ASSIGN_RESOURCE_GROUP).
     type: str
     choices:
-    - AND
-    - NONE
-    - OR
-  policy:
+    - ASSIGN_PROTECTION_POLICY
+    - ASSIGN_RESOURCE_GROUP
+    - SELECT_ASSETS_FOR_RESTORE_PLAN
+    - SELECT_COPIES
+    - SELECT_COPIES_FOR_RESTORE_PLAN
+    - SELECT_FILES
+  protection_policy:
     description:
-    - Protection policy name or id the matching assets are moved to (the C(actionResult) field). The policy
-      is found by name first, then by id.
+    - Name of the protection policy the matching assets are assigned to, resolved to its id (sent as the
+      C(PROTECTION_POLICY_ID) action argument). The module fails when no policy or several policies have
+      this name. Mutually exclusive with I(protection_policy_id).
     type: str
-  tenant:
+  protection_policy_id:
     description:
-    - Id of the tenant that owns the rule (sent as C(tenant.id)).
+    - Id of the protection policy, used as is. Mutually exclusive with I(protection_policy).
     type: str
+  resource_group:
+    description:
+    - Name of the resource group the matching assets are assigned to, resolved to its id (sent as the
+      C(RESOURCE_GROUP_ID) action argument). The module fails when no group or several groups have this
+      name. Mutually exclusive with I(resource_group_id).
+    type: str
+  resource_group_id:
+    description:
+    - Id of the resource group, used as is. Mutually exclusive with I(resource_group).
+    type: str
+  variant:
+    description:
+    - Variant of the rule.
+    type: str
+    choices:
+    - ADVANCED
+    - EXCLUDE_FILE_NAME_AND_PATH
+    - INCLUDE_EXCLUDE_ALL_FIELDS
+    - INCLUDE_FILE_NAME_AND_PATH
+    - INCLUDE_FILE_PATH
+    - SIMPLE
+  scopes:
+    description:
+    - Scopes of the rule.
+    type: list
+    choices:
+    - ASSET
+    - GENERAL
+    - POLICY
+    elements: str
+  categories:
+    description:
+    - Categories of the rule.
+    type: list
+    choices:
+    - LIST_VIEW
+    - TREE_VIEW
+    elements: str
+  filters:
+    description:
+    - Filters that select the assets, passed to PPDM as is after validation (the C(filters) field). The
+      list replaces the whole list on PPDM and is compared in order.
+    - Each filter is a dict with C(objectType), C(objectSubtype), C(type) (C(INCLUDE) or C(EXCLUDE)),
+      C(operator) and C(conditions). Each condition is either logical (C(operator) C(AND) or C(OR) and
+      a nested C(conditions) list) or relational (C(fieldName), C(operator) and C(fieldData)). The enum
+      values are checked, nesting is limited to 8 levels.
+    type: list
+    elements: dict
   config:
     description:
-    - The module also fails when C(config) contains C(id) or C(_links), the server owns them.
+    - Extra request body fields passed through as is, for example C(filter).
+    - The module fails when C(config) contains C(id) or C(_links), the server owns them.
     - The module fails when C(config) contains a key that a named option sets (C(name), C(description),
-      C(action), C(inventorySourceType), C(priority), C(conditions), C(conditionConnector), C(actionResult)
-      and C(tenant)), use the option instead.
-    - Extra request body fields passed through as is, for example C(logicalOperator).
+      C(priority), C(action), C(variant), C(scopes), C(categories) and C(filters)), use the option instead.
     - Each top-level key replaces the whole value of that field, the merge with the existing object is
       shallow (top-level keys only).
     - Do not put secrets here, values are not masked in diff or return values.
@@ -147,14 +160,22 @@ EXAMPLES = r'''
     username: admin
     password: "{{ ppdm_password }}"
     name: gold-vms
-    action: MOVE_TO_GROUP
-    inventory_source_type: VMWARE_VIRTUAL_MACHINE
     priority: 10
-    policy: vm-gold
-    conditions:
-      - assetAttributeName: tag
-        operator: EQUALS
-        assetAttributeValues: ["gold"]
+    action: ASSIGN_PROTECTION_POLICY
+    protection_policy: vm-gold
+    filters:
+      - objectType: ASSET
+        objectSubtype: VMWARE_VIRTUAL_MACHINE
+        type: INCLUDE
+        operator: AND
+        conditions:
+          - operator: AND
+            conditions:
+              - fieldName: tags
+                operator: EQUALS
+                fieldData:
+                  type: STRING
+                  values: ["gold"]
 
 - name: Remove a rule
   fjacquet.ppdm.protection_rule:
@@ -170,46 +191,48 @@ protection_rule:
   description: The managed protection rule.
   returned: success
   type: dict
-  sample: {"id": "1", "name": "gold-vms", "action": "MOVE_TO_GROUP", "actionResult": "2"}
+  sample: {"id": "1", "name": "gold-vms", "action": {"name": "ASSIGN_PROTECTION_POLICY"}}
 diff:
   description: Before and after.
   returned: success
   type: dict
-  sample: {"before": {}, "after": {"name": "gold-vms", "action": "MOVE_TO_GROUP"}}
+  sample: {"before": {}, "after": {"name": "gold-vms"}}
 '''
 
 ARGUMENT_SPEC = dict(
     state=dict(type='str', choices=['present', 'absent'], default='present'),
     name=dict(type='str', required=True),
     description=dict(type='str'),
-    action=dict(type='str', choices=['MOVE_TO_GROUP']),
-    inventory_source_type=dict(
+    priority=dict(type='int'),
+    action=dict(
         type='str',
         choices=[
-            'AVAMAR_ASSET',
-            'CLOUD_DIRECTOR_VAPP',
-            'CLOUD_NATIVE_ENTITY',
-            'FILE_SYSTEM',
-            'GENERIC_APPLICATION_ASSET',
-            'HYPERV_VIRTUAL_MACHINE',
-            'KUBERNETES',
-            'MICROSOFT_EXCHANGE_DATABASE',
-            'MICROSOFT_SQL_DATABASE',
-            'NAS_SHARE',
-            'NATIVEEDGE_VIRTUAL_MACHINE',
-            'NUTANIX_VIRTUAL_MACHINE',
-            'ORACLE_DATABASE',
-            'POWERSTORE_BLOCK',
-            'POWER_MAX_BLOCK',
-            'SAP_HANA_DATABASE',
-            'VMWARE_VIRTUAL_MACHINE',
+            'ASSIGN_PROTECTION_POLICY',
+            'ASSIGN_RESOURCE_GROUP',
+            'SELECT_ASSETS_FOR_RESTORE_PLAN',
+            'SELECT_COPIES',
+            'SELECT_COPIES_FOR_RESTORE_PLAN',
+            'SELECT_FILES',
         ],
     ),
-    priority=dict(type='int'),
-    conditions=dict(type='list', elements='dict'),
-    condition_connector=dict(type='str', choices=['AND', 'NONE', 'OR']),
-    policy=dict(type='str'),
-    tenant=dict(type='str'),
+    protection_policy=dict(type='str'),
+    protection_policy_id=dict(type='str'),
+    resource_group=dict(type='str'),
+    resource_group_id=dict(type='str'),
+    variant=dict(
+        type='str',
+        choices=[
+            'ADVANCED',
+            'EXCLUDE_FILE_NAME_AND_PATH',
+            'INCLUDE_EXCLUDE_ALL_FIELDS',
+            'INCLUDE_FILE_NAME_AND_PATH',
+            'INCLUDE_FILE_PATH',
+            'SIMPLE',
+        ],
+    ),
+    scopes=dict(type='list', choices=['ASSET', 'GENERAL', 'POLICY'], elements='str'),
+    categories=dict(type='list', choices=['LIST_VIEW', 'TREE_VIEW'], elements='str'),
+    filters=dict(type='list', elements='dict'),
     config=dict(type='dict'),
 )
 # fmt: on
@@ -223,50 +246,78 @@ from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
     fail_from,
     merge_config,
 )
-from ansible_collections.fjacquet.ppdm.plugins.module_utils.protection_rule import validate_conditions
+from ansible_collections.fjacquet.ppdm.plugins.module_utils.protection_rule import validate_filters
 
-# server-owned, never sent back in a PUT (ROUTES only lists _embedded)
-READONLY = ("_embedded", "assignedAssetsCount", "displayDescription", "lastRunAt")
+# server-owned, never sent (ROUTES lists none for rules)
+READONLY = ("createdAt", "updatedAt", "lastRunAt", "lastMigratedAt", "status", "uniqueHash")
+
+# (action, name option, id option, resource, action argument name)
+TARGETS = (
+    (
+        "ASSIGN_PROTECTION_POLICY",
+        "protection_policy",
+        "protection_policy_id",
+        "protection-policies",
+        "PROTECTION_POLICY_ID",
+    ),
+    ("ASSIGN_RESOURCE_GROUP", "resource_group", "resource_group_id", "resource-groups", "RESOURCE_GROUP_ID"),
+)
+
+
+def build_action(client, p):
+    """The action body, with the policy or group name resolved to an id; None when no option sets it."""
+    args = []
+    for _action, name_opt, id_opt, resource, arg in TARGETS:
+        if p[name_opt] is None and p[id_opt] is None:
+            continue
+        target = p[id_opt]
+        if target is None:
+            found = client.find_one(resource, "name", p[name_opt])
+            if not found:
+                raise PpdmError("%s %s not found" % (name_opt.replace("_", " "), client.scrub_text(p[name_opt], 200)))
+            target = found["id"]
+        args.append({"name": arg, "values": [target]})
+    if p["action"] is None:
+        return None
+    return {"name": p["action"], "args": args} if args else {"name": p["action"]}
 
 
 def main():
     module = AnsibleModule(
         argument_spec=dict(connection_argument_spec(), **ARGUMENT_SPEC),
+        mutually_exclusive=[("protection_policy", "protection_policy_id"), ("resource_group", "resource_group_id")],
         supports_check_mode=True,
     )
     p = module.params
     client = client_from_module(module)
     try:
         if p["state"] == "absent":
-            res = client.remove("protection-rules", "name", p["name"], check_mode=module.check_mode)
+            res = client.remove("rules", "name", p["name"], check_mode=module.check_mode)
         else:
-            validate_conditions(p["conditions"])
+            validate_filters(p["filters"])
             named = {
                 "name": p["name"],
                 "description": p["description"],
-                "action": p["action"],
-                "inventorySourceType": p["inventory_source_type"],
                 "priority": p["priority"],
-                "conditions": p["conditions"],
-                "conditionConnector": p["condition_connector"],
-                "tenant": None if p["tenant"] is None else {"id": p["tenant"]},
+                "variant": p["variant"],
+                "scopes": p["scopes"],
+                "categories": p["categories"],
+                "filters": p["filters"],
+                "action": None,
             }
-            named["actionResult"] = None
             desired = merge_config(named, p["config"])  # before any request: bad input sends nothing
-            if p["policy"] is not None:
-                ref = p["policy"]
-                policy = client.find_one("protection-policies", "name", ref) or client.find_one(
-                    "protection-policies", "id", ref
-                )
-                if not policy:
-                    raise PpdmError("protection policy %s not found" % client.scrub_text(ref, 200))
-                desired["actionResult"] = policy["id"]
+            for action, name_opt, id_opt, _resource, _arg in TARGETS:  # still before any request
+                if (p[name_opt] is not None or p[id_opt] is not None) and p["action"] != action:
+                    raise PpdmError("%s and %s require action=%s" % (name_opt, id_opt, action))
+            action_body = build_action(client, p)
+            if action_body is not None:
+                desired["action"] = action_body
             res = client.ensure(
-                "protection-rules",
+                "rules",
                 desired,
                 check_mode=module.check_mode,
                 readonly=READONLY,
-                subset_keys=("conditions",),
+                subset_keys=("action", "filters"),
             )
     except PpdmError as err:
         fail_from(module, err)

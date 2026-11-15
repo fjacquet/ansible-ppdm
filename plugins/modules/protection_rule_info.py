@@ -11,15 +11,13 @@ short_description: Get protection rules from PowerProtect Data Manager
 description:
 - Read-only query of protection rules. Never changes anything.
 - Returns every matching object, all pages.
-version_added: 0.2.0
+version_added: 0.3.0
 author:
 - Frederic Jacquet (@fjacquet)
 extends_documentation_fragment:
 - fjacquet.ppdm.ppdm
 - action_common_attributes
 notes:
-- The v2 protection rule API is deprecated since PPDM 20.2 and removed in 20.6, the module will move to
-  the v3 API in a later release.
 - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0
   REST API.
 seealso:
@@ -73,7 +71,7 @@ protection_rules:
   returned: always
   type: list
   elements: dict
-  sample: [{"id": "1", "name": "gold-vms", "action": "MOVE_TO_GROUP", "inventorySourceType": "VMWARE_VIRTUAL_MACHINE"}]
+  sample: [{"id": "1", "name": "gold-vms", "action": {"name": "ASSIGN_PROTECTION_POLICY"}}]
 '''
 
 ARGUMENT_SPEC = dict(
@@ -88,7 +86,7 @@ from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import info_mai
 
 
 def main():
-    info_main("protection-rules", "protection_rules", ARGUMENT_SPEC)
+    info_main("rules", "protection_rules", ARGUMENT_SPEC)
 
 
 if __name__ == "__main__":

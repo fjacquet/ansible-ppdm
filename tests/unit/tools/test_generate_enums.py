@@ -52,9 +52,10 @@ def test_schema_choices_match_enums():
 
     schemas = Path(__file__).resolve().parents[3] / "tools" / "schemas"
     pairs = {
-        ("protection_rule", "action"): "protection_rule.action",
-        ("protection_rule", "inventory_source_type"): "protection_rule.inventory_source_type",
-        ("protection_rule", "condition_connector"): "protection_rule.condition_connector",
+        ("protection_rule", "action"): "rule.action_name",
+        ("protection_rule", "variant"): "rule.variant",
+        ("protection_rule", "scopes"): "rule.scope",
+        ("protection_rule", "categories"): "rule.category",
         ("protection_rule_run", "inventory_source_type"): "protection_rule_run.inventory_source_type",
         ("protection_rule_run", "preview_action"): "protection_rule_run.preview_action",
         ("discovery", "level"): "discovery.level",
