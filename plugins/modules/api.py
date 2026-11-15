@@ -110,6 +110,8 @@ ARGUMENT_SPEC = dict(
 )
 # END GENERATED
 
+import re  # noqa: E402
+
 from ansible.module_utils.basic import AnsibleModule  # noqa: E402
 from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (  # noqa: E402
     PpdmError,
@@ -125,8 +127,9 @@ def main():
     )
     p = module.params
     method, path = p["method"], p["path"]
-    if not path.startswith("/api/"):
-        module.fail_json(msg="path must start with /api/, got %r" % path)
+    if not path.startswith("/api/") or re.search(r"\.\.|%2e|[?#\s]", path, re.I):
+        module.fail_json(msg="path must start with /api/ and contain no '..', '%2e', '?', '#' or whitespace "
+                             "(use the query option for parameters)")
     if method != "GET" and module.check_mode:
         module.exit_json(changed=True, skipped_write=True, status=None, result=None)
     client = client_from_module(module)

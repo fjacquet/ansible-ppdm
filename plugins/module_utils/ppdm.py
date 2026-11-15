@@ -111,20 +111,24 @@ class PpdmClient:
 
     def get_all(self, path, query=None):
         """GET path; a {content, page} envelope is paged to the end and returned as a list, anything else as is."""
+        return self._get_pages(path, query)[0]
+
+    def _get_pages(self, path, query):
+        """Return (data, paged); paged is False when the first response had no content envelope."""
         items = []
         page = 1
         while True:
             data = self.request("GET", path, query=dict(query or {}, page=page, pageSize=PAGE_SIZE))
             if not isinstance(data, dict) or "content" not in data:
-                return data if page == 1 else items
+                return data, False
             content = data["content"] or []
             items.extend(content)
             if "page" not in data:
                 if content:
                     raise PpdmError("GET %s failed: paginated response has no 'page' envelope" % path)
-                return items
+                return items, True
             if page >= data["page"].get("totalPages", 0):
-                return items
+                return items, True
             page += 1
 
     def list_all(self, resource, filter=None, order_by=None):
@@ -134,12 +138,12 @@ class PpdmClient:
             query["filter"] = filter
         if order_by:
             query["orderby"] = order_by
-        data = self.get_all(path, query)
-        if isinstance(data, dict):  # envelope-less object: no items, as before
-            return []
-        if not isinstance(data, list):
+        data, paged = self._get_pages(path, query)
+        if paged:
+            return data
+        if not isinstance(data, dict):
             raise PpdmError("GET %s failed: unexpected response" % path)
-        return data
+        return []  # envelope-less object: no items, as before
 
     def find_one(self, resource, key, value):
         found = self.list_all(resource, filter='%s eq "%s"' % (key, value))

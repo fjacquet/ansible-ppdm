@@ -177,3 +177,9 @@ def test_list_all_missing_page_with_content_raises():
     with pytest.raises(PpdmError) as e:
         c.list_all("alerts")
     assert "S3cret!" not in e.value.msg
+
+
+def test_list_all_bare_list_response_raises():
+    c = PpdmClient("h", "u", "p", opener=FakeOpener(Resp([{"id": 1}])))
+    with pytest.raises(PpdmError):
+        c.list_all("alerts")

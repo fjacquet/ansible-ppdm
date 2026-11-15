@@ -130,3 +130,18 @@ def test_wait_warns_on_ok_with_errors(monkeypatch):
     act = {"id": "a1", "state": "COMPLETED", "result": {"status": "OK_WITH_ERRORS"}}
     out = run(monkeypatch, _async(act), method="POST", path="/api/v3/x", wait=True)
     assert out["failed"] is False and out["_warnings"]
+
+
+@pytest.mark.parametrize("path", [
+    "/api/../x", "/api/%2e%2e/x", "/api/%2E%2E/x", "/api/v2/x?y=1", "/api/v2/x#f", "/api/v2/ x",
+])
+def test_unsafe_paths_rejected_before_request(monkeypatch, path):
+    op = FakeOpener()
+    out = run(monkeypatch, op, path=path)
+    assert out["failed"] and "s3cret" not in json.dumps(out)
+    assert op.calls == []
+
+
+def test_activities_path_accepted(monkeypatch):
+    out = run(monkeypatch, FakeOpener(Resp({"content": [], "page": {"totalPages": 0}})), path="/api/v2/activities")
+    assert out["failed"] is False
