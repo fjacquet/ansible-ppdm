@@ -39,7 +39,7 @@ def test_committed_file_matches_and_check_flags_tamper(tmp_path, monkeypatch):
 
 
 def test_rule_enums():
-    enums, _ = build_enums(SPECS)
+    enums, _unused = build_enums(SPECS)
     assert enums["protection_rule.condition_connector"] == ("AND", "NONE", "OR")
     assert "EQUALS" in enums["condition.operator"] and len(enums["condition.operator"]) == 15
     assert "DR" in enums["protection_rule_run.inventory_source_type"]
