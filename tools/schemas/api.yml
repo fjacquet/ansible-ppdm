@@ -16,7 +16,13 @@ options:
   path:
     type: str
     required: true
-    description: Request path, must start with C(/api/), for example C(/api/v3/alerts). Paths containing C(..), C(%2e), C(%25), C(%00), C(?), C(#), C(;), a backslash, whitespace, control or non-ASCII characters are refused. This is a guard against accidents, not a security boundary, the module sends the access token to the configured I(hostname) only and the caller already holds its credentials.
+    description: >-
+      Request path, must start with C(/api/), for example C(/api/v3/alerts). Refused: a C(..) anywhere, a C(/./)
+      or trailing C(/.) segment, the escapes C(%2e), C(%2f), C(%5c), C(%25), C(%c0) and C(%c1) (any case), any
+      escape of a control character (C(%00) to C(%1f), C(%7f)), and the characters C(?), C(#), C(;), backslash,
+      whitespace, control or non-ASCII. Other escapes such as C(%2d) pass. This is a guard against accidents,
+      not a security boundary, the module sends the access token to the configured I(hostname) only and the
+      caller already holds its credentials.
   query:
     type: dict
     description: Query string parameters.

@@ -20,12 +20,13 @@ extends_documentation_fragment:
 options:
   name:
     description:
-    - Return only the object whose name equals this value exactly. Mutually exclusive with I(filter) and
-      I(id).
+    - Return only the object whose name equals this value exactly (case-sensitive, checked again on the
+      result, whatever the server filter returns). Mutually exclusive with I(filter) and I(id).
     type: str
   filter:
     description:
-    - PPDM filter string, for example C(name lk "prod%"). Mutually exclusive with I(name) and I(id).
+    - PPDM filter string, for example C(name lk "prod%"). It is passed to PPDM unchanged and its result
+      is not re-checked. Mutually exclusive with I(name) and I(id).
     type: str
   id:
     description:

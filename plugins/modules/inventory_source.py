@@ -81,6 +81,7 @@ options:
     type: str
   config:
     description:
+    - The module also fails when C(config) contains C(id) or C(_links), the server owns them.
     - The module fails when C(config) contains a key that a named option sets (C(name), C(type), C(address),
       C(port) and C(credentials)), use the option instead.
     - Extra request body fields passed through as is, for example C(details) for type-specific settings

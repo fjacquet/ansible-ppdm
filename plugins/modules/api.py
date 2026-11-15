@@ -34,10 +34,12 @@ options:
     default: GET
   path:
     description:
-    - Request path, must start with C(/api/), for example C(/api/v3/alerts). Paths containing C(..), C(%2e),
-      C(%25), C(%00), C(?), C(#), C(;), a backslash, whitespace, control or non-ASCII characters are refused.
-      This is a guard against accidents, not a security boundary, the module sends the access token to
-      the configured I(hostname) only and the caller already holds its credentials.
+    - 'Request path, must start with C(/api/), for example C(/api/v3/alerts). Refused: a C(..) anywhere,
+      a C(/./) or trailing C(/.) segment, the escapes C(%2e), C(%2f), C(%5c), C(%25), C(%c0) and C(%c1)
+      (any case), any escape of a control character (C(%00) to C(%1f), C(%7f)), and the characters C(?),
+      C(#), C(;), backslash, whitespace, control or non-ASCII. Other escapes such as C(%2d) pass. This
+      is a guard against accidents, not a security boundary, the module sends the access token to the
+      configured I(hostname) only and the caller already holds its credentials.'
     type: str
     required: true
   query:
@@ -129,6 +131,8 @@ from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
     fail_from,
 )
 
+UNSAFE_PATH = r"\.\.|/\.(?:/|$)|%(?:2e|2f|5c|25|c0|c1|[01][0-9a-f]|7f)|[;?#\\]|[^\x21-\x7e]"
+
 
 def main():
     module = AnsibleModule(
@@ -138,10 +142,11 @@ def main():
     p = module.params
     method, path = p["method"], p["path"]
     # a guard against accidents, not a security boundary (see the path option)
-    if not path.startswith("/api/") or re.search(r"\.\.|%2e|%25|%00|[;?#\\]|[^\x21-\x7e]", path, re.IGNORECASE):
+    if not path.startswith("/api/") or re.search(UNSAFE_PATH, path, re.IGNORECASE):
         module.fail_json(
-            msg="path must start with /api/ and contain no '..', '%2e', '%25', '%00', '?', '#', ';', '\\', "
-            "whitespace, control or non-ASCII characters (use the query option for parameters)"
+            msg="path must start with /api/ and contain no '..', '/./' or trailing '/.' segment, no "
+            "%2e, %2f, %5c, %25 or %c0/%c1 escape, no %-escaped control character (%00-%1f, %7f), no '?', '#', "
+            "';', '\\', whitespace, control or non-ASCII characters (use the query option for parameters)"
         )
     if method != "GET" and module.check_mode:
         module.exit_json(changed=True, skipped_write=True, status=None, result=None)

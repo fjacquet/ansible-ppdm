@@ -84,6 +84,15 @@ def test_info_by_name_builds_filter(monkeypatch, mod, base, key):
 
 
 @ALL
+def test_info_by_name_keeps_exact_matches_only(monkeypatch, mod, base, key):
+    op = FakeOpener(
+        page([{"id": "1", "name": "x"}, {"id": "2", "name": "xy"}, {"id": "3", "name": "X"}, {"id": "4"}], 1, 1)
+    )
+    out = run(monkeypatch, mod, op, name="x")
+    assert out[key] == [{"id": "1", "name": "x"}]
+
+
+@ALL
 def test_info_passes_filter(monkeypatch, mod, base, key):
     op = FakeOpener(page([], 1, 0))
     run(monkeypatch, mod, op, filter='name lk "p%"')

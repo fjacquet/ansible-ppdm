@@ -41,8 +41,11 @@ def filter_eq(key, value):
 
 
 def merge_config(named, config):
-    """Body from the named options (None values dropped) over config; config may not use a named option's key."""
+    """Body from the named options (None values dropped) over config; no named option's key, no id/_links."""
     config = config or {}
+    forbidden = sorted(set(config) & {"id", "_links"})  # the body id must stay the path id
+    if forbidden:
+        raise PpdmError("config must not set %s: the server owns it" % ", ".join(forbidden))
     clash = sorted(set(config) & set(named))
     if clash:
         raise PpdmError("config must not set %s: use the matching module option instead" % ", ".join(clash))
@@ -432,6 +435,8 @@ def info_main(resource, result_key, argument_spec, secret_fields=()):
         else:
             flt = filter_eq("name", p["name"]) if p["name"] else p["filter"]
             found = client.list_all(resource, filter=flt)
+            if p["name"]:  # the server-side filter is advisory (and I(filter) is passed through unchanged)
+                found = [o for o in found if isinstance(o, dict) and o.get("name") == p["name"]]
     except PpdmError as err:
         fail_from(module, err)
     items = [{k: v for k, v in o.items() if k not in secret_fields} for o in found]

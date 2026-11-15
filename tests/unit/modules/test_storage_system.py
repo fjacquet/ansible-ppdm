@@ -57,7 +57,7 @@ def test_storage_system_missing_fails(monkeypatch):
     assert out["failed"] and "dd1" in out["msg"] and methods(op) == ["GET"]
 
 
-@pytest.mark.parametrize("key", ["name", "description", "locationId", "ddLocationId"])
+@pytest.mark.parametrize("key", ["name", "description", "locationId", "ddLocationId", "id", "_links"])
 def test_config_colliding_with_a_named_option_fails(monkeypatch, key):
     op = FakeOpener()
     out = run(monkeypatch, op, description="d", config={key: "x", "details": {}})

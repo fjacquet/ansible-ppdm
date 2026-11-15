@@ -86,7 +86,7 @@ def test_inventory_source_duplicate_key_fails(monkeypatch):
     assert out["failed"] and "1" in out["msg"] and "2" in out["msg"] and methods(op) == ["GET"]
 
 
-@pytest.mark.parametrize("key", ["name", "type", "address", "port", "credentials"])
+@pytest.mark.parametrize("key", ["name", "type", "address", "port", "credentials", "id", "_links"])
 def test_config_colliding_with_a_named_option_fails(monkeypatch, key):
     op = FakeOpener()
     out = run_module(monkeypatch, inventory_source, op, **dict(ARGS, config={key: "x", "details": {}}))
