@@ -102,7 +102,10 @@ def test_configuration_expressions_match_the_flattened_list_returned_by_api():
 
     guard = tasks["Apply the initial configuration"]["when"][1]
     guard = guard.removeprefix("not (").removesuffix(")")
-    run = lambda ctx: _expr(guard).render(__bootstrap_configurations=ctx)  # noqa: E731
+
+    def run(ctx):
+        return _expr(guard).render(__bootstrap_configurations=ctx)
+
     assert run(configured) == "True"
     assert run(fresh) == "False"
 
