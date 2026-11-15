@@ -10,11 +10,19 @@ module: certificate
 short_description: Trust or remove a host certificate on PowerProtect Data Manager
 description:
 - Manage the trust store entry of a remote host certificate (C(/api/v2/certificates)).
-- With C(state=present) the certificate presented by I(host):I(port) is fetched through PPDM and, unless
-  its state is already C(ACCEPTED), accepted with a PUT.
+- With C(state=present) the certificate presented by I(host):I(port) is fetched through PPDM and accepted
+  with a PUT (a POST when the entry has no ID).
+- Secure by default, C(state=present) requires I(fingerprint), the presented fingerprint must match it.
+  Without it the module fails unless I(accept_any_certificate=true).
+- With a I(fingerprint) pin, the states C(UNKNOWN), C(MISMATCHED) and C(REJECTED) are accepted, C(EXPIRED),
+  C(MALFORMED) and any other state fail. A certificate already C(ACCEPTED) with a different fingerprint
+  than the pin fails, it is never reported as unchanged.
+- With I(accept_any_certificate=true) only C(UNKNOWN) is accepted, every other non-C(ACCEPTED) state fails.
 - With C(state=absent) the entry is deleted when it is currently C(ACCEPTED).
-- Idempotence key is I(host) and I(port) (the trust store keys on them), pin the presented certificate
-  with I(fingerprint).
+- A real C(state=present) run does the GET without C(nocache), per the API this retrieves the remote certificate
+  and stores it in the trust store (intended). Check mode and C(state=absent) use C(nocache=true) so they
+  never write to the trust store.
+- Entries are matched on exact I(host) (case-insensitive), I(port) and I(type). More than one match fails.
 version_added: 1.0.0
 author:
 - Frederic Jacquet (@fjacquet)
@@ -50,9 +58,17 @@ options:
     default: HOST
   fingerprint:
     description:
-    - Expected fingerprint. When set, the module fails instead of trusting a certificate with a different
-      fingerprint.
+    - Expected fingerprint of the presented certificate, as shown by PPDM (hex, with or without C(:) separators,
+      case-insensitive).
+    - Required for C(state=present) unless I(accept_any_certificate=true).
     type: str
+  accept_any_certificate:
+    description:
+    - Insecure, trusts whatever certificate the host presents (only state C(UNKNOWN)). A warning is issued
+      when used.
+    - Only for C(state=present) without I(fingerprint).
+    type: bool
+    default: false
 '''
 
 EXAMPLES = r'''
@@ -63,7 +79,16 @@ EXAMPLES = r'''
     password: "{{ ppdm_password }}"
     host: dd01.example.com
     port: 3009
-    fingerprint: "AB:CD:..."
+    fingerprint: "AB:CD:EF:..."
+
+- name: Trust whatever the host presents (insecure)
+  fjacquet.ppdm.certificate:
+    hostname: ppdm.example.com
+    username: admin
+    password: "{{ ppdm_password }}"
+    host: lab-dd.example.com
+    port: 3009
+    accept_any_certificate: true
 
 - name: Remove the trust
   fjacquet.ppdm.certificate:
@@ -92,6 +117,7 @@ ARGUMENT_SPEC = dict(
     port=dict(type='int', default=443),
     type=dict(type='str', choices=['HOST', 'ROOT', 'INTERMEDIATE'], default='HOST'),
     fingerprint=dict(type='str'),
+    accept_any_certificate=dict(type='bool', default=False),
 )
 # END GENERATED
 
@@ -101,6 +127,11 @@ from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (  # noq
 )
 
 PATH = "/api/v2/certificates"
+PIN_ACCEPTS = ("UNKNOWN", "MISMATCHED", "REJECTED")
+
+
+def norm(fp):
+    return (fp or "").replace(":", "").lower()
 
 
 def main():
@@ -108,27 +139,47 @@ def main():
         argument_spec=dict(connection_argument_spec(), **ARGUMENT_SPEC), supports_check_mode=True
     )
     p = module.params
+    present = p["state"] == "present"
+    if present and not p["fingerprint"] and not p["accept_any_certificate"]:
+        module.fail_json(msg="state=present requires fingerprint, or set accept_any_certificate=true "
+                             "(insecure: trusts whatever certificate the host presents)")
+    if present and p["accept_any_certificate"]:
+        module.warn("accept_any_certificate=true trusts whatever certificate the host presents")
     client = client_from_module(module)
+    query = {"host": p["host"], "port": p["port"], "type": p["type"]}
+    if module.check_mode or not present:
+        query["nocache"] = "true"  # never write to the trust store
     try:
-        found = client.get_all(PATH, {"host": p["host"], "port": p["port"], "type": p["type"]})
+        found = client.get_all(PATH, query)
         found = found if isinstance(found, list) else []
-        # The trust store keys a certificate on host and port.
-        cert = next((c for c in found if c.get("host", p["host"]) == p["host"]
-                     and str(c.get("port", p["port"])) == str(p["port"])), None)
-        trusted = cert is not None and cert.get("state") == "ACCEPTED"
-        if p["state"] == "absent":
-            if not trusted or not cert.get("id"):
+        matches = [c for c in found if str(c.get("host") or "").lower() == p["host"].lower()
+                   and str(c.get("port")) == str(p["port"])
+                   and str(c.get("type") or "").lower() == p["type"].lower()]
+        if len(matches) > 1:
+            module.fail_json(msg="more than one certificate matches %s:%s: %s" % (
+                p["host"], p["port"], ", ".join("%s (%s)" % (c.get("id"), c.get("fingerprint")) for c in matches)))
+        cert = matches[0] if matches else None
+        state = cert.get("state") if cert else None
+        if not present:
+            if state != "ACCEPTED" or not cert.get("id"):
                 module.exit_json(changed=False, certificate={}, diff={"before": {}, "after": {}})
             if not module.check_mode:
                 client.request("DELETE", "%s/%s" % (PATH, cert["id"]))
             module.exit_json(changed=True, certificate={}, diff={"before": cert, "after": {}})
         if cert is None:
             module.fail_json(msg="PPDM returned no certificate for %s:%s" % (p["host"], p["port"]))
-        if p["fingerprint"] and cert.get("fingerprint") != p["fingerprint"]:
-            module.fail_json(msg="certificate fingerprint %s does not match the expected %s"
-                             % (cert.get("fingerprint"), p["fingerprint"]))
-        if trusted:
+        if p["fingerprint"]:
+            if norm(cert.get("fingerprint")) != norm(p["fingerprint"]):
+                module.fail_json(msg="certificate fingerprint %s does not match the expected %s (state %s)"
+                                 % (cert.get("fingerprint"), p["fingerprint"], state))
+            acceptable = PIN_ACCEPTS
+        else:
+            acceptable = ("UNKNOWN",)
+        if state == "ACCEPTED":
             module.exit_json(changed=False, certificate=cert, diff={"before": cert, "after": cert})
+        if state not in acceptable:
+            module.fail_json(msg="certificate for %s:%s is in state %s, refusing to accept it"
+                             % (p["host"], p["port"], state))
         after = dict(cert, state="ACCEPTED")
         if not module.check_mode:
             if cert.get("id"):
