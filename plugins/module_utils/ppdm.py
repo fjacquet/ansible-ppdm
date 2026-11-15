@@ -252,6 +252,11 @@ class PpdmClient:
         }
 
     def wait_activity(self, activity_id, timeout, interval=5):
+        """Poll the activity until it is COMPLETED and return it.
+
+        interval must be greater than 0 (PpdmError otherwise). timeout is counted as the sum of the
+        sleeps between polls; PpdmError is raised when it is reached before completion.
+        """
         if interval <= 0:
             raise PpdmError("wait_activity: interval must be greater than 0, got %r" % (interval,))
         path = self._route("activities", "GET", activity_id)

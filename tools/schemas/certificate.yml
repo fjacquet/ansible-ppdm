@@ -35,7 +35,7 @@ options:
   fingerprint:
     type: str
     description:
-      - Expected fingerprint of the presented certificate, as shown by PPDM (hex, with or without C(:) separators, case-insensitive). A value without any hex digit (for example C(:)) is rejected.
+      - Expected fingerprint of the presented certificate, as shown by PPDM (hex, with or without C(:) separators, case-insensitive). Whitespace and C(:) are ignored, what remains must be one or more hex digits, otherwise the module fails before sending any request.
       - Required for C(state=present) unless I(accept_any_certificate=true).
   accept_any_certificate:
     type: bool

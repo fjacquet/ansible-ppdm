@@ -61,7 +61,8 @@ options:
   fingerprint:
     description:
     - Expected fingerprint of the presented certificate, as shown by PPDM (hex, with or without C(:) separators,
-      case-insensitive). A value without any hex digit (for example C(:)) is rejected.
+      case-insensitive). Whitespace and C(:) are ignored, what remains must be one or more hex digits,
+      otherwise the module fails before sending any request.
     - Required for C(state=present) unless I(accept_any_certificate=true).
     type: str
   accept_any_certificate:
@@ -124,6 +125,8 @@ ARGUMENT_SPEC = dict(
 # fmt: on
 # END GENERATED
 
+import re
+
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
     PpdmError,
@@ -137,7 +140,7 @@ PIN_ACCEPTS = ("UNKNOWN", "MISMATCHED", "REJECTED")
 
 
 def norm(fp):
-    return (fp or "").replace(":", "").lower()
+    return re.sub(r"[:\s]", "", fp or "").lower()
 
 
 def main():
@@ -152,8 +155,8 @@ def main():
             msg="state=present requires fingerprint, or set accept_any_certificate=true "
             "(insecure: trusts whatever certificate the host presents)"
         )
-    if present and p["fingerprint"] and not norm(p["fingerprint"]):
-        module.fail_json(msg="fingerprint %r has no hex digits, it cannot be used as a pin" % p["fingerprint"])
+    if present and p["fingerprint"] and not re.fullmatch(r"[0-9a-f]+", norm(p["fingerprint"])):
+        module.fail_json(msg="fingerprint must be hex digits, optionally with ':' separators or whitespace")
     if present and p["accept_any_certificate"]:
         module.warn("accept_any_certificate=true trusts whatever certificate the host presents")
     client = client_from_module(module)

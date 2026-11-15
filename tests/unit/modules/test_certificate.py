@@ -71,7 +71,7 @@ def test_pin_match_accepts(monkeypatch, state):
 
 def test_pin_mismatch_fails_no_write(monkeypatch):
     op = FakeOpener(Resp([cert("UNKNOWN")]))
-    out = run(monkeypatch, op, fingerprint="XX")
+    out = run(monkeypatch, op, fingerprint="EE:FF")
     assert out["failed"] and methods(op) == ["GET"]
 
 
@@ -150,8 +150,14 @@ def test_absent_check_mode(monkeypatch):
     assert out["changed"] and methods(op) == ["GET"]
 
 
-@pytest.mark.parametrize("fp", [":", "::"])
+@pytest.mark.parametrize("fp", [" ", " : ", ":", "::", "zz", "g:h", ""])
 def test_fingerprint_normalising_to_empty_is_rejected(monkeypatch, fp):
     op = FakeOpener()
     out = run(monkeypatch, op, fingerprint=fp)
     assert out["failed"] and "fingerprint" in out["msg"] and not op.calls
+
+
+@pytest.mark.parametrize("fp", ["AB:cd ", " ab cd", "AB:CD"])
+def test_padded_or_uppercase_pin_matches(monkeypatch, fp):
+    op = FakeOpener(Resp([cert("UNKNOWN")]), Resp(cert("ACCEPTED")))
+    assert run(monkeypatch, op, fingerprint=fp)["changed"]
