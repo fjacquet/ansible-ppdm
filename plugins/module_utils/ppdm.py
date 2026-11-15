@@ -80,7 +80,8 @@ class PpdmClient:
 
     def _scrub(self, value):
         """Replace the password and the token inside string values only (keys kept); never raises."""
-        secrets = [s for s in (self.password, self.token) if s]
+        # longest first: a password that is a substring of the token must not cut it before it is replaced
+        secrets = sorted({self.password, self.token} - {None, ""}, key=len, reverse=True)
 
         def walk(v):
             if isinstance(v, str):

@@ -176,3 +176,39 @@ def test_deeply_nested_json_is_ppdm_error(opener_resp):
     c, _ = mk(resp)
     with pytest.raises(PpdmError):
         c.request("GET", "/x")
+
+
+TOKEN = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiJ9.sig"
+
+
+def _no_run_of_8(text):
+    return not any(TOKEN[i : i + 8] in text for i in range(len(TOKEN) - 7))
+
+
+def _logged_in(pw, failure):
+    c, _ = mk(Resp({"access_token": TOKEN}), failure, password=pw)
+    c.login()
+    return c
+
+
+@pytest.mark.parametrize("pw", ["e", "eyJ", "J", "9.", ".", "sig", TOKEN])
+@pytest.mark.parametrize("where", ["json", "text", "urlerror"])
+def test_token_survives_no_password_substring_cut(pw, where):
+    echo = "echo Bearer " + TOKEN
+    if where == "json":
+        failure = http_error(400, {"message": echo, "detail": [echo]})
+    elif where == "text":
+        failure = urllib.error.HTTPError("u", 500, "x", {}, io.BytesIO(echo.encode()))
+    else:
+        failure = urllib.error.URLError(echo)
+    c = _logged_in(pw, failure)
+    with pytest.raises(PpdmError) as e:
+        c.request("GET", "/api/v2/x")
+    assert _no_run_of_8(e.value.msg + json.dumps(e.value.body))
+
+
+def test_login_failure_still_hides_password():
+    c, _ = mk(http_error(401, {"message": "bad hunter22 for admin"}), password="hunter22")
+    with pytest.raises(PpdmError) as e:
+        c.login()
+    assert "hunter22" not in e.value.msg + json.dumps(e.value.body)
