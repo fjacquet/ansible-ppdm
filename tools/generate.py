@@ -143,10 +143,6 @@ def build_enums(openapi_dir):
             if "required for post" in (_prop(pspec, obj, k).get("description", "").lower()):
                 required.add(k)
     dspec, disc = get("Discovery")
-    rspec, rule = get("ProtectionRule")
-    cspec, cond = get("Condition")
-    espec, execu = get("ProtectionRuleExecution")
-    vspec, prev = get("ProtectionRulesConflictPreviewRequest")
     _, r3 = get("Rule")
     _, ra = get("RuleAction")
     _, rf = get("RuleFilter")
@@ -159,13 +155,6 @@ def build_enums(openapi_dir):
         "protection_policy.purpose": purpose,
         "objective.type": otype,
         "discovery.level": set(_prop(dspec, disc, "level")["enum"]),
-        "protection_rule.action": set(_prop(rspec, rule, "action")["enum"]),
-        "protection_rule.inventory_source_type": set(_prop(rspec, rule, "inventorySourceType")["enum"]),
-        "protection_rule.condition_connector": set(_prop(rspec, rule, "conditionConnector")["enum"]),
-        "condition.operator": set(_prop(cspec, cond, "operator")["enum"]),
-        "protection_rule_run.inventory_source_type": set(_prop(espec, execu, "inventorySourceType")["enum"]),
-        "protection_rule_run.preview_action": set(_prop(vspec, prev, "previewAction")["enum"]),
-        # v3 (additive for now; the v2 keys above go away with the v2 modules)
         "rule.action_name": set(ra["properties"]["name"]["enum"]),
         "rule.variant": set(r3["properties"]["variant"]["enum"]),
         "rule.scope": set(r3["properties"]["scopes"]["items"]["enum"]),

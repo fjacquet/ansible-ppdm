@@ -4,7 +4,7 @@ import pytest
 from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import PpdmError
 from ansible_collections.fjacquet.ppdm.plugins.module_utils.protection_rule import (
     validate_filters,
-    validate_rule_body_v3,
+    validate_rule_body,
 )
 
 # fieldData shape is not validated (spec RuleFilterFieldData); this is a representative payload.
@@ -66,7 +66,7 @@ def test_nesting_limit_eight():
 
 
 def test_rule_body_v3():
-    validate_rule_body_v3(
+    validate_rule_body(
         {
             "action": {"name": "ASSIGN_PROTECTION_POLICY"},
             "variant": "ADVANCED",
@@ -84,4 +84,4 @@ def test_rule_body_v3():
         {"scopes": "ASSET"},
     ):
         with pytest.raises(PpdmError):
-            validate_rule_body_v3(bad)
+            validate_rule_body(bad)

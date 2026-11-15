@@ -32,8 +32,6 @@ Lab checklist before 1.0.0:
 - Rule condition `assetAttributeName: tag` is not in the 20.3.0 spec (the Lot 1 Kubernetes playbook uses `userTags`), and the rule modules send flat `conditions` without COMPOUND/nested `rules`, unlike `kubernetes.add_policy_and_rule`: confirm PPDM accepts both.
 - `protection_policy_run` requires `asset_ids` or `protection_group_ids` and cannot set `operation.backupLevel`; `Source` has no required field in the spec.
 - `protection_rule_run` preview POSTs even in check mode (documented as read-only): confirm it changes nothing.
-- The v2 protection rule API is deprecated since PPDM 20.2 and removed in 20.6: `protection_rule` and `protection_rule_run` will move to v3.
-- `protection_rule_run` with only `inventory_source_type` (no `rules`) is unverified.
 
 ## Requirements
 

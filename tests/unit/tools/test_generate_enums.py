@@ -18,8 +18,6 @@ def test_other_enums_and_required_keys():
     assert "BACKUP" in enums["objective.type"]
     assert "CENTRALIZED" in enums["protection_policy.purpose"]
     assert "DataCopies" in enums["discovery.level"]
-    assert enums["protection_rule.action"] == ("MOVE_TO_GROUP",)
-    assert "VMWARE_VIRTUAL_MACHINE" in enums["protection_rule.inventory_source_type"]
     assert "type" in required
 
 
@@ -40,10 +38,15 @@ def test_committed_file_matches_and_check_flags_tamper(tmp_path, monkeypatch):
 
 def test_rule_enums():
     enums, _unused = build_enums(SPECS)
-    assert enums["protection_rule.condition_connector"] == ("AND", "NONE", "OR")
-    assert "EQUALS" in enums["condition.operator"] and len(enums["condition.operator"]) == 15
-    assert "DR" in enums["protection_rule_run.inventory_source_type"]
-    assert enums["protection_rule_run.preview_action"] == ("CREATE", "EDIT")
+    removed = {
+        "protection_rule.action",
+        "protection_rule.inventory_source_type",
+        "protection_rule.condition_connector",
+        "condition.operator",
+        "protection_rule_run.inventory_source_type",
+        "protection_rule_run.preview_action",
+    }
+    assert not removed & set(enums)
 
 
 def test_schema_choices_match_enums():
@@ -56,8 +59,8 @@ def test_schema_choices_match_enums():
         ("protection_rule", "variant"): "rule.variant",
         ("protection_rule", "scopes"): "rule.scope",
         ("protection_rule", "categories"): "rule.category",
-        ("protection_rule_run", "inventory_source_type"): "protection_rule_run.inventory_source_type",
-        ("protection_rule_run", "preview_action"): "protection_rule_run.preview_action",
+        ("protection_rule_run", "action_name"): "rule_run.action_name",
+        ("protection_rule_run", "object_subtypes"): "rule_run.object_subtype",
         ("discovery", "level"): "discovery.level",
     }
     for (mod, opt), key in pairs.items():

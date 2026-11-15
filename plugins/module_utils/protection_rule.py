@@ -11,24 +11,6 @@ def _check(value, enum, label):
         raise PpdmError("%s must be one of %s, got %r" % (label, ", ".join(ENUMS[enum]), value))
 
 
-def validate_conditions(conditions):
-    """Fail before any request when a condition is not a dict or its operator is not a known one."""
-    if conditions is not None and not isinstance(conditions, list):
-        raise PpdmError("conditions must be a list")
-    for i, cond in enumerate(conditions or []):
-        if not isinstance(cond, dict):
-            raise PpdmError("conditions[%d] must be a dict" % i)
-        _check(cond.get("operator"), "condition.operator", "conditions[%d]: operator" % i)
-
-
-def validate_rule_body(rule):
-    """Same checks on a raw ProtectionRule body (preview), where the argument spec cannot check them."""
-    _check(rule.get("action"), "protection_rule.action", "rule.action")
-    _check(rule.get("inventorySourceType"), "protection_rule.inventory_source_type", "rule.inventorySourceType")
-    _check(rule.get("conditionConnector"), "protection_rule.condition_connector", "rule.conditionConnector")
-    validate_conditions(rule.get("conditions"))
-
-
 MAX_CONDITION_DEPTH = 8
 
 
@@ -80,7 +62,7 @@ def validate_filters(filters):
             _validate_conditions(f["conditions"], label + ".conditions", 1)
 
 
-def validate_rule_body_v3(rule):
+def validate_rule_body(rule):
     """Checks on a raw v3 Rule body; the argument spec cannot check nested values."""
     action = rule.get("action")
     if action is not None:
