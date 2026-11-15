@@ -74,6 +74,12 @@
               | ansible.builtin.combine(bootstrap_configuration, recursive=true) }}
           no_log: true
 
+        - name: Check the configuration id format
+          ansible.builtin.assert:
+            that: __bootstrap_config_id is string and (__bootstrap_config_id | regex_search('^[A-Za-z0-9-]{1,64}$')) is not none
+            fail_msg: The configuration id returned by PPDM is not a plain identifier, refusing to use it in an API path.
+            quiet: true
+
         - name: Submit the configuration
           fjacquet.ppdm.api:
             method: PUT

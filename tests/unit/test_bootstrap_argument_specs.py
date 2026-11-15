@@ -74,3 +74,13 @@ def test_config_reads_are_no_log():
     tasks = {t["name"]: t for t in _tasks(yaml.safe_load((ROLE / "tasks" / "main.yml").read_text()))}
     assert tasks["Wait for the PPDM REST API"]["no_log"] is True
     assert tasks["Poll the configuration status"]["no_log"] is True
+
+
+def test_config_id_format_is_asserted_before_the_put():
+    names = [t.get("name") for t in _tasks(yaml.safe_load((ROLE / "tasks" / "main.yml").read_text()))]
+    tasks = {t["name"]: t for t in _tasks(yaml.safe_load((ROLE / "tasks" / "main.yml").read_text()))}
+    check = tasks["Check the configuration id format"]
+    assert names.index("Set the configuration id and body") < names.index("Check the configuration id format")
+    assert names.index("Check the configuration id format") < names.index("Submit the configuration")
+    assert "__bootstrap_config_id" in str(check["ansible.builtin.assert"]["that"])
+    assert "regex_search" in str(check["ansible.builtin.assert"]["that"])
