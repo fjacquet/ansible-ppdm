@@ -3,7 +3,8 @@
 """PowerProtect Data Manager REST client (HTTP only via ansible open_url).
 
 Bounds: PAGE_SIZE is the pageSize requested and the most items accepted in one page; MAX_BODY_BYTES
-(32 MiB) is the most bytes read from any response body (success or error). Beyond either, PpdmError.
+(32 MiB) is the most bytes read from any response body (success or error); MAX_ITEMS is the most items
+collected across all the pages of one listing. Beyond any of them, PpdmError.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ import json
 import re
 import time
 from http.client import HTTPException
+from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 
@@ -22,6 +24,9 @@ from ansible.module_utils.urls import open_url
 from ansible_collections.fjacquet.ppdm.plugins.module_utils._routes import ROUTES
 
 PAGE_SIZE = 100
+# Total items one get_all/list_all may collect (PAGE_SIZE * MAX_PAGES = 1_000_000 is the API ceiling, kept
+# explicit so a server that keeps returning full pages cannot grow the module memory without bound).
+MAX_ITEMS = 1_000_000
 MAX_BODY_BYTES = 32 * 1024 * 1024
 MAX_ERROR_TEXT = 64 * 1024  # an error body kept in PpdmError.body is cut to this AFTER it is scrubbed
 MAX_SCRUB_TEXT = 1024 * 1024  # a server text longer than this is never scrubbed nor kept (marker with its length)
@@ -33,17 +38,19 @@ MASK = "VALUE_SPECIFIED_IN_NO_LOG_PARAMETER"
 ACTIVITY_TERMINAL_STATES = frozenset(["COMPLETED"])
 
 
-def strip_readonly(resource, obj):
+def strip_readonly(resource: str, obj: dict) -> dict:
+    """Copy of obj without the readOnly properties of the resource (from ROUTES) and without _links."""
     drop = set(ROUTES[resource]["readonly"]) | {"_links"}
     return {k: v for k, v in obj.items() if k not in drop}
 
 
-def filter_eq(key, value):
+def filter_eq(key: str, value: Any) -> str:
+    """PPDM filter expression `key eq "value"` (backslash and double quote escaped)."""
     # shortcut: the OpenAPI does not document filter escaping; backslash-escaping \ and " is best effort.
     return '%s eq "%s"' % (key, str(value).replace("\\", "\\\\").replace('"', '\\"'))
 
 
-def merge_config(named, config):
+def merge_config(named: dict, config: dict | None) -> dict:
     """Body from the named options (None values dropped) over config; no named option's key, no id/_links."""
     config = config or {}
     forbidden = sorted(set(config) & {"id", "_links"})  # the body id must stay the path id
@@ -55,7 +62,7 @@ def merge_config(named, config):
     return dict(config, **{k: v for k, v in named.items() if v is not None})
 
 
-def quote_id(value):
+def quote_id(value: Any) -> str:
     """Percent-encode an id for one path segment; a bare "." or ".." is encoded too (quote leaves it as is)."""
     text = str(value)
     if text == "":
@@ -67,7 +74,7 @@ def quote_id(value):
 DNS_NAME = re.compile(r"[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\.?")
 
 
-def _host_netloc(hostname):
+def _host_netloc(hostname: Any) -> str:
     """Allowlist: a DNS name or an IPv4/IPv6 literal -> URL host part (IPv6 bracketed); PpdmError otherwise."""
     host = hostname if isinstance(hostname, str) else ""
     if 0 < len(host) <= 253 and DNS_NAME.fullmatch(host):
@@ -89,7 +96,9 @@ def _mask(obj, secret_keys):
 
 
 class PpdmError(Exception):
-    def __init__(self, msg, status=None, body=None):
+    """Any client failure: msg is safe to show (scrubbed), status the HTTP code if any, body the scrubbed error body."""
+
+    def __init__(self, msg: str, status: int | None = None, body: Any = None):
         super().__init__(msg)
         self.msg = msg
         self.status = status
@@ -97,17 +106,19 @@ class PpdmError(Exception):
 
 
 class PpdmClient:
+    """Session with one PPDM server: login once, then JSON requests, paging and ensure/remove helpers."""
+
     def __init__(
         self,
-        hostname,
-        username,
-        password,
-        port=8443,
-        validate_certs=True,
-        ca_path=None,
-        timeout=30,
-        opener=open_url,
-        sleep=time.sleep,
+        hostname: str,
+        username: str,
+        password: str,
+        port: int = 8443,
+        validate_certs: bool = True,
+        ca_path: str | None = None,
+        timeout: int = 30,
+        opener: Callable = open_url,
+        sleep: Callable[[float], None] = time.sleep,
     ):
         self.base_url = "https://%s:%s" % (_host_netloc(hostname), port)
         self.username = username
@@ -199,7 +210,8 @@ class PpdmClient:
             )
         return raw
 
-    def login(self):
+    def login(self) -> None:
+        """POST /api/v2/login and keep the bearer token; PpdmError when the response has no usable token."""
         data = {"username": self.username, "password": self.password}
         self.token = None
         resp = self.request("POST", "/api/v2/login", body=data)
@@ -210,7 +222,8 @@ class PpdmClient:
             raise PpdmError("POST /api/v2/login failed: invalid access_token (not printable ASCII)")
         self.token = token
 
-    def request(self, method, path, query=None, body=None):
+    def request(self, method: str, path: str, query: dict | None = None, body: Any = None) -> Any:
+        """One JSON call; returns the decoded body (None for 204 or an empty body). Every failure is a PpdmError."""
         try:
             url = self.base_url + path
             if query:
@@ -255,7 +268,7 @@ class PpdmClient:
                 status=e.code,
                 body=err_body,
             ) from None
-        except ValueError as e:  # bad headers, urlencode, unicode: the text may embed the request, name the class only
+        except (ValueError, TypeError) as e:  # bad headers, urlencode, unicode, non-JSON body: name the class only
             raise PpdmError(
                 "%s %s failed: could not build the request (%s)" % (method, path, type(e).__name__)
             ) from None
@@ -271,11 +284,11 @@ class PpdmClient:
                 status=status,
             ) from None
 
-    def get_all(self, path, query=None):
+    def get_all(self, path: str, query: dict | None = None) -> Any:
         """GET path; a {content, page} envelope is paged to the end and returned as a list, anything else as is."""
         return self._get_pages(path, query)[0]
 
-    def _get_pages(self, path, query):
+    def _get_pages(self, path: str, query: dict | None) -> tuple[Any, bool]:
         """Return (data, paged); paged is False when the first response had no content envelope."""
         items = []
         page = 1
@@ -293,6 +306,8 @@ class PpdmClient:
                     "GET %s failed: page has %d items, more than the %d requested" % (path, len(content), PAGE_SIZE)
                 )
             items.extend(content)
+            if len(items) > MAX_ITEMS:
+                raise PpdmError("GET %s failed: more than %d items in total" % (path, MAX_ITEMS))
             pg = data.get("page")
             total = pg.get("totalPages") if isinstance(pg, dict) else None
             if total is not None and (
@@ -310,7 +325,8 @@ class PpdmClient:
                 return items, True
             page += 1
 
-    def list_all(self, resource, filter=None, order_by=None):
+    def list_all(self, resource: str, filter: str | None = None, order_by: str | None = None) -> list:
+        """Every item of the resource collection (all pages, at most MAX_ITEMS), optionally filtered/ordered."""
         path = ROUTES[resource]["base"]
         query = {}
         if filter:
@@ -324,7 +340,8 @@ class PpdmClient:
             raise PpdmError("GET %s failed: unexpected response" % path)
         return []  # envelope-less object: no items, as before
 
-    def find_one(self, resource, key, value):
+    def find_one(self, resource: str, key: str, value: Any) -> dict | None:
+        """The single object whose key equals value exactly, None if none; PpdmError when several match."""
         found = self.list_all(resource, filter=filter_eq(key, value))
         # never trust the server-side filter: exact, case-sensitive match only (a loose filter must not
         # make ensure/remove write to or delete another object)
@@ -356,13 +373,13 @@ class PpdmClient:
 
     def ensure(
         self,
-        resource,
-        desired,
-        key="name",
-        check_mode=False,
-        secret_keys=(),
-        update_secrets="on_create",
-    ):
+        resource: str,
+        desired: dict,
+        key: str = "name",
+        check_mode: bool = False,
+        secret_keys: Any = (),
+        update_secrets: str = "on_create",
+    ) -> dict:
         """Create or update one object; the merge over the existing object is shallow (top-level keys only)."""
         if update_secrets not in ("on_create", "always"):
             raise PpdmError("update_secrets must be 'on_create' or 'always', got %r" % (update_secrets,))
@@ -405,7 +422,8 @@ class PpdmClient:
             },
         }
 
-    def remove(self, resource, key, value, check_mode=False, secret_keys=()):
+    def remove(self, resource: str, key: str, value: Any, check_mode: bool = False, secret_keys: Any = ()) -> dict:
+        """Delete the object whose key equals value; {changed, diff}. Nothing is sent in check mode."""
         existing = self.find_one(resource, key, value)
         if existing is None:
             return {"changed": False, "diff": {"before": {}, "after": {}}}
@@ -417,7 +435,7 @@ class PpdmClient:
             "diff": {"before": _mask(strip_readonly(resource, existing), set(secret_keys)), "after": {}},
         }
 
-    def wait_activity(self, activity_id, timeout, interval=5):
+    def wait_activity(self, activity_id: str, timeout: int, interval: int = 5) -> dict:
         """Poll the activity until it is COMPLETED and return it.
 
         interval must be greater than 0 (PpdmError otherwise). timeout is counted as the sum of the
@@ -444,7 +462,8 @@ class PpdmClient:
             waited += interval
 
 
-def connection_argument_spec():
+def connection_argument_spec() -> dict:
+    """Argument spec of the connection options shared by every module (kept in sync with the doc fragment)."""
     return dict(
         hostname=dict(type="str", required=True, fallback=(env_fallback, ["PPDM_HOSTNAME"])),
         username=dict(type="str", required=True, fallback=(env_fallback, ["PPDM_USERNAME"])),
@@ -461,11 +480,13 @@ def connection_argument_spec():
     )
 
 
-def fail_from(module, err):
+def fail_from(module: AnsibleModule, err: PpdmError) -> None:
+    """fail_json with the message, status and body of err."""
     module.fail_json(msg=err.msg, status=err.status, body=err.body)
 
 
-def client_from_module(module):
+def client_from_module(module: AnsibleModule) -> PpdmClient:
+    """Logged-in client from the connection options of module; fails the module on a PpdmError."""
     p = module.params
     try:
         client = PpdmClient(
@@ -483,7 +504,7 @@ def client_from_module(module):
     return client
 
 
-def info_main(resource, result_key, argument_spec, secret_fields=()):
+def info_main(resource: str, result_key: str, argument_spec: dict, secret_fields: Any = ()) -> None:
     """Shared main() of the read-only *_info modules."""
     module = AnsibleModule(
         argument_spec=dict(connection_argument_spec(), **argument_spec),
@@ -491,6 +512,8 @@ def info_main(resource, result_key, argument_spec, secret_fields=()):
         mutually_exclusive=[("id", "name"), ("id", "filter"), ("name", "filter")],
     )
     p = module.params
+    if p["name"] == "":  # an empty name must not silently become "list everything"
+        module.fail_json(msg="name must not be empty (omit it to list all)")
     client = client_from_module(module)
     try:
         if p["id"] is not None:  # an empty id must fail in _route, not fall through to a full list
