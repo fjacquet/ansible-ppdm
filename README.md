@@ -21,6 +21,7 @@ Lab checklist before 1.0.0:
   `password`, SMTP `password`, Cloud DR `secretKey`) when they are not part of the request body.
 - `certificate` `state=absent` lists with `nocache=true`: confirm it still finds the stored trust-store entry.
 - Bootstrap readiness: confirm how a 401/403 is handled while the appliance is still starting (the wait stops at the first one).
+- Bootstrap config-status poll: confirm when PPDM switches to the new admin password (the poll uses it from the first try and stops on the first 401/403).
 
 ## Requirements
 

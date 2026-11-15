@@ -10,13 +10,7 @@ v0.1.0
 Release Summary
 ---------------
 
-First pre-release of the unofficial fjacquet.ppdm collection for Dell PowerProtect Data Manager 20.3.0. It provides ten modules (a generic ``api`` module, info modules, and ensure-style modules), a ``bootstrap`` role and 58 playbooks grouped by use case.
-
-Minor Changes
--------------
-
-- api - a request body may be a list as well as a dictionary.
-- ppdm modules - return values contain the raw API response bodies (secrets masked), not reshaped data.
+First pre-release of the unofficial fjacquet.ppdm collection for Dell PowerProtect Data Manager 20.3.0. It provides ten modules (a generic ``api`` module, info modules, and ensure-style modules), a ``bootstrap`` role and 58 playbooks grouped by use case. The ``api`` module accepts a list as well as a dictionary as request body, and the modules return the raw API response bodies (secrets masked), not reshaped data.
 
 New Modules
 -----------
