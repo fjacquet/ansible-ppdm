@@ -16,4 +16,6 @@ action_groups:
     - eula
     - protection_policy
     - protection_policy_assets
+    - protection_policy_run
+    - discovery
     - certificate

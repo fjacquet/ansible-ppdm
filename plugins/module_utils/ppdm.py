@@ -483,10 +483,15 @@ class PpdmClient:
             return out
         if activity is None:
             raise PpdmError("POST %s failed: response has no activity id to wait for" % path)
-        act = self.wait_activity(activity["id"], timeout)
+        out.update(self.await_activity(activity["id"], timeout))
+        return out
+
+    def await_activity(self, activity_id: str, timeout: int) -> dict:
+        """Poll the activity to COMPLETED; {"activity"} (plus "warnings" on OK_WITH_ERRORS), PpdmError unless OK."""
+        act = self.wait_activity(activity_id, timeout)
         result = act.get("result") if isinstance(act.get("result"), dict) else {}
         status = result.get("status")
-        out["activity"] = act
+        out = {"activity": act}
         if status == "OK_WITH_ERRORS":
             out["warnings"] = [self.scrub_text(result.get("error") or result, 1000)]
         elif status != "OK":
