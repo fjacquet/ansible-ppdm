@@ -361,8 +361,8 @@ def nasty(request):
 def test_messages_hide_escaped_secrets(nasty, shape, which):
     pw, tok = (nasty, TOK) if which == "password" else ("S3cret!", nasty)
     secret = nasty
-    c, _ = mk(Resp({"access_token": tok}), password=pw)
-    c.login()
+    c, _ = mk(password=pw)
+    c.token = tok  # set directly: login() refuses a non-printable token, a hostile echo must still be hidden
     value = _shapes(secret)[shape]
     msgs = []
     # totalPages
@@ -400,3 +400,90 @@ def test_huge_error_body_is_bounded_and_fast():
         c.request("GET", "/x")
     assert time.time() - t < 1.0
     assert len(e.value.msg) <= 70 * 1024 and "a" not in e.value.msg.split("HTTP 500", 1)[1]
+
+
+# Fix round 3
+
+NASTY3 = NASTY + ["plain-secret-1"]
+
+
+def _err(body, pw, status=400):
+    raw = body if isinstance(body, bytes) else body.encode()
+    c, _ = mk(urllib.error.HTTPError("u", status, "x", {}, io.BytesIO(raw)), password=pw)
+    with pytest.raises(PpdmError) as e:
+        c.request("GET", "/x")
+    return e.value
+
+
+def _leak_check(pw, err):
+    text = err.msg + "\n" + (err.body if isinstance(err.body, str) else json.dumps(err.body, ensure_ascii=False))
+    assert not _leaks(pw, text), (pw, text[:200])
+
+
+@pytest.mark.parametrize("pw", NASTY3)
+@pytest.mark.parametrize("delta", [0, 1, 70000])
+def test_json_error_body_around_the_cut_hides_escaped_secret(pw, delta):
+    base = len(json.dumps({"message": pw, "pad": ""}).encode())
+    body = json.dumps({"message": pw, "pad": "x" * (ppdm.MAX_ERROR_TEXT - base + delta)})
+    assert len(body.encode()) == ppdm.MAX_ERROR_TEXT + delta
+    _leak_check(pw, _err(body, pw))
+
+
+@pytest.mark.parametrize("pw", NASTY3)
+def test_non_json_error_body_hides_json_escaped_secret(pw):
+    _leak_check(pw, _err("oops " + json.dumps(pw) + " / " + json.dumps(pw, ensure_ascii=False) + " / " + repr(pw), pw))
+
+
+def test_secret_straddling_the_cut_leaves_no_prefix():
+    pw = "hunter2SuperSecret"
+    body = "x" * (ppdm.MAX_ERROR_TEXT - 17) + pw + "y" * 5000
+    err = _err(body, pw)
+    for text in (err.body, err.msg):
+        assert not any(text.endswith(pw[:k]) or pw[:k] + "y" in text for k in range(3, len(pw) + 1)), text[-40:]
+    assert len(err.body) <= ppdm.MAX_ERROR_TEXT
+
+
+def test_error_body_over_scrub_limit_is_omitted():
+    big = b"A" * (2 * 1024 * 1024) + b"secret-Q"
+    err = _err(big, "secret-Q")
+    assert err.body == "<error body of %d bytes omitted>" % len(big)
+    assert "AAAA" not in err.msg and "AAAA" not in err.body
+
+
+@pytest.mark.parametrize("tok", ["a\nb", "a\rb", "a b", "a\x00b", "café", "a\x7fb", "a\tb"])
+def test_login_rejects_non_printable_token(tok):
+    c, _ = mk(Resp({"access_token": tok}))
+    with pytest.raises(PpdmError, match="invalid access_token"):
+        c.login()
+    assert c.token is None
+
+
+def test_request_build_error_never_echoes_the_header():
+    import http.client
+
+    def opener(url, headers=None, **kw):
+        conn = http.client.HTTPConnection("h")
+        conn.putrequest("GET", "/x")
+        for k, v in headers.items():
+            conn.putheader(k, v)
+
+    c = PpdmClient("h", "u", "pw", opener=opener)
+    c.token = "abc\ndef"
+    with pytest.raises(PpdmError) as e:
+        c.request("GET", "/x")
+    assert "abc" not in e.value.msg and "def" not in e.value.msg and "ValueError" in e.value.msg
+
+
+def test_scrub_text_is_bounded_on_a_huge_value():
+    import time
+
+    c, _ = mk(password="a")
+    t = time.time()
+    out = c.scrub_text("ab" * 2_500_000, 64)
+    assert time.time() - t < 1.0 and len(out) <= 64 and "a" not in out
+
+
+def test_scrub_text_cut_does_not_leave_a_secret_prefix():
+    c, _ = mk(password="hunter2SuperSecret")
+    out = c.scrub_text("x" * 60 + "hunter2SuperSecret", 70)
+    assert "hunter2" not in out

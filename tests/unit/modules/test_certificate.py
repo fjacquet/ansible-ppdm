@@ -202,3 +202,8 @@ def test_non_string_id_fails_without_write(monkeypatch, bad):
     op = FakeOpener(Resp([cert("ACCEPTED", id=bad)]))
     out = run(monkeypatch, op, state="absent", fingerprint=None)
     assert out["failed"] and methods(op) == ["GET"]
+
+
+def test_non_dict_items_in_the_listing_are_skipped(monkeypatch):
+    op = FakeOpener(Resp([5, None, "x", cert("UNKNOWN")]), Resp(cert("ACCEPTED")))
+    assert run(monkeypatch, op)["changed"]

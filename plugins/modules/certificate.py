@@ -178,7 +178,8 @@ def main():
         matches = [
             c
             for c in found
-            if str(c.get("host") or "").lower() == p["host"].lower()
+            if isinstance(c, dict)
+            and str(c.get("host") or "").lower() == p["host"].lower()
             and str(c.get("port")) == str(p["port"])
             and str(c.get("type") or "").lower() == p["type"].lower()
         ]

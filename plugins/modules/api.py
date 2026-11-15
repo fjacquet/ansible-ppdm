@@ -166,7 +166,8 @@ def main():
         if p["wait"] and activity_id:
             activity = client.wait_activity(activity_id, p["wait_timeout"])
             out["activity"] = activity
-            status = (activity.get("result") or {}).get("status")
+            result_obj = activity.get("result")
+            status = result_obj.get("status") if isinstance(result_obj, dict) else None
             if status == "OK_WITH_ERRORS":
                 module.warn("activity %s completed with errors" % client.scrub_text(activity_id, 64))
             elif status != "OK":

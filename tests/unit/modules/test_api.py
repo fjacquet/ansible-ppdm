@@ -182,3 +182,10 @@ def test_wait_ok_with_errors_warning_scrubs_activity_id(monkeypatch):
     op = FakeOpener(Resp({"activityId": "s3cret"}, status=202), Resp(act))
     out = run(monkeypatch, op, method="POST", path="/api/v3/x", wait=True)
     assert not any("s3cret" in w for w in out["_warnings"])
+
+
+@pytest.mark.parametrize("result", [["x"], "OK", 5])
+def test_non_dict_activity_result_fails_cleanly(monkeypatch, result):
+    act = {"id": "a1", "state": "COMPLETED", "result": result}
+    out = run(monkeypatch, _async(act), method="POST", path="/api/v3/x", wait=True)
+    assert out["failed"] and "status" in out["msg"]

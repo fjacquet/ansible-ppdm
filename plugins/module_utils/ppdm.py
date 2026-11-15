@@ -23,7 +23,8 @@ from ansible_collections.fjacquet.ppdm.plugins.module_utils._routes import ROUTE
 
 PAGE_SIZE = 100
 MAX_BODY_BYTES = 32 * 1024 * 1024
-MAX_ERROR_TEXT = 64 * 1024  # an error body is cut to this before it is parsed and scrubbed
+MAX_ERROR_TEXT = 64 * 1024  # an error body kept in PpdmError.body is cut to this AFTER it is scrubbed
+MAX_SCRUB_TEXT = 1024 * 1024  # an error body larger than this is not kept at all (marker with its length only)
 MAX_PAGES = 10000  # the OpenAPI maximum of the `page` query parameter
 REDIRECT_CODES = frozenset([301, 302, 303, 307, 308])
 MASK = "VALUE_SPECIFIED_IN_NO_LOG_PARAMETER"
@@ -119,10 +120,21 @@ class PpdmClient:
         self.token = None
         self.last_status = None
 
+    def _secret_strings(self):
+        """The password and the token plus their JSON/repr-escaped forms (a server may echo either form)."""
+        out = set()
+        for x in (self.password, self.token):
+            if isinstance(x, str) and x:
+                out |= {x, json.dumps(x)[1:-1], json.dumps(x, ensure_ascii=False)[1:-1], repr(x)[1:-1]}
+        return sorted(out)
+
     def scrub(self, value):
-        """Mask the password and the token in every string of value (dict keys too); never raises."""
+        """Mask the password and the token (and their escaped forms) in every string of value (dict keys too).
+
+        Never raises.
+        """
         try:
-            secrets = [x for x in (self.password, self.token) if isinstance(x, str) and x]
+            secrets = self._secret_strings()
 
             def mask(text):
                 # every occurrence of every secret (overlaps included), merged on the fly, then masked once per run
@@ -158,9 +170,12 @@ class PpdmClient:
         """Scrub the structure, stringify, scrub the text again, cut to limit: safe for a message.
 
         The structure goes first because repr escapes (backslash, quotes, control characters) hide a secret
-        from a text scrub.
+        from a text scrub. Only limit + 4096 + the longest secret form characters are ever scrubbed (cost
+        bound); the final cut to limit drops anything a pre-cut could have left of a secret.
         """
-        return self.scrub(str(self.scrub(value)))[:limit]
+        bound = limit + 4096 + max([len(x) for x in self._secret_strings()] or [0])
+        text = value if isinstance(value, str) else str(self.scrub(value))
+        return self.scrub(text[:bound])[:limit]
 
     @staticmethod
     def _read(resp, method, path):
@@ -178,6 +193,8 @@ class PpdmClient:
         token = resp.get("access_token") if isinstance(resp, dict) else None
         if not isinstance(token, str) or not token:
             raise PpdmError("POST /api/v2/login failed: response has no access_token")
+        if not re.fullmatch(r"[\x21-\x7e]+", token):
+            raise PpdmError("POST /api/v2/login failed: invalid access_token (not printable ASCII)")
         self.token = token
 
     def request(self, method, path, query=None, body=None):
@@ -208,21 +225,28 @@ class PpdmClient:
                     % (method, path, e.code),
                     status=e.code,
                 ) from None
-            raw = self._read(e, method, path)[:MAX_ERROR_TEXT]
-            try:
-                err_body = json.loads(raw) if raw else None
-            except (ValueError, RecursionError):
-                err_body = raw.decode("utf-8", "replace")
-            detail = err_body.get("message") if isinstance(err_body, dict) else err_body
-            detail = self.scrub_text(detail, 1000) if detail else ""
-            err_body = self.scrub(err_body)
+            raw = self._read(e, method, path)
+            if len(raw) > MAX_SCRUB_TEXT:  # too big to scrub cheaply: keep no raw text at all
+                err_body = detail = "<error body of %d bytes omitted>" % len(raw)
+            else:
+                try:
+                    parsed = json.loads(raw) if raw else None
+                except (ValueError, RecursionError):
+                    parsed = raw.decode("utf-8", "replace")
+                detail = parsed.get("message") if isinstance(parsed, dict) else parsed
+                detail = self.scrub_text(detail, 1000) if detail else ""
+                # scrub first, cut after: a cut before the scrub could split a secret
+                err_body = self.scrub(parsed) if len(raw) <= MAX_ERROR_TEXT else self.scrub_text(parsed, MAX_ERROR_TEXT)
             raise PpdmError(
                 "%s %s failed: HTTP %s%s" % (method, path, e.code, ": %s" % detail if detail else ""),
                 status=e.code,
                 body=err_body,
             ) from None
-        # ValueError covers UnicodeError, bad headers and urlencode failures
-        except (URLError, OSError, HTTPException, ValueError) as e:
+        except ValueError as e:  # bad headers, urlencode, unicode: the text may embed the request, name the class only
+            raise PpdmError(
+                "%s %s failed: could not build the request (%s)" % (method, path, type(e).__name__)
+            ) from None
+        except (URLError, OSError, HTTPException) as e:
             raise PpdmError(self._scrub("%s %s failed: %s" % (method, path, e))) from None
         if status == 204 or not raw:
             return None
