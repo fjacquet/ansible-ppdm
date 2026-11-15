@@ -72,4 +72,6 @@ ENUMS = {
     ),
 }
 
+# Literal reading of the spec ("required for POST"); consumers require only 'type' (id is PATCH-only).
+# protection_policy.asset_type values come from the oneOf x-discriminator-value of each variant.
 OBJECTIVE_REQUIRED = ('id', 'type')

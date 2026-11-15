@@ -7,10 +7,12 @@ action_groups:
     - api
     - credential_info
     - inventory_source_info
+    - protection_policy_info
     - storage_system_info
     - certificate_info
     - credential
     - inventory_source
     - storage_system
     - eula
+    - protection_policy
     - certificate

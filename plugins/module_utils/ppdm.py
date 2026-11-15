@@ -553,14 +553,20 @@ def client_from_module(module: AnsibleModule) -> PpdmClient:
     return client
 
 
-def info_main(resource: str, result_key: str, argument_spec: dict, secret_fields: Any = ()) -> None:
-    """Shared main() of the read-only *_info modules."""
+def info_main(
+    resource: str, result_key: str, argument_spec: dict, secret_fields: Any = (), extra_eq: dict | None = None
+) -> None:
+    """Shared main() of the read-only *_info modules.
+
+    extra_eq maps an extra option to the object field it must equal exactly (ANDed into the filter, re-checked).
+    """
     module = AnsibleModule(
         argument_spec=dict(connection_argument_spec(), **argument_spec),
         supports_check_mode=True,
         mutually_exclusive=[("id", "name"), ("id", "filter"), ("name", "filter")],
     )
     p = module.params
+    extra = extra_eq or {}
     if p["name"] == "":  # an empty name must not silently become "list everything"
         module.fail_json(msg="name must not be empty (omit it to list all)")
     client = client_from_module(module)
@@ -577,11 +583,14 @@ def info_main(resource: str, result_key: str, argument_spec: dict, secret_fields
                     raise PpdmError("GET %s/%s failed: unexpected response" % (resource, p["id"]))
                 found = [body]
         else:
-            flt = filter_eq("name", p["name"]) if p["name"] else p["filter"]
-            found = client.list_all(resource, filter=flt)
+            terms = [filter_eq("name", p["name"])] if p["name"] else [p["filter"]] if p["filter"] else []
+            terms += [filter_eq(f, p[o]) for o, f in extra.items() if p[o] is not None]
+            found = client.list_all(resource, filter=" and ".join(terms) or None)
             if p["name"]:  # the server-side filter is advisory (and I(filter) is passed through unchanged)
                 found = [o for o in found if isinstance(o, dict) and o.get("name") == p["name"]]
     except PpdmError as err:
         fail_from(module, err)
+    for opt, field in extra.items():  # the server-side filter is advisory
+        found = [o for o in found if p[opt] is None or o.get(field) == p[opt]]
     items = [{k: v for k, v in o.items() if k not in secret_fields} for o in found]
     module.exit_json(**{"changed": False, result_key: items})
