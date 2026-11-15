@@ -72,17 +72,21 @@ options:
     - OIDC_REFRESH_TOKEN
   cred_username:
     description:
-    - Username of the credential account. Required when I(state=present).
+    - Username of the stored credential account. This is not the PPDM login, which is the connection option
+      C(username).
+    - Required when I(state=present).
     type: str
   cred_password:
     description:
-    - Password of the credential account.
+    - Password of the stored credential account. This is not the PPDM login, which is the connection option
+      C(password).
     type: str
   update_password:
     description:
-    - C(on_create) sends the password only when the credential is created.
-    - C(always) forces an update on every run and always reports changed, because PPDM never returns the
-      password.
+    - C(on_create) never compares the password and never causes a change by itself; it is sent on create
+      and whenever an update is sent for another difference.
+    - C(always) forces an update on every run (always reports changed) and sends the password, because
+      PPDM never returns it.
     type: str
     choices:
     - on_create

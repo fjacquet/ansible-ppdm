@@ -46,6 +46,7 @@ options:
     description:
     - Extra request body fields passed through as is (for example C(details)).
     - Each top-level key replaces the whole value of that field.
+    - Do not put secrets here, values are not masked in diff or return values.
     type: dict
 '''
 

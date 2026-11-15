@@ -33,8 +33,10 @@ options:
   config:
     type: dict
     description:
-      - Extra request body fields passed through as is, for example C(details) for type-specific settings such as the vCenter certificate trust.
+      - Extra request body fields passed through as is, for example C(details) for type-specific settings such as C(details.vCenter).
+      - The 20.3.0 request body has no certificate trust field, trust is handled separately.
       - Each top-level key replaces the whole value of that field.
+      - Do not put secrets here, values are not masked in diff or return values.
 examples: |
   - name: Ensure a vCenter inventory source
     fjacquet.ppdm.inventory_source:
@@ -46,6 +48,20 @@ examples: |
       address: vc01.example.com
       source_port: 443
       credential_id: "{{ cred.credential.id }}"
+
+  - name: Pass type-specific vCenter settings through config
+    fjacquet.ppdm.inventory_source:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      name: vc01
+      type: VCENTER
+      address: vc01.example.com
+      credential_id: "{{ cred.credential.id }}"
+      config:
+        details:
+          vCenter:
+            assetSource: false
 return: |
   inventory_source:
     description: The managed inventory source.
