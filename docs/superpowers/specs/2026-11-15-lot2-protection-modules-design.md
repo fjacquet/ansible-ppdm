@@ -51,7 +51,7 @@ exist for policies in 20.3.0; the v3 API is the only one, so correctness here is
 3. **`protection_policy_assets`** (`state: present|absent`): assign/unassign assets by id to a policy (the array
    bodies). Idempotence by reading the current assignments when the spec exposes them (verify); otherwise report
    `changed` honestly as "request sent".
-4. **`protection_run`** (action module, no `state`): runs a policy now (`POST /api/v3/protections`): options
+4. **`protection_policy_run`** (action module, no `state`): runs a policy now (`POST /api/v3/protections`): options
    `policy` (name or id), `objective_ids` (optional), `asset_ids`, `protection_group_ids`, `wait`, `wait_timeout`.
    Always `changed: true` when sent; `check_mode` sends nothing; with `wait` returns the final activity and fails
    unless `result.status` is OK (OK_WITH_ERRORS warns). Resolves the policy name to an id with the shared client.
@@ -59,7 +59,15 @@ exist for policies in 20.3.0; the v3 API is the only one, so correctness here is
    `description`, `inventory_source` (name or id, resolved through the shared client), `config` (pass-through for
    `extendedDiscoveryData`/`schedule`), `wait`/`wait_timeout`. A 409 (already running) fails with a clear message
    unless `ignore_running: true` (then `changed: false`).
-6. Shared pieces: reuse `PpdmClient.ensure/find_one/wait_activity`, the doc fragment and action group; no new
+6. **`protection_rule`** (`state: present|absent`, key `name`): automatic assignment rules,
+   `/api/v2/protection-rules` (GET list, POST) and `/api/v2/protection-rules/{id}` (GET, PUT, DELETE); body fields
+   from the `ProtectionRule` schema (`name`, `description`, `action`, `inventorySourceType`, `priority`,
+   `conditions`/`rules`, `conditionConnector`/`logicalOperator`, `tenant`). Same options pattern as the policy
+   (typed common fields + validated pass-through for conditions, `config` extras). `protection_rule_info` for reads,
+   and `protection_rule_run` for `POST /api/v2/protection-rules-execution` (action, `wait`) plus an optional
+   conflicts preview (`POST /api/v2/protection-rules-conflicts-preview`) exposed as `preview: true` on the run
+   module (read-only, `changed: false`).
+7. Shared pieces: reuse `PpdmClient.ensure/find_one/wait_activity`, the doc fragment and action group; no new
    dependency. All modules generated-doc via `tools/schemas`, listed in `meta/runtime.yml` action_groups.
 
 ## Approaches considered for the policy body
@@ -83,12 +91,19 @@ exist for policies in 20.3.0; the v3 API is the only one, so correctness here is
 - Generator work needed first: nested enums extraction for `objectives` validation (read from the v3 spec), and
   `PATCH` as an update verb in the client/route table.
 
-## Decisions to take before planning
+## Decided by the author (2026-11-15)
 
-1. Approach for the policy body: A (recommended), B or C? 
-2. Which asset types to cover with examples and validation in v1 (proposal: VMWARE_VIRTUAL_MACHINE, FILE_SYSTEM,
-   KUBERNETES, MICROSOFT_SQL_DATABASE; the generic `asset_type` choices stay open for all 15)?
-3. Is `protection_policy_assets` in scope for this lot (proposal: yes, small) and `protection_rule` (v2
-   `/protection-rules`, auto-assignment) in the following lot?
-4. Naming: `protection_run` and `discovery` as proposed, or `protection_policy_run` / `discovery_run`?
-5. When: after the Lot 1 release (`0.1.0`) or now on this branch? (proposal: after `0.1.0`, on a new branch).
+1. Policy body: approach A (typed common fields + validated `objectives` pass-through).
+2. Asset types with validation, examples and tests in v1: VMWARE_VIRTUAL_MACHINE, FILE_SYSTEM, KUBERNETES,
+   MICROSOFT_SQL_DATABASE; the `asset_type` choices stay open for all 15.
+3. Scope: everything above is in this lot, including `protection_policy_assets` AND `protection_rule`
+   (+ `protection_rule_info`, `protection_rule_run`).
+4. Names (controller's reading of "protection_policy et discovery": the run module keeps the `protection_policy`
+   prefix): `protection_policy`, `protection_policy_info`, `protection_policy_assets`, `protection_policy_run`,
+   `discovery`. Rule modules follow the same prefix style (`protection_rule`, `protection_rule_info`,
+   `protection_rule_run`). Renaming before implementation is cheap if this reading is wrong.
+5. Timing: after the `0.1.0` release of Lot 1, on a NEW branch (not `feat/lot1-foundation`).
+
+## Left to the builder
+Exact option names and validation messages, the number of examples per asset type, whether the client grows a
+generic `update_verb` parameter or per-resource verb table for PATCH, and the test fixtures.
