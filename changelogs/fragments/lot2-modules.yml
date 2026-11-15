@@ -1,9 +1,0 @@
----
-release_summary: Adds the protection modules ``protection_policy``, ``protection_policy_info``,
-  ``protection_policy_assets``, ``protection_policy_run``, ``discovery``, ``protection_rule``,
-  ``protection_rule_info`` and ``protection_rule_run``, and five protection playbooks (63 in total).
-  The rule modules use the v2 rule API, which PPDM deprecated in 20.2 and removes in 20.6.
-breaking_changes:
-  - protection.run_policy playbook - now requires ``policy_run_confirm=true`` and a non-empty ``asset_filter``, and the ``backup_level`` variable is removed (every objective of the policy runs).
-  - protection.assign_assets_to_policy playbook - now requires ``assign_confirm=true``.
-  - protection.add_file_system_policy and protection.add_mssql_policy playbooks - now update an existing policy when it differs (PATCH, the whole objectives list is replaced) instead of leaving it unchanged.
