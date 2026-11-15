@@ -24,7 +24,7 @@ from ansible_collections.fjacquet.ppdm.plugins.module_utils._routes import ROUTE
 PAGE_SIZE = 100
 MAX_BODY_BYTES = 32 * 1024 * 1024
 MAX_ERROR_TEXT = 64 * 1024  # an error body kept in PpdmError.body is cut to this AFTER it is scrubbed
-MAX_SCRUB_TEXT = 1024 * 1024  # an error body larger than this is not kept at all (marker with its length only)
+MAX_SCRUB_TEXT = 1024 * 1024  # a server text longer than this is never scrubbed nor kept (marker with its length)
 MAX_PAGES = 10000  # the OpenAPI maximum of the `page` query parameter
 REDIRECT_CODES = frozenset([301, 302, 303, 307, 308])
 MASK = "VALUE_SPECIFIED_IN_NO_LOG_PARAMETER"
@@ -121,11 +121,13 @@ class PpdmClient:
         self.last_status = None
 
     def _secret_strings(self):
-        """The password and the token plus their JSON/repr-escaped forms (a server may echo either form)."""
+        """The password and the token plus their JSON (lower and upper case \\uXXXX) and repr escaped forms."""
         out = set()
         for x in (self.password, self.token):
             if isinstance(x, str) and x:
-                out |= {x, json.dumps(x)[1:-1], json.dumps(x, ensure_ascii=False)[1:-1], repr(x)[1:-1]}
+                ascii_form = json.dumps(x)[1:-1]
+                upper = re.sub(r"\\u([0-9a-f]{4})", lambda m: "\\u" + m.group(1).upper(), ascii_form)  # Jackson
+                out |= {x, ascii_form, upper, json.dumps(x, ensure_ascii=False)[1:-1], repr(x)[1:-1]}
         return sorted(out)
 
     def scrub(self, value):
@@ -170,12 +172,20 @@ class PpdmClient:
         """Scrub the structure, stringify, scrub the text again, cut to limit: safe for a message.
 
         The structure goes first because repr escapes (backslash, quotes, control characters) hide a secret
-        from a text scrub. Only limit + 4096 + the longest secret form characters are ever scrubbed (cost
-        bound); the final cut to limit drops anything a pre-cut could have left of a secret.
+        from a text scrub. Nothing is cut before the scrub: a pre-cut can leave part of a secret that masks
+        before it then pull inside limit. A value whose text is longer than MAX_SCRUB_TEXT is not scrubbed
+        (cost bound) and gives only "<... of N characters omitted>". The cut to limit comes last: it drops
+        characters of masked text only (it may split a mask, never expose a secret).
         """
-        bound = limit + 4096 + max([len(x) for x in self._secret_strings()] or [0])
-        text = value if isinstance(value, str) else str(self.scrub(value))
-        return self.scrub(text[:bound])[:limit]
+        try:
+            text = value if isinstance(value, str) else str(value)  # unscrubbed: only its length is used
+            if len(text) <= MAX_SCRUB_TEXT and not isinstance(value, str):
+                text = str(self.scrub(value))
+        except Exception:  # e.g. RecursionError on a hostile structure
+            return "********"[:limit]
+        if len(text) > MAX_SCRUB_TEXT:
+            return ("<... of %d characters omitted>" % len(text))[:limit]
+        return self.scrub(text)[:limit]
 
     @staticmethod
     def _read(resp, method, path):

@@ -479,11 +479,181 @@ def test_scrub_text_is_bounded_on_a_huge_value():
 
     c, _ = mk(password="a")
     t = time.time()
-    out = c.scrub_text("ab" * 2_500_000, 64)
-    assert time.time() - t < 1.0 and len(out) <= 64 and "a" not in out
+    out = c.scrub_text("ab" * 2_500_000, 64)  # over MAX_SCRUB_TEXT: the length marker only, nothing scrubbed
+    assert time.time() - t < 1.0 and out == "<... of 5000000 characters omitted>"
 
 
 def test_scrub_text_cut_does_not_leave_a_secret_prefix():
     c, _ = mk(password="hunter2SuperSecret")
     out = c.scrub_text("x" * 60 + "hunter2SuperSecret", 70)
     assert "hunter2" not in out
+
+
+# Fix round 4: no pre-cut before the scrub (a masked run shrinks the text and pulls a cut-off prefix in)
+
+SAFE = "QWZKJXV#$%&@!~^"  # characters absent from the fixed message text and from the filler "y"
+REPS = [1, 2, 5, 8, 50, 400]
+LENGTHS = [1, 5, 18, 64, 1200]
+
+
+def _secret(n, seed):
+    import random
+
+    rnd = random.Random(seed)
+    return "".join(rnd.choice(SAFE) for _ in range(n))
+
+
+def _runs(secret, text, k=8):
+    """Any run of k consecutive characters of secret (the whole secret when shorter) found in text."""
+    k = min(k, len(secret))
+    return [secret[i : i + k] for i in range(len(secret) - k + 1) if secret[i : i + k] in text]
+
+
+def _err_as(body, secret, which, status=400):
+    raw = body if isinstance(body, bytes) else body.encode()
+    op = FakeOpener(urllib.error.HTTPError("u", status, "x", {}, io.BytesIO(raw)))
+    c = PpdmClient("ppdm.local", "admin", secret if which == "password" else "pw", opener=op)
+    if which == "token":
+        c.token = secret
+    with pytest.raises(PpdmError) as e:
+        c.request("GET", "/x")
+    return e.value
+
+
+def _out(err):
+    return err.msg + "\n" + (err.body if isinstance(err.body, str) else json.dumps(err.body, ensure_ascii=False))
+
+
+@pytest.mark.parametrize("which", ["password", "token"])
+@pytest.mark.parametrize("n", LENGTHS)
+@pytest.mark.parametrize("reps", REPS)
+@pytest.mark.parametrize("kind", ["json", "text"])
+def test_repeated_echoed_secret_never_leaks(kind, reps, n, which):
+    tok = _secret(n, n * 1000 + reps)
+    msg = "; ".join("invalid Authorization header 'Bearer %s'" % tok for _ in range(reps))
+    if kind == "json":
+        body = json.dumps({"code": 401, "message": msg})
+    else:  # non-JSON body between 64 KiB and 1 MiB
+        body = msg + " " + "y" * max(0, ppdm.MAX_ERROR_TEXT + 100 - len(msg))
+        assert ppdm.MAX_ERROR_TEXT < len(body) <= ppdm.MAX_SCRUB_TEXT
+    err = _err_as(body, tok, which, 401)
+    assert not _runs(tok, _out(err)), (kind, reps, n, which, err.msg[:300])
+
+
+PW7 = "hunter2SuperSecret"
+
+
+def _old_bound(limit):
+    return limit + 4096 + len(PW7)
+
+
+def _straddle(target, off, tail=200):
+    """PW7 repeated (one merged mask), filler, then a copy starting off characters before target."""
+    head = PW7 * max(0, min(400, (target - off - 10) // len(PW7)))
+    return head + "y" * (target - off - len(head)) + PW7 + "y" * tail
+
+
+TARGETS = [
+    _old_bound(64),
+    _old_bound(1000),
+    _old_bound(ppdm.MAX_ERROR_TEXT),
+    64,
+    1000,
+    ppdm.MAX_ERROR_TEXT,
+    ppdm.MAX_SCRUB_TEXT,
+]
+
+
+@pytest.mark.parametrize("target", TARGETS)
+@pytest.mark.parametrize("off", [1, 5, 9, 17])
+@pytest.mark.parametrize("limit", [64, 1000, ppdm.MAX_ERROR_TEXT])
+def test_scrub_text_straddle_after_merged_masks(target, off, limit):
+    c, _ = mk(password=PW7)
+    out = c.scrub_text(_straddle(target, off), limit)
+    assert len(out) <= limit and not _runs(PW7, out, 4), (target, off, limit, out[-40:])
+
+
+@pytest.mark.parametrize("target", TARGETS)
+@pytest.mark.parametrize("off", [1, 5, 9, 17])
+@pytest.mark.parametrize("which", ["password", "token"])
+def test_error_body_straddle_after_merged_masks(target, off, which):
+    text = _straddle(target, off)
+    for body in (text, json.dumps({"message": text})):
+        err = _err_as(body, PW7, which)
+        assert not _runs(PW7, _out(err), 4), (target, off, which, err.msg[-40:])
+
+
+def test_scrub_text_over_limit_gives_only_the_marker():
+    import time
+
+    c, _ = mk(password="Q")
+    t = time.time()
+    out = c.scrub_text("Q" * (5 * 1000 * 1000), 10**7)
+    assert time.time() - t < 0.5
+    assert out == "<... of 5000000 characters omitted>"
+    assert c.scrub_text("y" * (ppdm.MAX_SCRUB_TEXT + 1), 10) == "<... of 10"
+    assert c.scrub_text(["y" * ppdm.MAX_SCRUB_TEXT], 10**7).startswith("<... of ")  # structure too
+
+
+def test_scrub_text_at_the_limit_is_scrubbed_in_full():
+    c, _ = mk(password=PW7)
+    text = "y" * (ppdm.MAX_SCRUB_TEXT - len(PW7)) + PW7
+    assert c.scrub_text(text, 10**7) == "y" * (ppdm.MAX_SCRUB_TEXT - len(PW7)) + "********"
+    err = _err(PW7 + "y" * (ppdm.MAX_SCRUB_TEXT - 2 * len(PW7)) + PW7, PW7)
+    assert err.body.startswith("********yyy") and len(err.body) == ppdm.MAX_ERROR_TEXT
+    assert PW7 not in err.msg and "yyy" in err.msg
+
+
+def test_huge_structure_is_not_scrubbed():
+    import time
+
+    c, _ = mk(password="Q")
+    t = time.time()
+    out = c.scrub_text(["Q"] * 6_000_000, 64)
+    assert time.time() - t < 1.0 and out.startswith("<... of ") and "Q" not in out
+
+
+@pytest.mark.parametrize("pw", ["caféX", "\x1fbell", "smile\U0001f600x"])
+def test_uppercase_json_escape_is_masked(pw):
+    upper = json.dumps(pw)[1:-1]
+    upper = __import__("re").sub(r"\\u([0-9a-f]{4})", lambda m: "\\u" + m.group(1).upper(), upper)
+    assert upper != json.dumps(pw)[1:-1]
+    c, _ = mk(password=pw)
+    assert upper not in c.scrub_text("x " + upper + " y", 1000)
+    err = _err("oops " + upper, pw)
+    assert upper not in _out(err)
+
+
+def test_scrub_text_property_random():
+    import random
+    import re
+
+    rnd = random.Random(20261115)
+    alphabet = "ab\\\"'\n\x07é\U0001f600 y"
+
+    def forms(s):
+        j = json.dumps(s)[1:-1]
+        return _forms(s) | {re.sub(r"\\u([0-9a-f]{4})", lambda m: "\\u" + m.group(1).upper(), j)}
+
+    for _ in range(2000):
+        pw = "".join(rnd.choice(alphabet) for _ in range(rnd.randint(1, 6)))
+        tok = "".join(rnd.choice("abcXY") for _ in range(rnd.randint(1, 12)))
+        c, _ = mk(password=pw)
+        c.token = tok
+        pieces = sorted(forms(pw) | forms(tok))
+        chunks = []
+        for _ in range(rnd.randint(0, 40)):
+            r = rnd.random()
+            if r < 0.4:
+                chunks.append(rnd.choice(pieces) * rnd.randint(1, 3))
+            elif r < 0.6:
+                p = rnd.choice(pieces)
+                chunks.append(p[: rnd.randint(0, len(p))])
+            else:
+                chunks.append("".join(rnd.choice(alphabet + "XYz") for _ in range(rnd.randint(0, 30))))
+        text = "".join(chunks)
+        for limit in (0, 1, 8, 40, 100, 64 * 1024):
+            out = c.scrub_text(text, limit)
+            assert len(out) <= limit, (limit, out)
+            hits = [f for f in forms(pw) | forms(tok) if f in out]
+            assert not hits, (pw, tok, text, limit, out, hits)
