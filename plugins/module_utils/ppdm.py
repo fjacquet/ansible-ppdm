@@ -8,6 +8,7 @@ from __future__ import absolute_import, annotations, division, print_function
 __metaclass__ = type
 
 import json
+import time
 from http.client import HTTPException
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
@@ -18,6 +19,19 @@ from ansible.module_utils.urls import open_url
 from ansible_collections.fjacquet.ppdm.plugins.module_utils._routes import ROUTES
 
 PAGE_SIZE = 100
+MASK = "VALUE_SPECIFIED_IN_NO_LOG_PARAMETER"
+# OpenAPI 20.3.0 Activity.state: QUEUED/RUNNING/PENDING_CANCELLATION|CANCELING/RETRYING/COMPLETED.
+# COMPLETED is the only terminal state; success/failure is in result.status (OK, FAILED, CANCELED, ...).
+ACTIVITY_TERMINAL_STATES = frozenset(["COMPLETED"])
+
+
+def strip_readonly(resource, obj):
+    drop = set(ROUTES[resource]["readonly"]) | {"_links"}
+    return {k: v for k, v in obj.items() if k not in drop}
+
+
+def _mask(obj, secret_keys):
+    return {k: (MASK if k in secret_keys else v) for k, v in obj.items()}
 
 
 class PpdmError(Exception):
@@ -30,7 +44,7 @@ class PpdmError(Exception):
 
 class PpdmClient:
     def __init__(self, hostname, username, password, port=8443, validate_certs=True,
-                 ca_path=None, timeout=30, opener=open_url):
+                 ca_path=None, timeout=30, opener=open_url, sleep=time.sleep):
         self.base_url = "https://%s:%s" % (hostname, port)
         self.username = username
         self.password = password
@@ -38,6 +52,7 @@ class PpdmClient:
         self.ca_path = ca_path
         self.timeout = timeout
         self.opener = opener
+        self.sleep = sleep
         self.token = None
 
     def _scrub(self, value):
@@ -114,6 +129,62 @@ class PpdmClient:
             if page >= data["page"].get("totalPages", 0):
                 return items
             page += 1
+
+    def find_one(self, resource, key, value):
+        found = self.list_all(resource, filter='%s eq "%s"' % (key, value))
+        if len(found) > 1:
+            ids = ", ".join(str(o.get("id")) for o in found)
+            raise PpdmError("%s: %d objects match %s=%s (ids: %s)" % (resource, len(found), key, value, ids))
+        return found[0] if found else None
+
+    def _route(self, resource, verb, obj_id=None):
+        route = ROUTES[resource]
+        if verb not in route["methods"]:
+            raise PpdmError("%s does not support %s" % (resource, verb))
+        if obj_id is None:
+            return route["base"]
+        return route["item"].replace("{id}", str(obj_id))
+
+    def ensure(self, resource, desired, key="name", check_mode=False, secret_keys=()):
+        secret_keys = set(secret_keys)
+        existing = self.find_one(resource, key, desired[key])
+        want = strip_readonly(resource, desired)
+        if existing is None:
+            path = self._route(resource, "POST")
+            obj = want if check_mode else (self.request("POST", path, body=want) or want)
+            return {"changed": True, "object": _mask(obj, secret_keys),
+                    "diff": {"before": {}, "after": _mask(want, secret_keys)}}
+        before = strip_readonly(resource, existing)
+        after = dict(before, **want)
+        if after == before:
+            return {"changed": False, "object": _mask(existing, secret_keys),
+                    "diff": {"before": _mask(before, secret_keys), "after": _mask(after, secret_keys)}}
+        path = self._route(resource, "PUT", existing["id"])
+        obj = after if check_mode else (self.request("PUT", path, body=after) or after)
+        return {"changed": True, "object": _mask(obj, secret_keys),
+                "diff": {"before": _mask(before, secret_keys), "after": _mask(after, secret_keys)}}
+
+    def remove(self, resource, key, value, check_mode=False):
+        existing = self.find_one(resource, key, value)
+        if existing is None:
+            return {"changed": False, "diff": {"before": {}, "after": {}}}
+        path = self._route(resource, "DELETE", existing["id"])
+        if not check_mode:
+            self.request("DELETE", path)
+        return {"changed": True, "diff": {"before": strip_readonly(resource, existing), "after": {}}}
+
+    def wait_activity(self, activity_id, timeout, interval=5):
+        path = self._route("activities", "GET", activity_id)
+        waited = 0
+        while True:
+            act = self.request("GET", path)
+            if isinstance(act, dict) and act.get("state") in ACTIVITY_TERMINAL_STATES:
+                return act
+            if waited >= timeout:
+                raise PpdmError("activity %s timed out after %ss (state %s)" % (
+                    activity_id, timeout, act.get("state") if isinstance(act, dict) else None))
+            self.sleep(interval)
+            waited += interval
 
 
 def connection_argument_spec():
