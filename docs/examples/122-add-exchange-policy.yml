@@ -1,0 +1,81 @@
+---
+# Create the OS credential and a daily synthetic full policy unless one of that name exists.
+# Assumptions, not verified live: storageContainerId is the Data Domain storage system id, and the objective id is generated.
+# Inspired by bottkars/ansible_ppdm `120.1_playbook_add_exchange_policy.yaml` (workflow only; rewritten for fjacquet.ppdm).
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional), APP_CREDENTIAL_PASSWORD.
+- name: Create a Microsoft Exchange protection policy
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Get the policy of that name
+      fjacquet.ppdm.api:
+        path: /api/v3/protection-policies
+        query:
+          filter: name eq "{{ exchange_policy_name }}"
+      register: existing_policy
+
+    - name: Get the Data Domain storage system
+      fjacquet.ppdm.storage_system_info:
+        name: "{{ ddve_hostname }}"
+      register: policy_storage_system
+
+    - name: Check that the storage system exists
+      ansible.builtin.assert:
+        that: policy_storage_system.storage_systems | length == 1
+        fail_msg: No storage system named {{ ddve_hostname }}.
+
+    - name: Ensure the application credential
+      fjacquet.ppdm.credential:
+        name: "{{ app_credential_name }}"
+        type: OS
+        cred_username: "{{ app_credential_username }}"
+        cred_password: "{{ lookup('ansible.builtin.env', 'APP_CREDENTIAL_PASSWORD') }}"
+      no_log: true
+      register: app_credential
+
+    - name: Create the Microsoft Exchange protection policy
+      fjacquet.ppdm.api:
+        method: POST
+        path: /api/v3/protection-policies
+        body:
+          assetType: MICROSOFT_EXCHANGE_DATABASE
+          name: "{{ exchange_policy_name }}"
+          description: Exchange policy created by Ansible
+          purpose: CENTRALIZED
+          objectives:
+            - id: "{{ (exchange_policy_name ~ '-backup') | to_uuid }}"
+              type: BACKUP
+              target:
+                storageContainerId: "{{ policy_storage_system.storage_systems[0].id }}"
+                preferredInterfaceId: "{{ policy_storage_system.storage_systems[0].details.dataDomain.preferredInterfaces[0].networkName }}"
+              operations:
+                - backupLevel: SYNTHETIC_FULL
+                  triggerType: ON_SCHEDULE
+                  schedule:
+                    recurrence:
+                      pattern:
+                        type: DAILY
+                        interval: 1
+                    window:
+                      startTime: "{{ policy_window_start }}"
+                      duration: PT10H
+              retentions:
+                - time:
+                    - type: RETENTION
+                      unitType: DAY
+                      unitValue: 3
+              config:
+                dataConsistency: APPLICATION_CONSISTENT
+                connectionsDetails:
+                  - type: OS
+                    credentialId: "{{ app_credential.credential.id }}"
+      when: existing_policy.result | length == 0
