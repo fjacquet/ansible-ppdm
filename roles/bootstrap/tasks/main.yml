@@ -1,0 +1,56 @@
+---
+- name: Bootstrap PowerProtect Data Manager
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ bootstrap_hostname }}"
+      port: "{{ bootstrap_port }}"
+      username: "{{ bootstrap_username }}"
+      password: "{{ bootstrap_password }}"
+      validate_certs: "{{ bootstrap_validate_certs }}"
+      ca_path: "{{ bootstrap_ca_path | default(omit) }}"
+  block:
+    - name: Wait for the PPDM REST API
+      fjacquet.ppdm.api:
+        path: /api/v2/configurations
+      register: __bootstrap_configurations
+      until: __bootstrap_configurations is succeeded
+      retries: "{{ (bootstrap_wait_timeout | int / bootstrap_wait_delay | int) | round(0, 'ceil') | int }}"
+      delay: "{{ bootstrap_wait_delay }}"
+      no_log: true
+
+    - name: Accept the PPDM EULA
+      fjacquet.ppdm.eula:
+        accepted: true
+      when: bootstrap_eula_accept | bool
+      no_log: true
+
+    - name: Apply the initial configuration
+      when:
+        - bootstrap_configuration is defined
+        - not (__bootstrap_configurations.result.content[0].gettingStartedCompleted | default(false))
+      block:
+        - name: Set the current configuration id
+          ansible.builtin.set_fact:
+            __bootstrap_config_id: "{{ __bootstrap_configurations.result.content[0].id }}"
+
+        - name: Submit the configuration
+          fjacquet.ppdm.api:
+            method: PUT
+            path: "/api/v2/configurations/{{ __bootstrap_config_id }}"
+            body: "{{ __bootstrap_configurations.result.content[0] | ansible.builtin.combine(bootstrap_configuration, recursive=true) }}"
+          no_log: true
+
+        - name: Wait for the configuration to finish
+          fjacquet.ppdm.api:
+            path: "/api/v2/configurations/{{ __bootstrap_config_id }}/config-status"
+          register: __bootstrap_config_status
+          until: __bootstrap_config_status is succeeded and __bootstrap_config_status.result.status in ['SUCCESS', 'FAILED']
+          retries: "{{ (bootstrap_wait_timeout | int / bootstrap_wait_delay | int) | round(0, 'ceil') | int }}"
+          delay: "{{ bootstrap_wait_delay }}"
+          check_mode: false
+          changed_when: false
+
+        - name: Fail when the configuration failed
+          ansible.builtin.fail:
+            msg: "PPDM configuration failed: {{ __bootstrap_config_status.result }}"
+          when: __bootstrap_config_status.result.status == 'FAILED'
