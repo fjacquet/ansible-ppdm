@@ -4,9 +4,7 @@ These collection playbooks show, workflow by workflow, how to do with the `fjacq
 [bottkars/ansible_ppdm](https://github.com/bottkars/ansible_ppdm) does with `uri`-based roles. Each workflow is
 rewritten, no YAML is copied, and the original file is credited in a comment at the top of each playbook.
 
-> **Not yet validated against a live PPDM.** The collection is a 0.x pre-release and these playbooks target PPDM
-> 20.3.0 only. Their endpoints and request bodies were checked against the 20.3.0 OpenAPI files in `docs/openapi/`,
-> not against a running appliance. Read a playbook before you run it, and try it on a lab first.
+These playbooks target PPDM 20.3.0 only. Read a playbook before you run it. The pre-release status of the collection is described in the [main README](../README.md).
 
 ## Running a playbook
 
@@ -29,7 +27,7 @@ Placeholders for names, ports and fingerprints are in `playbooks/vars/example.ym
 `-e @my-vars.yml`.
 
 Every play runs `hosts: "{{ target | default('localhost') }}"` with a local connection, so the default is the control node
-and nothing runs against a whole inventory by mistake. Collection playbooks need ansible-core 2.11 or later; the
+and nothing runs against a whole inventory by mistake. The
 name is the use case directory and the file name, in lowercase letters, digits and `_` only.
 
 ```

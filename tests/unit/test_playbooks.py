@@ -234,7 +234,9 @@ def test_header_has_credit_line_and_no_disclaimer():
 
 
 def test_disclaimer_only_in_readme():
-    assert DISCLAIMER in README
+    root_readme = (PLAYBOOKS.parent / "README.md").read_text()
+    assert DISCLAIMER.lower() in root_readme.lower()
+    assert DISCLAIMER.lower() not in README.lower()
     for path in [*FILES, *(PLAYBOOKS / "vars").glob("*.yml")]:
         assert DISCLAIMER.lower() not in path.read_text().lower(), _short(path)
         assert "pre-release" not in path.read_text().lower(), _short(path)
