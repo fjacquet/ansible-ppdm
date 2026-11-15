@@ -1,0 +1,35 @@
+# Documented example schema. Files starting with "_" are skipped by `generate.py modules`.
+# Copy to tools/schemas/<module>.yml (no ppdm_ prefix) and run: uv run python tools/generate.py modules
+module: example            # module name, file plugins/modules/example.py
+resource: examples         # PPDM REST resource slug (see plugins/module_utils/_routes.py)
+key: name                  # field that identifies an object (default: name)
+kind: ensure               # ensure | info | singleton | action
+short_description: Manage examples on PowerProtect Data Manager
+description:
+  - Create, update or remove examples.
+options:
+  name:
+    type: str
+    required: true
+    description: Example name.
+  mode:
+    type: str
+    choices: [fast, slow]
+    default: fast
+    description: Example mode.
+  token:
+    type: str
+    no_log: true
+    description: Example secret.
+examples: |
+  - name: Ensure an example exists
+    fjacquet.ppdm.example:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      name: demo
+return: |
+  example:
+    description: The managed object.
+    returned: success
+    type: dict

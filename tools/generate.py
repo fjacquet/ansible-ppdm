@@ -6,9 +6,14 @@ import re
 import sys
 from pathlib import Path
 
+import yaml
+
 HTTP = {"get", "post", "put", "patch", "delete"}
 BASE_RE = re.compile(r"^/api/(v\d+)/([^/{}]+)$")
 ITEM_RE = re.compile(r"^/api/(v\d+)/([^/{}]+)/\{[^/{}]+\}$")
+SCHEMAS_DIR = Path(__file__).resolve().parent / "schemas"
+MODULES_DIR = Path(__file__).resolve().parents[1] / "plugins" / "modules"
+BEGIN, END = "# BEGIN GENERATED", "# END GENERATED"
 ROUTES_FILE = Path(__file__).resolve().parents[1] / "plugins" / "module_utils" / "_routes.py"
 
 
@@ -78,12 +83,91 @@ def render_routes(routes):
     return "\n".join(out) + "\n"
 
 
-def main(argv):
+def render_module_blocks(schema):
+    """Return (DOCUMENTATION yaml text, ARGUMENT_SPEC python source) from one schema."""
+    doc_opts, spec = {}, {}
+    for name, o in schema.get("options", {}).items():
+        d = {"description": [o["description"]] if isinstance(o["description"], str) else o["description"],
+             "type": o["type"]}
+        s = {"type": o["type"]}
+        for k in ("required", "choices", "default", "elements"):
+            if k in o:
+                d[k] = s[k] = o[k]
+        if o.get("no_log"):
+            s["no_log"] = True
+        doc_opts[name], spec[name] = d, s
+    doc = {
+        "module": schema["module"],
+        "short_description": schema["short_description"],
+        "description": schema["description"],
+        "version_added": "1.0.0",
+        "author": ["Frederic Jacquet (@fjacquet)"],
+        "extends_documentation_fragment": ["fjacquet.ppdm.ppdm"],
+        "options": doc_opts,
+    }
+    lines = ["ARGUMENT_SPEC = dict("]
+    lines += [f"    {n}=dict({', '.join(f'{k}={v!r}' for k, v in s.items())})," for n, s in spec.items()]
+    lines.append(")")
+    return yaml.safe_dump(doc, sort_keys=False, width=100), "\n".join(lines) + "\n"
+
+
+def render_generated_block(schema):
+    doc, spec = render_module_blocks(schema)
+    return (f"{BEGIN}\nDOCUMENTATION = r'''\n{doc}'''\n\nEXAMPLES = r'''\n{schema['examples']}'''\n\n"
+            f"RETURN = r'''\n{schema['return']}'''\n\n{spec}{END}\n")
+
+
+def module_skeleton(schema):
+    """New module file: header, marker block, minimal main (hand-written part follows END)."""
+    return (
+        "#!/usr/bin/python\n# -*- coding: utf-8 -*-\n"
+        "# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)\n\n"
+        "from __future__ import annotations\n\n" + render_generated_block(schema) + "\n"
+        "from ansible.module_utils.basic import AnsibleModule  # noqa: E402\n"
+        "from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (  # noqa: E402\n"
+        "    connection_argument_spec,\n)\n\n\n"
+        "def main():\n"
+        "    module = AnsibleModule(\n"
+        "        argument_spec=dict(connection_argument_spec(), **ARGUMENT_SPEC), supports_check_mode=True\n"
+        "    )\n"
+        "    module.exit_json(changed=False)\n\n\n"
+        'if __name__ == "__main__":\n    main()\n'
+    )
+
+
+def update_module_text(text, schema):
+    block = render_generated_block(schema)
+    a, b = text.index(BEGIN), text.index(END)
+    return text[:a] + block + text[b + len(END) :].removeprefix("\n")
+
+
+def sync_modules(schemas_dir, modules_dir, check):
+    """Rewrite (or, with check, only report) every module whose generated block drifted."""
+    drift = []
+    for path in sorted(Path(schemas_dir).glob("[!_]*.yml")):  # _*.yml are documentation examples
+        schema = yaml.safe_load(path.read_text())
+        target = Path(modules_dir) / f"{schema['module']}.py"
+        old = target.read_text() if target.exists() else None
+        new = module_skeleton(schema) if old is None else update_module_text(old, schema)
+        if new != old:
+            drift.append(target)
+            if not check:
+                target.write_text(new)
+    return drift
+
+
+def main(argv, schemas_dir=SCHEMAS_DIR, modules_dir=MODULES_DIR):
     if argv[:1] == ["routes"]:
         d = os.environ.get("PPDM_OPENAPI_DIR", "docs/openapi")
         ROUTES_FILE.write_text(render_routes(build_routes(Path(d))))
         return 0
-    print("usage: generate.py routes", file=sys.stderr)
+    if argv[:1] == ["modules"]:
+        check = "--check" in argv
+        drift = sync_modules(schemas_dir, modules_dir, check)
+        for p in drift:
+            print(f"{'drift' if check else 'updated'}: {p}", file=sys.stderr)
+        return 1 if (check and drift) else 0
+    print("usage: generate.py routes | modules [--check]", file=sys.stderr)
     return 2
 
 

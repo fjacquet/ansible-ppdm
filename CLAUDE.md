@@ -43,8 +43,9 @@ uv run ansible-galaxy collection build --force --output-path <scratch-dir>
 
 ## Layout
 
-- `plugins/modules/`, `plugins/module_utils/`, `plugins/doc_fragments/`: populated by later tasks.
-- `meta/runtime.yml`: `requires_ansible` only for now.
+- `plugins/modules/`, `plugins/module_utils/`, `plugins/doc_fragments/` (`ppdm.py`: connection options, kept in sync with `connection_argument_spec()` by a test).
+- `tools/schemas/<module>.yml`: single source of each module's DOCUMENTATION and argument_spec (see `_example.yml`). `uv run python tools/generate.py modules [--check]` rewrites the `# BEGIN GENERATED`/`# END GENERATED` block in `plugins/modules/<module>.py` (creates a skeleton if missing). Both outputs are committed.
+- `meta/runtime.yml`: `requires_ansible` and `action_groups.ppdm`; each new module must be added to action_groups (a test enforces it).
 - `changelogs/`: antsibull-changelog config and fragments.
 - `docs/openapi/`: PPDM 20.3.0 OpenAPI specs (21200, 21201, 21202).
 - `docs/superpowers/`: design spec and implementation plan (not shipped).
