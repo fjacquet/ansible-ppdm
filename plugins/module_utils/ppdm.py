@@ -145,7 +145,10 @@ class PpdmClient:
             return route["base"]
         return route["item"].replace("{id}", str(obj_id))
 
-    def ensure(self, resource, desired, key="name", check_mode=False, secret_keys=()):
+    def ensure(self, resource, desired, key="name", check_mode=False, secret_keys=(),
+               update_secrets="on_create"):
+        if update_secrets not in ("on_create", "always"):
+            raise PpdmError("update_secrets must be 'on_create' or 'always', got %r" % (update_secrets,))
         secret_keys = set(secret_keys)
         existing = self.find_one(resource, key, desired[key])
         want = strip_readonly(resource, desired)
@@ -156,7 +159,10 @@ class PpdmClient:
                     "diff": {"before": {}, "after": _mask(want, secret_keys)}}
         before = strip_readonly(resource, existing)
         after = dict(before, **want)
-        if after == before:
+        # Secrets are write-only (GET omits/masks them): never part of the comparison.
+        plain = lambda o: {k: v for k, v in o.items() if k not in secret_keys}  # noqa: E731
+        force = update_secrets == "always" and bool(secret_keys & set(want))
+        if plain(after) == plain(before) and not force:
             return {"changed": False, "object": _mask(existing, secret_keys),
                     "diff": {"before": _mask(before, secret_keys), "after": _mask(after, secret_keys)}}
         path = self._route(resource, "PUT", existing["id"])

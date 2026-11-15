@@ -61,12 +61,52 @@ def test_ensure_check_mode_reports_change_without_writing():
     assert writes(op) == []
 
 
-def test_ensure_masks_secret_keys_in_diff_but_compares_real_values():
-    obj = {"id": "1", "name": "c1", "password": "old"}
-    c, op, _ = mk(page([obj], 1, 1), Resp({"id": "1", "name": "c1", "password": "new"}))
-    r = c.ensure("credentials", {"name": "c1", "password": "new"}, secret_keys=["password"])
-    assert r["changed"] and json.loads(writes(op)[0][1]["data"])["password"] == "new"
-    assert "new" not in json.dumps(r) and "old" not in json.dumps(r)
+def test_ensure_secret_omitted_by_get_is_idempotent():
+    c, op, _ = mk(page([{"id": "1", "name": "c1"}], 1, 1))
+    r = c.ensure("credentials", {"name": "c1", "password": "pw"}, secret_keys=["password"])
+    assert not r["changed"] and writes(op) == []
+
+
+def test_ensure_secret_masked_by_get_is_idempotent():
+    c, op, _ = mk(page([{"id": "1", "name": "c1", "password": "****"}], 1, 1))
+    assert not c.ensure("credentials", {"name": "c1", "password": "pw"}, secret_keys=["password"])["changed"]
+    assert writes(op) == []
+
+
+def test_ensure_put_includes_secret_and_masks_diff():
+    obj = {"id": "1", "name": "c1", "type": "X"}
+    c, op, _ = mk(page([obj], 1, 1), Resp({"id": "1", "name": "c1", "type": "Y"}))
+    r = c.ensure("credentials", {"name": "c1", "type": "Y", "password": "pw"}, secret_keys=["password"])
+    assert r["changed"] and json.loads(writes(op)[0][1]["data"])["password"] == "pw"
+    assert "pw" not in json.dumps(r)
+
+
+def test_ensure_update_secrets_always_forces_put():
+    c, op, _ = mk(page([{"id": "1", "name": "c1"}], 1, 1), Resp({"id": "1", "name": "c1"}))
+    r = c.ensure("credentials", {"name": "c1", "password": "pw"}, secret_keys=["password"],
+                 update_secrets="always")
+    assert r["changed"] and writes(op)[0][1]["method"] == "PUT"
+    assert json.loads(writes(op)[0][1]["data"])["password"] == "pw"
+
+
+def test_ensure_update_secrets_always_check_mode_sends_nothing():
+    c, op, _ = mk(page([{"id": "1", "name": "c1"}], 1, 1))
+    assert c.ensure("credentials", {"name": "c1", "password": "pw"}, secret_keys=["password"],
+                    update_secrets="always", check_mode=True)["changed"]
+    assert writes(op) == []
+
+
+def test_ensure_create_includes_secret():
+    c, op, _ = mk(page([], 1, 0), Resp({"id": "1", "name": "c1"}, 201))
+    r = c.ensure("credentials", {"name": "c1", "password": "pw"}, secret_keys=["password"])
+    assert json.loads(writes(op)[0][1]["data"])["password"] == "pw" and "pw" not in json.dumps(r)
+
+
+def test_ensure_invalid_update_secrets_rejected():
+    c, op, _ = mk()
+    with pytest.raises(PpdmError, match="update_secrets"):
+        c.ensure("credentials", {"name": "c1"}, update_secrets="never")
+    assert op.calls == []
 
 
 def test_ensure_missing_verb_raises_without_sending():
