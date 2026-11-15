@@ -125,13 +125,13 @@ Threat model used for severity: the playbook author is trusted and already holds
 
 ### L4. The Galaxy tarball ships local paths and dev files (CWE-538, PII)
 - **Where:** `galaxy.yml` `build_ignore`. `ansible-galaxy build` does not honour `.gitignore`. The test build, from the working tree, shipped:
-  - `.ruff_cache/` (pre-existing: created at 11:40 and 11:51, not by this audit, which ran with `--no-cache`). Its binary entries contain absolute paths such as `/Users/fjacquet/Projects/ansible-ppdm/plugins/...` and `docs/superpowers/specs/...`.
+  - `.ruff_cache/` (pre-existing: created at 11:40 and 11:51, not by this audit, which ran with `--no-cache`). Its binary entries contain absolute paths such as `<repo>/plugins/...` and `docs/superpowers/specs/...`.
   - `CLAUDE.md`, which contains `~/Projects/ansible-ppdm`.
   - `uv.lock`, `pyproject.toml`, `.pre-commit-config.yaml`.
   - `tests/unit/tools/*`, which import the excluded `tools/` package and so break in the artifact.
 
   `__pycache__`/`.pyc` are excluded by the defaults, and `.venv`, `.pytest_cache`, `.superpowers`, `docs/superpowers` and `docs/openapi` are excluded as intended. The MANIFEST.json grep hit is only the public `repository`/`issues` GitHub URL, which is fine.
-- **Proof:** `tar tzf fjacquet-ppdm-0.1.0.tar.gz` lists `.ruff_cache/0.17.5/...`. `strings` on those files shows `/Users/fjacquet/Projects/ansible-ppdm/...`.
+- **Proof:** `tar tzf fjacquet-ppdm-0.1.0.tar.gz` lists `.ruff_cache/0.17.5/...`. `strings` on those files shows `<repo>/...`.
 - **Fix:** add `.ruff_cache`, `CLAUDE.md`, `uv.lock`, `pyproject.toml`, `.pre-commit-config.yaml` and `tests/unit/tools` to `build_ignore`. Add `.ruff_cache/` to `.gitignore`. Build releases only from a clean CI checkout (`git clean -xdf` or a fresh clone). Extend the existing "tarball must not contain" check to `.ruff_cache` and `CLAUDE.md`.
 
 ### L5. Pre-commit supply chain: mutable refs and unpinned npm dependencies (CWE-1357 / CWE-829)
@@ -175,7 +175,7 @@ Threat model used for severity: the playbook author is trusted and already holds
 - **I5. Secret masking is top-level only** (`_mask`, `info_main` `secret_fields`). Credential `extraInfo` and nested objects are not masked. This is already ledgered and is not worse than reported. The OpenAPI `Credential` has `secretId` (a lockbox pointer, not a secret) and `password` at the top level only.
 - **I6. `certificate` does not send `strict=true`.** The API's `strict` parameter checks that the host is in the certificate's SAN. With `accept_any_certificate=true` (an opt-in, ledgered), a certificate for any name is accepted. With a pin, this does not matter. The fingerprint hash algorithm reported by PPDM (SHA-1 vs SHA-256) is not documented in the OpenAPI. If it is SHA-1, consider recommending a local SHA-256 check (see L6).
 - **I7. Bootstrap readiness task output.** `register: __bootstrap_configurations` (not no_log) holds the full `GET /api/v2/configurations` object, which is printed at `-v`. Whether PPDM returns `osUsers[].password`, `lockbox.passphrase` or `applicationUserPassword` populated or masked is unverified. Check this on the lab. If they are populated, set `no_log: true` on that task and expose only `status`/`id`/`gettingStartedCompleted` via `set_fact`.
-- **I8. PII:** the author's email `fred@ljf.ch` appears only in `galaxy.yml` `authors` (intended) and in the git author metadata of all 30 commits (public once pushed: this is the author's choice; GitHub's noreply address is an alternative). `docs/superpowers/plans/...:57` contains `/Users/fjacquet/Projects/csm-powerscale-demo/...`. It is not shipped in the tarball (build_ignore), but it is public on GitHub. Test fixtures use dummy secrets only. There are no factory default passwords, RFC1918 IPs, internal hostnames, private keys or JWTs in tracked files outside `docs/openapi` (gitleaks covered `docs/openapi`, which came back clean).
+- **I8. PII:** the author's email `fred@ljf.ch` appears only in `galaxy.yml` `authors` (intended) and in the git author metadata of all 30 commits (public once pushed: this is the author's choice; GitHub's noreply address is an alternative). `docs/superpowers/plans/...:57` contains `<csm-powerscale-demo>/...`. It is not shipped in the tarball (build_ignore), but it is public on GitHub. Test fixtures use dummy secrets only. There are no factory default passwords, RFC1918 IPs, internal hostnames, private keys or JWTs in tracked files outside `docs/openapi` (gitleaks covered `docs/openapi`, which came back clean).
 
 ## Checked and safe
 

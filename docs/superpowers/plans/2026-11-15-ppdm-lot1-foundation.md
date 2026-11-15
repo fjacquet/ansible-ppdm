@@ -54,7 +54,7 @@ In 20.3.0 `/api/v2/storage-systems` has only GET and PUT (no POST/DELETE): Data 
 
 **Files:**
 - Create: `pyproject.toml`, `galaxy.yml`, `meta/runtime.yml`, `README.md`, `NOTICE`, `LICENSE`, `CLAUDE.md`, `changelogs/config.yaml`, `changelogs/fragments/.gitkeep`, `plugins/{modules,module_utils,doc_fragments}/__init__.py`, `tests/unit/conftest.py`
-- Copy: `/Users/fjacquet/Projects/csm-powerscale-demo/docs/openapi/{21200,21201,21202}-20.3.0.json` to `docs/openapi/`
+- Copy: `<csm-powerscale-demo>/docs/openapi/{21200,21201,21202}-20.3.0.json` to `docs/openapi/`
 
 **Interfaces:**
 - Produces: importable package layout at `ansible_collections/fjacquet/ppdm` for tests and sanity; `uv run pytest` and `uv run ansible-test` work.
