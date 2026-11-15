@@ -1,5 +1,5 @@
 ---
-# Assign the assets matching a filter to a policy (the body is a JSON array of asset ids).
+# Assign the assets matching a filter to a policy; only the missing assignments are sent. Refuses to run unless assign_confirm is true.
 # Inspired by bottkars/ansible_ppdm `120.2_playbook_add_assets_to_policy.yaml` (workflow only; rewritten for fjacquet.ppdm).
 # Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
 - name: Assign assets to a protection policy
@@ -15,28 +15,26 @@
       password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
       port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
   tasks:
-    - name: Get the protection policy
-      fjacquet.ppdm.api:
-        path: /api/v3/protection-policies
-        query:
-          filter: name eq "{{ policy_name }}"
-      register: ppdm_policy
-
-    - name: Check that exactly one policy matches
+    - name: Check that the run is confirmed
       ansible.builtin.assert:
-        that: ppdm_policy.result | length == 1
-        fail_msg: Expected exactly one protection policy named {{ policy_name }}.
+        that: assign_confirm | bool
+        fail_msg: Set assign_confirm=true to assign the assets to the policy.
 
-    - name: Get the assets to assign
+    - name: Get the assets
       fjacquet.ppdm.api:
         path: /api/v2/assets
         query:
           filter: "{{ asset_filter }}"
-      register: assets_to_assign
+      register: matched_assets
+
+    - name: Check that assets match the filter
+      ansible.builtin.assert:
+        that:
+          - asset_filter | length > 0
+          - matched_assets.result | length > 0
+        fail_msg: A non-empty asset_filter is required and at least one asset must match it ({{ asset_filter }}).
 
     - name: Assign the assets to the policy
-      fjacquet.ppdm.api:
-        method: POST
-        path: "/api/v2/protection-policies/{{ ppdm_policy.result[0].id }}/asset-assignments"
-        body: "{{ assets_to_assign.result | map(attribute='id') | list }}"
-      when: assets_to_assign.result | length > 0
+      fjacquet.ppdm.protection_policy_assets:
+        policy: "{{ policy_name }}"
+        asset_ids: "{{ matched_assets.result | map(attribute='id') | list }}"

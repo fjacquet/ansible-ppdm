@@ -34,6 +34,7 @@ jobs:
           uv run ruff check .
           uv run ruff format --check .
           uv run python tools/generate.py modules --check
+          uv run python tools/generate.py enums --check
       - name: Lint roles and playbooks
         working-directory: ansible_collections/fjacquet/ppdm
         env:

@@ -44,9 +44,9 @@ WRITE_ONLY_KEYS = frozenset(
 )
 
 
-def strip_readonly(resource: str, obj: dict) -> dict:
-    """Copy of obj without the readOnly properties of the resource (from ROUTES) and without _links."""
-    drop = set(ROUTES[resource]["readonly"]) | {"_links"}
+def strip_readonly(resource: str, obj: dict, readonly: Any = None) -> dict:
+    """Copy of obj without the readOnly properties (from ROUTES, or the readonly override) and without _links."""
+    drop = set(ROUTES[resource]["readonly"] if readonly is None else readonly) | {"_links"}
     return {k: v for k, v in obj.items() if k not in drop}
 
 
@@ -54,6 +54,15 @@ def filter_eq(key: str, value: Any) -> str:
     """PPDM filter expression `key eq "value"` (backslash and double quote escaped)."""
     # shortcut: the OpenAPI does not document filter escaping; backslash-escaping \ and " is best effort.
     return '%s eq "%s"' % (key, str(value).replace("\\", "\\\\").replace('"', '\\"'))
+
+
+def is_subset(want: Any, have: Any) -> bool:
+    """True when every dict key of want is in have with a subset value; lists must have the same length."""
+    if isinstance(want, dict):
+        return isinstance(have, dict) and all(k in have and is_subset(v, have[k]) for k, v in want.items())
+    if isinstance(want, list):
+        return isinstance(have, list) and len(want) == len(have) and all(map(is_subset, want, have))
+    return want == have
 
 
 def merge_config(named: dict, config: dict | None) -> dict:
@@ -386,16 +395,23 @@ class PpdmClient:
         secret_keys: Any = (),
         update_secrets: str = "on_create",
         create: bool = True,
+        update_verb: str | None = None,
+        readonly: Any = None,
+        subset_keys: Any = (),
     ) -> dict:
         """Create or update one object; the merge over the existing object is shallow (top-level keys only).
 
-        With create=False a missing object is a PpdmError instead of a POST.
+        With create=False a missing object is a PpdmError instead of a POST. update_verb None means PUT when
+        the route offers it, else PATCH. readonly overrides the ROUTES readOnly key set. A desired value of a
+        subset_keys key that is a subset of the existing one (see is_subset) counts as unchanged, so server-added
+        ids and defaults do not cause an update. An update then sends the existing value (with its ids) for those keys,
+        and the desired value as given for keys that really differ.
         """
         if update_secrets not in ("on_create", "always"):
             raise PpdmError("update_secrets must be 'on_create' or 'always', got %r" % (update_secrets,))
         secret_keys = set(secret_keys)
         existing = self.find_one(resource, key, desired[key])
-        want = strip_readonly(resource, desired)
+        want = strip_readonly(resource, desired, readonly)
         if existing is None:
             if not create:
                 raise PpdmError("%s %s=%s not found" % (resource, key, self.scrub_text(desired[key], 200)))
@@ -406,33 +422,36 @@ class PpdmClient:
                 "object": _mask(obj, secret_keys),
                 "diff": {"before": {}, "after": _mask(want, secret_keys)},
             }
-        before = strip_readonly(resource, existing)
+        before = strip_readonly(resource, existing, readonly)
         after = dict(before, **want)
+        same = {k: before[k] for k in subset_keys if k in want and k in before and is_subset(want[k], before[k])}
+        shown = dict(after, **same)
 
         # Secrets are write-only (GET omits/masks them): never part of the comparison.
         def plain(o):
             return {k: v for k, v in o.items() if k not in secret_keys}
 
         force = update_secrets == "always" and bool(secret_keys & set(want))
-        if plain(after) == plain(before) and not force:
+        if plain(shown) == plain(before) and not force:
             return {
                 "changed": False,
                 "object": _mask(existing, secret_keys),
                 "diff": {
                     "before": _mask(before, secret_keys),
-                    "after": _mask(after, secret_keys),
+                    "after": _mask(shown, secret_keys),
                 },
             }
-        path = self._route(resource, "PUT", self._item_id(resource, existing))
+        verb = update_verb or ("PUT" if "PUT" in ROUTES[resource]["methods"] else "PATCH")
+        path = self._route(resource, verb, self._item_id(resource, existing))
         drop = (WRITE_ONLY_KEYS | secret_keys) - set(want)
-        body = {k: v for k, v in after.items() if k not in drop}
-        obj = after if check_mode else (self.request("PUT", path, body=body) or after)
+        body = {k: v for k, v in shown.items() if k not in drop}
+        obj = shown if check_mode else (self.request(verb, path, body=body) or shown)
         return {
             "changed": True,
             "object": _mask(obj, secret_keys),
             "diff": {
                 "before": _mask(before, secret_keys),
-                "after": _mask(after, secret_keys),
+                "after": _mask(shown, secret_keys),
             },
         }
 
@@ -448,6 +467,35 @@ class PpdmClient:
             "changed": True,
             "diff": {"before": _mask(strip_readonly(resource, existing), set(secret_keys)), "after": {}},
         }
+
+    def start_action(self, path: str, body: Any, check_mode: bool) -> dict:
+        """POST an action; {changed, response}. A 409 is a PpdmError with status 409 (caller decides).
+
+        Nothing is sent in check mode.
+        """
+        if check_mode:
+            return {"changed": True, "response": None}
+        return {"changed": True, "response": self.request("POST", path, body=body)}
+
+    def await_activity(self, activity_id: str, timeout: int) -> dict:
+        """Poll the activity to COMPLETED; {"activity"} (plus "warnings" on OK_WITH_ERRORS), PpdmError unless OK."""
+        act = self.wait_activity(activity_id, timeout)
+        result = act.get("result") if isinstance(act.get("result"), dict) else {}
+        status = result.get("status")
+        out = {"activity": act}
+        if status == "OK_WITH_ERRORS":
+            out["warnings"] = [self.scrub_text(result.get("error") or result, 1000)]
+        elif status != "OK":
+            raise PpdmError(
+                "activity %s ended %s: %s"
+                % (
+                    self.scrub_text(act.get("id"), 64),
+                    self.scrub_text(status, 64),
+                    self.scrub_text(result.get("error"), 500),
+                ),
+                body=self.scrub(act),  # the final activity, so a caller can keep it
+            )
+        return out
 
     def wait_activity(self, activity_id: str, timeout: int, interval: int = 5) -> dict:
         """Poll the activity until it is COMPLETED and return it.
@@ -518,14 +566,20 @@ def client_from_module(module: AnsibleModule) -> PpdmClient:
     return client
 
 
-def info_main(resource: str, result_key: str, argument_spec: dict, secret_fields: Any = ()) -> None:
-    """Shared main() of the read-only *_info modules."""
+def info_main(
+    resource: str, result_key: str, argument_spec: dict, secret_fields: Any = (), extra_eq: dict | None = None
+) -> None:
+    """Shared main() of the read-only *_info modules.
+
+    extra_eq maps an extra option to the object field it must equal exactly (ANDed into the filter, re-checked).
+    """
     module = AnsibleModule(
         argument_spec=dict(connection_argument_spec(), **argument_spec),
         supports_check_mode=True,
         mutually_exclusive=[("id", "name"), ("id", "filter"), ("name", "filter")],
     )
     p = module.params
+    extra = extra_eq or {}
     if p["name"] == "":  # an empty name must not silently become "list everything"
         module.fail_json(msg="name must not be empty (omit it to list all)")
     client = client_from_module(module)
@@ -538,15 +592,20 @@ def info_main(resource: str, result_key: str, argument_spec: dict, secret_fields
                     raise
                 found = []
             else:
-                if not isinstance(body, dict):
+                if body is not None and not isinstance(body, dict):
                     raise PpdmError("GET %s/%s failed: unexpected response" % (resource, p["id"]))
-                found = [body]
+                found = [] if body is None else [body]  # 204 (no body) means not found
         else:
-            flt = filter_eq("name", p["name"]) if p["name"] else p["filter"]
-            found = client.list_all(resource, filter=flt)
+            terms = [filter_eq("name", p["name"])] if p["name"] else []
+            terms += [filter_eq(f, p[o]) for o, f in extra.items() if p[o] is not None]
+            if p["filter"]:  # parenthesised so an `or` in it cannot escape the ANDed terms
+                terms.insert(0, "(%s)" % p["filter"] if terms else p["filter"])
+            found = client.list_all(resource, filter=" and ".join(terms) or None)
             if p["name"]:  # the server-side filter is advisory (and I(filter) is passed through unchanged)
                 found = [o for o in found if isinstance(o, dict) and o.get("name") == p["name"]]
     except PpdmError as err:
         fail_from(module, err)
+    for opt, field in extra.items():  # the server-side filter is advisory
+        found = [o for o in found if isinstance(o, dict) and (p[opt] is None or o.get(field) == p[opt])]
     items = [{k: v for k, v in o.items() if k not in secret_fields} for o in found]
     module.exit_json(**{"changed": False, result_key: items})

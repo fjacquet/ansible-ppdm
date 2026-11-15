@@ -1,0 +1,25 @@
+---
+# Run a v3 protection rule now so PPDM applies it to the matching assets (the rule is found by name).
+# Refuses to run unless rule_run_confirm is true.
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Run a protection rule now
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Check that the run is confirmed
+      ansible.builtin.assert:
+        that: rule_run_confirm | bool
+        fail_msg: Set rule_run_confirm=true to run the rule.
+
+    - name: Run the protection rule
+      fjacquet.ppdm.protection_rule_run:
+        rule: "{{ rule_name }}"

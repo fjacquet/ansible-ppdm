@@ -1,6 +1,6 @@
 ---
 # Create the OS credential and a daily synthetic full policy unless one of that name exists.
-# Assumptions, not verified live: storageContainerId is the Data Domain storage system id, and the objective id is generated.
+# Assumptions, not verified live: storageContainerId is the Data Domain storage system id, and the objective id is a to_uuid of the policy name.
 # Inspired by bottkars/ansible_ppdm `120.1_playbook_add_exchange_policy.yaml` (workflow only; rewritten for fjacquet.ppdm).
 # Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional), APP_CREDENTIAL_PASSWORD.
 - name: Create a Microsoft Exchange protection policy

@@ -1,0 +1,25 @@
+---
+# Create a v3 rule assigning the assets selected by rule_filters (VMs with a tag by default) to a protection policy,
+# or update it when it differs (idempotent). Edit the rule_filters variable to select other assets.
+# The policy from protection.create_vm_policy (vm_policy_name) must exist first.
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Create a protection rule
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Ensure the protection rule
+      fjacquet.ppdm.protection_rule:
+        name: "{{ rule_name }}"
+        action: ASSIGN_PROTECTION_POLICY
+        priority: "{{ rule_priority }}"
+        protection_policy: "{{ vm_policy_name }}"
+        filters: "{{ rule_filters }}"

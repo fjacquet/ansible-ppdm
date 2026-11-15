@@ -5,8 +5,8 @@ releases:
       release_summary: First pre-release of the unofficial fjacquet.ppdm collection
         for Dell PowerProtect Data Manager 20.3.0. It provides ten modules (a generic
         ``api`` module, info modules, and ensure-style modules), a ``bootstrap`` role
-        and 58 playbooks grouped by use case. The ``api`` module accepts a list as well
-        as a dictionary as request body, and the modules return the raw API response
+        and 58 playbooks grouped by use case. The ``api`` module accepts a list as
+        well as a dictionary as request body, and the modules return the raw API response
         bodies (secrets masked), not reshaped data.
     fragments:
     - 0.1.0-release-summary.yml
@@ -40,5 +40,101 @@ releases:
       namespace: ''
     - description: Get storage systems from PowerProtect Data Manager
       name: storage_system_info
+      namespace: ''
+    release_date: '2026-11-15'
+  0.2.0:
+    changes:
+      breaking_changes:
+      - protection.add_file_system_policy and protection.add_mssql_policy playbooks
+        - now update an existing policy when it differs (PATCH, the whole objectives
+        list is replaced) instead of leaving it unchanged.
+      - protection.assign_assets_to_policy playbook - now requires ``assign_confirm=true``.
+      - protection.run_policy playbook - now requires ``policy_run_confirm=true``
+        and a non-empty ``asset_filter``, and the ``backup_level`` variable is removed
+        (every objective of the policy runs).
+      release_summary: Adds the protection modules ``protection_policy``, ``protection_policy_info``,
+        ``protection_policy_assets``, ``protection_policy_run``, ``discovery``, ``protection_rule``,
+        ``protection_rule_info`` and ``protection_rule_run``, and five protection
+        playbooks (63 in total). The rule modules use the v2 rule API, which PPDM
+        deprecated in 20.2 and removes in 20.6.
+    fragments:
+    - lot2-modules.yml
+    modules:
+    - description: Start a discovery on PowerProtect Data Manager
+      name: discovery
+      namespace: ''
+    - description: Manage protection policies on PowerProtect Data Manager
+      name: protection_policy
+      namespace: ''
+    - description: Assign or unassign assets to a protection policy on PowerProtect
+        Data Manager
+      name: protection_policy_assets
+      namespace: ''
+    - description: Get protection policies from PowerProtect Data Manager
+      name: protection_policy_info
+      namespace: ''
+    - description: Run a protection policy now on PowerProtect Data Manager
+      name: protection_policy_run
+      namespace: ''
+    - description: Manage protection rules on PowerProtect Data Manager
+      name: protection_rule
+      namespace: ''
+    - description: Get protection rules from PowerProtect Data Manager
+      name: protection_rule_info
+      namespace: ''
+    - description: Run protection rules or preview their conflicts on PowerProtect
+        Data Manager
+      name: protection_rule_run
+      namespace: ''
+    release_date: '2026-11-15'
+  0.3.0:
+    changes:
+      breaking_changes:
+      - 'protection_rule - now uses the v3 rule API. The options ``conditions`` and ``condition_connector``
+        are replaced by ``filters`` (the object subtype goes in ``filters[].objectSubtype``,
+        there is no ``object_subtypes`` option), ``tenant`` is removed, ``policy`` is replaced
+        by ``action`` plus ``protection_policy`` (or ``protection_policy_id``), and ``action``
+        lost ``MOVE_TO_GROUP`` and takes the v3 action names. New options are ``variant``,
+        ``scopes``, ``categories``, ``resource_group`` and ``resource_group_id``.'
+      - protection_rule and protection_rule_info - the returned objects (``protection_rule``,
+        ``protection_rules``) now have the v3 shape, for example ``action`` is a dict
+        instead of a string, and ``inventorySourceType`` and ``conditions`` are gone.
+      - protection_rule_run - ``rule`` keeps its name but is now a required rule name
+        or id (a string), no longer a ProtectionRule dict (the preview body). The module
+        runs one rule per call, the old ``rules`` list ran several rules or all rules
+        of an inventory source type. ``inventory_source_type`` is replaced by ``object_subtypes``,
+        and ``preview_action`` is removed (``action_name`` is the run action, the preview
+        ignores it).
+      - 'kubernetes.add_policy_and_rule playbook - now creates or updates the rule (before,
+        it only created it when missing) and runs only that rule (before, all Kubernetes
+        rules). The ``protection.create_rule`` and ``protection.run_rule`` playbook variables
+        changed accordingly.'
+      minor_changes:
+      - Adds the modules resource_group, resource_group_info, protection_group, protection_group_info,
+        asset_info and host_info.
+      - asset_info omits the top-level ``credentials`` field of the assets it returns;
+        host_info omits nothing.
+      release_summary: Moves the protection rule modules to the v3 rule API and adds
+        resource group, protection group, asset and host modules.
+    fragments:
+    - lot3-rules-v3.yml
+    modules:
+    - description: Get assets from PowerProtect Data Manager
+      name: asset_info
+      namespace: ''
+    - description: Get hosts from PowerProtect Data Manager
+      name: host_info
+      namespace: ''
+    - description: Manage protection groups on PowerProtect Data Manager
+      name: protection_group
+      namespace: ''
+    - description: Get protection groups from PowerProtect Data Manager
+      name: protection_group_info
+      namespace: ''
+    - description: Manage resource groups on PowerProtect Data Manager
+      name: resource_group
+      namespace: ''
+    - description: Get resource groups from PowerProtect Data Manager
+      name: resource_group_info
       namespace: ''
     release_date: '2026-11-15'

@@ -1,0 +1,109 @@
+module: protection_group
+resource: protection-groups
+key: name
+kind: ensure
+short_description: Manage protection groups on PowerProtect Data Manager
+description:
+  - Create, update or remove a protection group, identified by its name.
+  - PowerProtect Data Manager 20.3.0 only knows Oracle Data Guard and Storage Direct (PowerMax and PowerStore) protection groups, see I(type).
+  - The members of a group are chosen by I(natural_ids), there is no member list of asset ids.
+  - Updates use PATCH.
+  - Protection group names are assumed to be unique (the group is found by exact name); if two groups share the name the module fails and lists the IDs.
+version_added: 0.3.0
+attributes:
+  check_mode:
+    support: full
+  diff_mode:
+    support: full
+notes:
+  - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
+  - The C(ProtectionGroup) schema of the 20.3.0 OpenAPI has no required field.
+  - The server-derived fields C(id), C(createdAt), C(updatedAt), C(lastAvailableCopyTime), C(lastDiscoveryStatus), C(protectionStatus), C(operatingSystems) and C(supportedProtectionProtocols) are never sent and are ignored by the idempotence check.
+  - The policy reference is sent as C(protectionPolicyRef) with only its C(id). PPDM adds C(name) and C(backupMechanism) itself, so they do not cause a change.
+seealso:
+  - module: fjacquet.ppdm.protection_group_info
+    description: List protection groups.
+  - module: fjacquet.ppdm.protection_policy
+    description: Manage protection policies.
+options:
+  state:
+    type: str
+    choices: [present, absent]
+    default: present
+    description: Whether the protection group must exist.
+  name:
+    type: str
+    required: true
+    description: Protection group name, used as the key.
+  description:
+    type: str
+    description: Protection group description.
+  type:
+    type: str
+    choices: [ORACLE_DATA_GUARD, POWER_MAX_STORAGE_DIRECT_APPLICATION, STORAGE_DIRECT_APPLICATION]
+    description: Type of the protection group.
+  subtype:
+    type: str
+    choices: [GENERIC, MEDITECH]
+    description: Subtype, for C(STORAGE_DIRECT_APPLICATION) groups.
+  member_asset_type:
+    type: str
+    choices: [ORACLE_DATABASE, POWERSTORE_BLOCK, POWER_MAX_BLOCK]
+    description: Asset type of the member assets.
+  backup_strategy:
+    type: str
+    choices: [BACKUP_ALL, BACKUP_BY_RANK, BACKUP_CUSTOM, BACKUP_PRIMARY_ONLY, BACKUP_STANDALONE]
+    description: Backup strategy of the group.
+  auto_assign_to_policy:
+    type: bool
+    description: Whether member assets are automatically assigned to the protection policy given by I(protection_policy) or I(protection_policy_id).
+  protection_policy:
+    type: str
+    description: Name of the protection policy, resolved to its id (sent as C(protectionPolicyRef.id)). The module fails when no policy or several policies have this name. Mutually exclusive with I(protection_policy_id).
+  protection_policy_id:
+    type: str
+    description: Id of the protection policy, used as is. Mutually exclusive with I(protection_policy).
+  natural_ids:
+    type: list
+    elements: str
+    description: Natural ids that decide which assets belong to the group. The list replaces the whole list on PPDM.
+  config:
+    type: dict
+    description:
+      - Extra request body fields passed through as is, for example C(dataBackupRole) or C(logBackupRole).
+      - The module fails when C(config) contains C(id) or C(_links), the server owns them.
+      - The module fails when C(config) contains a key that a named option sets (C(name), C(description), C(type), C(subtype), C(memberAssetType), C(backupStrategy), C(autoAssignToPolicy), C(protectionPolicyRef) and C(naturalIds)), use the option instead.
+      - Each top-level key replaces the whole value of that field, the merge with the existing object is shallow (top-level keys only).
+      - Do not put secrets here, values are not masked in diff or return values.
+examples: |
+  - name: Create an Oracle Data Guard protection group
+    fjacquet.ppdm.protection_group:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      name: ora-dg
+      type: ORACLE_DATA_GUARD
+      member_asset_type: ORACLE_DATABASE
+      backup_strategy: BACKUP_PRIMARY_ONLY
+      auto_assign_to_policy: true
+      protection_policy: oracle-gold
+      natural_ids: ["orcl-dg-1"]
+
+  - name: Remove a protection group
+    fjacquet.ppdm.protection_group:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      name: ora-dg
+      state: absent
+return: |
+  protection_group:
+    description: The managed protection group.
+    returned: success
+    type: dict
+    sample: {"id": "1", "name": "ora-dg", "type": "ORACLE_DATA_GUARD"}
+  diff:
+    description: Before and after.
+    returned: success
+    type: dict
+    sample: {"before": {}, "after": {"name": "ora-dg"}}

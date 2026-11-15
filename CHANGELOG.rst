@@ -4,6 +4,65 @@ fjacquet.ppdm Release Notes
 
 .. contents:: Topics
 
+v0.3.0
+======
+
+Release Summary
+---------------
+
+Moves the protection rule modules to the v3 rule API and adds resource group, protection group, asset and host modules.
+
+Minor Changes
+-------------
+
+- Adds the modules resource_group, resource_group_info, protection_group, protection_group_info, asset_info and host_info.
+- asset_info omits the top-level ``credentials`` field of the assets it returns; host_info omits nothing.
+
+Breaking Changes / Porting Guide
+--------------------------------
+
+- kubernetes.add_policy_and_rule playbook - now creates or updates the rule (before, it only created it when missing) and runs only that rule (before, all Kubernetes rules). The ``protection.create_rule`` and ``protection.run_rule`` playbook variables changed accordingly.
+- protection_rule - now uses the v3 rule API. The options ``conditions`` and ``condition_connector`` are replaced by ``filters`` (the object subtype goes in ``filters[].objectSubtype``, there is no ``object_subtypes`` option), ``tenant`` is removed, ``policy`` is replaced by ``action`` plus ``protection_policy`` (or ``protection_policy_id``), and ``action`` lost ``MOVE_TO_GROUP`` and takes the v3 action names. New options are ``variant``, ``scopes``, ``categories``, ``resource_group`` and ``resource_group_id``.
+- protection_rule and protection_rule_info - the returned objects (``protection_rule``, ``protection_rules``) now have the v3 shape, for example ``action`` is a dict instead of a string, and ``inventorySourceType`` and ``conditions`` are gone.
+- protection_rule_run - ``rule`` keeps its name but is now a required rule name or id (a string), no longer a ProtectionRule dict (the preview body). The module runs one rule per call, the old ``rules`` list ran several rules or all rules of an inventory source type. ``inventory_source_type`` is replaced by ``object_subtypes``, and ``preview_action`` is removed (``action_name`` is the run action, the preview ignores it).
+
+New Modules
+-----------
+
+- asset_info - Get assets from PowerProtect Data Manager
+- host_info - Get hosts from PowerProtect Data Manager
+- protection_group - Manage protection groups on PowerProtect Data Manager
+- protection_group_info - Get protection groups from PowerProtect Data Manager
+- resource_group - Manage resource groups on PowerProtect Data Manager
+- resource_group_info - Get resource groups from PowerProtect Data Manager
+
+v0.2.0
+======
+
+Release Summary
+---------------
+
+Adds the protection modules ``protection_policy``, ``protection_policy_info``, ``protection_policy_assets``, ``protection_policy_run``, ``discovery``, ``protection_rule``, ``protection_rule_info`` and ``protection_rule_run``, and five protection playbooks (63 in total). The rule modules use the v2 rule API, which PPDM deprecated in 20.2 and removes in 20.6.
+
+Breaking Changes / Porting Guide
+--------------------------------
+
+- protection.add_file_system_policy and protection.add_mssql_policy playbooks - now update an existing policy when it differs (PATCH, the whole objectives list is replaced) instead of leaving it unchanged.
+- protection.assign_assets_to_policy playbook - now requires ``assign_confirm=true``.
+- protection.run_policy playbook - now requires ``policy_run_confirm=true`` and a non-empty ``asset_filter``, and the ``backup_level`` variable is removed (every objective of the policy runs).
+
+New Modules
+-----------
+
+- discovery - Start a discovery on PowerProtect Data Manager
+- protection_policy - Manage protection policies on PowerProtect Data Manager
+- protection_policy_assets - Assign or unassign assets to a protection policy on PowerProtect Data Manager
+- protection_policy_info - Get protection policies from PowerProtect Data Manager
+- protection_policy_run - Run a protection policy now on PowerProtect Data Manager
+- protection_rule - Manage protection rules on PowerProtect Data Manager
+- protection_rule_info - Get protection rules from PowerProtect Data Manager
+- protection_rule_run - Run protection rules or preview their conflicts on PowerProtect Data Manager
+
 v0.1.0
 ======
 

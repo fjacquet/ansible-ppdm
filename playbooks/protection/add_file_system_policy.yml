@@ -1,6 +1,6 @@
 ---
-# Create a daily synthetic full policy on a Data Domain unless one of that name exists.
-# Assumptions, not verified live: storageContainerId is the Data Domain storage system id, and the objective id is generated.
+# Create a daily synthetic full policy on a Data Domain, or update it when it differs (idempotent).
+# Assumptions, not verified live: storageContainerId is the Data Domain storage system id, and preferredInterfaceId is its first preferred interface.
 # Inspired by bottkars/ansible_ppdm `120.1_playbook_add_fs_policy.yaml` (workflow only; rewritten for fjacquet.ppdm).
 # Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
 - name: Create a file system protection policy
@@ -16,13 +16,6 @@
       password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
       port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
   tasks:
-    - name: Get the policy of that name
-      fjacquet.ppdm.api:
-        path: /api/v3/protection-policies
-        query:
-          filter: name eq "{{ fs_policy_name }}"
-      register: existing_policy
-
     - name: Get the Data Domain storage system
       fjacquet.ppdm.storage_system_info:
         name: "{{ ddve_hostname }}"
@@ -40,44 +33,39 @@
           (policy_storage_system.storage_systems[0].details.dataDomain.preferredInterfaces | default([]) | length > 0)
         fail_msg: The Data Domain has no preferred interface; set preferred_interface_id explicitly.
 
-    - name: Create the file system protection policy
-      fjacquet.ppdm.api:
-        method: POST
-        path: /api/v3/protection-policies
-        body:
-          assetType: FILE_SYSTEM
-          name: "{{ fs_policy_name }}"
-          description: File system policy created by Ansible
-          purpose: CENTRALIZED
-          objectives:
-            - id: "{{ (fs_policy_name ~ '-backup') | to_uuid }}"
-              type: BACKUP
-              target:
-                storageContainerId: "{{ policy_storage_system.storage_systems[0].id }}"
-                preferredInterfaceId: "{{ preferred_interface_id if (preferred_interface_id | default('', true) | length > 0) else
-                  policy_storage_system.storage_systems[0].details.dataDomain.preferredInterfaces[0].networkName }}"
-              operations:
-                - backupLevel: SYNTHETIC_FULL
-                  triggerType: ON_SCHEDULE
-                  schedule:
-                    recurrence:
-                      pattern:
-                        type: DAILY
-                        interval: 1
-                    window:
-                      startTime: "{{ policy_window_start }}"
-                      duration: PT10H
-              retentions:
-                - time:
-                    - type: RETENTION
-                      unitType: DAY
-                      unitValue: 3
-              config:
-                backupMechanism: AUTO
-              options:
-                systemStateRecoveryOnly: false
-                ignoreMissingSystemStateFiles: true
-                excludeNonCriticalDynamicDisks: false
-                ignoreThirdPartyServices: false
-                debugEnabled: false
-      when: existing_policy.result | length == 0
+    - name: Ensure the file system protection policy
+      fjacquet.ppdm.protection_policy:
+        name: "{{ fs_policy_name }}"
+        asset_type: FILE_SYSTEM
+        description: File system policy created by Ansible
+        purpose: CENTRALIZED
+        objectives:
+          - type: BACKUP
+            target:
+              storageContainerId: "{{ policy_storage_system.storage_systems[0].id }}"
+              preferredInterfaceId: "{{ preferred_interface_id if (preferred_interface_id | default('', true) | length > 0) else
+                policy_storage_system.storage_systems[0].details.dataDomain.preferredInterfaces[0].networkName }}"
+            operations:
+              - backupLevel: SYNTHETIC_FULL
+                triggerType: ON_SCHEDULE
+                schedule:
+                  recurrence:
+                    pattern:
+                      type: DAILY
+                      interval: 1
+                  window:
+                    startTime: "{{ policy_window_start }}"
+                    duration: PT10H
+            retentions:
+              - time:
+                  - type: RETENTION
+                    unitType: DAY
+                    unitValue: 3
+            config:
+              backupMechanism: AUTO
+            options:
+              systemStateRecoveryOnly: false
+              ignoreMissingSystemStateFiles: true
+              excludeNonCriticalDynamicDisks: false
+              ignoreThirdPartyServices: false
+              debugEnabled: false

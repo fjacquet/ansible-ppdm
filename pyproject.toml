@@ -24,7 +24,7 @@ pythonpath = ["."]
 force-exclude = true
 line-length = 120
 target-version = "py310"
-extend-exclude = [".superpowers", ".venv", ".ansible_collections", "docs/openapi", "plugins/module_utils/_routes.py"]
+extend-exclude = [".superpowers", ".venv", ".ansible_collections", "docs/openapi", "plugins/module_utils/_routes.py", "plugins/module_utils/_enums.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B"]

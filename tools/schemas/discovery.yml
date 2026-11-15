@@ -1,0 +1,94 @@
+module: discovery
+resource: discoveries
+key: name
+kind: action
+short_description: Start a discovery on PowerProtect Data Manager
+description:
+  - Start a discovery of an inventory source through C(POST /api/v2/discoveries).
+  - The module always reports C(changed=true) when it starts a discovery. In check mode nothing is sent and C(changed=true) is reported.
+  - PPDM answers 409 when a similar discovery is already running. The module then fails, unless I(ignore_running=true), in which case it reports C(changed=false).
+version_added: 0.2.0
+attributes:
+  check_mode:
+    support: full
+  diff_mode:
+    support: none
+notes:
+  - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
+  - "Verified against the v2 spec, the only required field of the Discovery body is C(start), the starting resource. The module builds it as C(/inventory-sources/<id>) from I(inventory_source), found by name first, then by id. C(level) defaults to C(DataCopies) on the server when omitted."
+  - "The 202 answer is the Discovery object, whose C(taskId) is the id of the discovery activity. With I(wait=true) that activity is polled to completion and the module fails unless it ends C(OK) (C(OK_WITH_ERRORS) only adds a warning)."
+seealso:
+  - module: fjacquet.ppdm.inventory_source
+    description: Manage inventory sources.
+options:
+  inventory_source:
+    type: str
+    required: true
+    description: Inventory source name or id to discover from.
+  level:
+    type: str
+    choices: [APPLICATION_SYSTEM, APPSERVER, ASSET, DataCopies, Device, HOST, HOSTFULL, INVENTORY_SOURCE, ManagementInterface, NETWORK_HOST, ProtectableData, STORAGE_SYSTEM, STORAGE_TARGET]
+    description: How deeply to discover. PPDM defaults to C(DataCopies) when omitted.
+  name:
+    type: str
+    description: Name of the discovery. PPDM assigns a default when omitted.
+  description:
+    type: str
+    description: Description of the discovery. PPDM assigns a default when omitted.
+  config:
+    type: dict
+    description:
+      - The module fails when C(config) contains a key that a named option sets (C(start), C(level), C(name) and C(description)), use the option instead.
+      - The module also fails when C(config) contains C(id) or C(_links), the server owns them.
+      - Extra request body fields passed through as is, for example C(extendedDiscoveryData) or C(schedule).
+      - Do not put secrets here, values are not masked in return values.
+  wait:
+    type: bool
+    default: false
+    description:
+      - Wait for the discovery activity (C(taskId) of the answer) to complete.
+      - Fails unless the activity C(result.status) is C(OK) or C(OK_WITH_ERRORS) (the latter only warns).
+  wait_timeout:
+    type: int
+    default: 600
+    description: Seconds to wait for the activity when I(wait=true).
+  ignore_running:
+    type: bool
+    default: false
+    description: Report C(changed=false) instead of failing when PPDM answers 409 because a similar discovery is already running.
+examples: |
+  - name: Discover the vCenter and wait
+    fjacquet.ppdm.discovery:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      inventory_source: vcenter.example.com
+      level: DataCopies
+      wait: true
+
+  - name: Start a discovery unless one is already running
+    fjacquet.ppdm.discovery:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      inventory_source: vcenter.example.com
+      ignore_running: true
+return: |
+  discovery:
+    description: The Discovery object answered by PPDM, C(taskId) is the activity id.
+    returned: when the request was sent
+    type: dict
+    sample: {"id": "d1", "start": "/inventory-sources/s1", "level": "DataCopies", "taskId": "a1"}
+  activity:
+    description: Final activity when I(wait=true).
+    returned: when waited
+    type: dict
+  warnings:
+    description: Set when the activity ended OK_WITH_ERRORS.
+    returned: when any
+    type: list
+    elements: str
+  msg:
+    description: Set when I(ignore_running=true) and a discovery was already running.
+    returned: when skipped
+    type: str

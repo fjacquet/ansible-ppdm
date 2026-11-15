@@ -38,13 +38,13 @@ ansible-playbook fjacquet.ppdm.protection.run_policy -e @my-vars.yml
 ansible-playbook playbooks/sources/add_data_domain.yml -e @my-vars.yml   # by path
 ```
 
-Playbooks that change something destructive or service affecting (`assets.restore_vm_copy`, `kubernetes.restore_copy`, `clouddr.disable_component`, `clouddr.deploy_server`, `clouddr.delete_server`, `bootstrap.set_local_user_setting`, `bootstrap.replace_certificate`, `bootstrap.set_license`, `bootstrap.bootstrap`, `maintenance.install_update_package`, `maintenance.delete_update_package`, `agents.approve_agent_ips`, `agents.delete_whitelist_entries`, `agents.approve_agents_by_hostname`, `kubernetes.add_policy_and_rule`, `kubernetes.trust_root_certificate`, `kubernetes.set_controller_config`) refuse to
+Playbooks that change something destructive or service affecting (`assets.restore_vm_copy`, `kubernetes.restore_copy`, `clouddr.disable_component`, `clouddr.deploy_server`, `clouddr.delete_server`, `bootstrap.set_local_user_setting`, `bootstrap.replace_certificate`, `bootstrap.set_license`, `bootstrap.bootstrap`, `maintenance.install_update_package`, `maintenance.delete_update_package`, `agents.approve_agent_ips`, `agents.delete_whitelist_entries`, `agents.approve_agents_by_hostname`, `kubernetes.add_policy_and_rule`, `kubernetes.trust_root_certificate`, `kubernetes.set_controller_config`, `protection.assign_assets_to_policy`, `protection.run_policy`, `protection.run_discovery`, `protection.run_rule`) refuse to
 run until their confirm variable (`restore_confirm`, `cloud_dr_confirm`, `local_user_setting_confirm`, `cert_confirm`,
 `license_confirm`, `bootstrap_confirm`, `update_confirm`, `whitelist_approve_confirm`, `whitelist_confirm`, `rule_exec_confirm`,
-`certificate_trust_confirm`, `inventory_update_confirm`) is set to true. `maintenance.install_update_package` also accepts the product and telemetry EULAs and trusts the package certificate when confirmed.
+`certificate_trust_confirm`, `inventory_update_confirm`, `assign_confirm`, `policy_run_confirm`, `discovery_confirm`, `rule_run_confirm`) is set to true. `maintenance.install_update_package` also accepts the product and telemetry EULAs and trusts the package certificate when confirmed.
 
-Other playbooks that write are not guarded (`bootstrap.configure_smtp`, `bootstrap.set_sdr_existing_unit`, `clouddr.configure_account`, `protection.run_policy`): `bootstrap.configure_smtp` and `bootstrap.set_sdr_existing_unit` are idempotent updates of settings the
-playbook itself creates or documents, `clouddr.configure_account` updates the account keys on every run (they are write-only, so it always reports changed), and `protection.run_policy` starts one backup of an existing policy without changing any state.
+Other playbooks that write are not guarded (`bootstrap.configure_smtp`, `bootstrap.set_sdr_existing_unit`, `clouddr.configure_account`, `protection.add_file_system_policy`, `protection.add_mssql_policy`): `protection.add_file_system_policy` and `protection.add_mssql_policy` update an existing policy when it differs, they PATCH and replace its whole objectives list when anything differs;  `bootstrap.configure_smtp` and `bootstrap.set_sdr_existing_unit` are idempotent updates of settings the
+playbook itself creates or documents, `clouddr.configure_account` updates the account keys on every run (they are write-only, so it always reports changed).
 
 ## Unverified details
 
@@ -60,11 +60,13 @@ Besides the disclaimer above, these points are known guesses:
 - `sources.get_vib_details`: the spec requires `resourceId` too, the original workflow sent only `parentResourceId`.
 - `agents.set_agent_dns_lookups`: the `APP_AGENT_SETTING` setting and its `enableLookups` property come from the original workflow, they are not
   described in the 20.3.0 spec.
-- `protection.add_file_system_policy`, `protection.add_mssql_policy`, `protection.add_exchange_policy`, `kubernetes.add_policy_and_rule`: policies are built from the `/api/v3` schema (objectives, operations, retentions), not from the
-  original templates. `storageContainerId` is set to the Data Domain storage system id and the objective id is a
-  generated UUID: both are assumptions. The spec lists no endpoint to read storage containers.
+- `protection.add_file_system_policy`, `protection.add_mssql_policy`, `protection.create_vm_policy`, `protection.create_k8s_policy`, `protection.add_exchange_policy`, `kubernetes.add_policy_and_rule`: policies are built from the `/api/v3` schema (objectives, operations, retentions), not from the
+  original templates. `storageContainerId` is set to the Data Domain storage system id (PPDM generates the objective id, except in `protection.add_exchange_policy` and `kubernetes.add_policy_and_rule`, which send a `to_uuid` objective id): this is an assumption. The spec lists no endpoint to read storage containers.
 - `protection.add_file_system_policy`, `protection.add_mssql_policy`, `protection.add_exchange_policy`, `kubernetes.add_policy_and_rule`: `preferredInterfaceId` is the first preferred interface of the Data Domain; the example stops
   with an assert when there is none, and `preferred_interface_id` overrides the derived value.
+- `protection.add_file_system_policy`, `protection.add_mssql_policy`: the update check needs GET to return `startTime` and `duration` exactly as sent, else the playbooks PATCH on every run.
+- `protection.create_rule`, `kubernetes.add_policy_and_rule`: the `fieldName` values (`tags` for VMs, `userTags` for Kubernetes labels, the latter from the Lot 1 playbook) and the `fieldData` shape (`type: STRING`, `values`) of the v3 filter conditions are plausible picks, not verified against a live PPDM; the module only checks the operators and enums.
+- `protection.run_policy`: `protection_policy_run` requires `asset_ids` or `protection_group_ids` and cannot set `operation.backupLevel`; `Source` has no required field in the spec. `protection.run_rule` preview POSTs even in check mode (documented read-only).
 - `kubernetes.trust_root_certificate`: `POST /api/v2/certificates` is used as in the original workflow; it is not idempotent.
 - `agents.approve_agent_ips`, `agents.approve_agents_by_hostname`: the whitelist `expiresAt` value is built from the controller clock.
 
@@ -77,7 +79,7 @@ outside the PPDM workflow.
 
 ## Index
 
-Every original file is listed in exactly one of the two tables below.
+Every original file is listed in exactly one of the two tables below. Playbooks with no original file (new in 0.2.0, marked `-` and `new`) are listed in the Protection table.
 
 ### Bootstrap and first configuration
 
@@ -115,13 +117,18 @@ Every original file is listed in exactly one of the two tables below.
 | Playbook | What it does | Modules | Former example | Original bottkars files | Status |
 |----------|--------------|---------|----------------|-------------------------|--------|
 | [fjacquet.ppdm.protection.get_policies](protection/get_policies.yml) | List the protection policies (read-only). Protection policies exist only under /api/v3 in 20.3.0. | `api` | 110 | 110.0_get_protection_policies.yaml | converted |
-| [fjacquet.ppdm.protection.run_policy](protection/run_policy.yml) | Start the first objective of a protection policy found by name (POST /api/v3/protections). | `api` | 111 | 110.4_playbook_start_policy.yaml, 120.3_playbook_start_policy.yaml, 130.4_playbook_start_k8s_policy.yaml | converted |
-| [fjacquet.ppdm.protection.get_rules](protection/get_rules.yml) | List the protection rules, optionally filtered by name (read-only). | `api` | 112 | playbook_get_rule.yml | converted |
+| [fjacquet.ppdm.protection.run_policy](protection/run_policy.yml) | Run a protection policy now on the assets matching a filter and wait for the activities; refuses to run unless policy_run_confirm is true. | `api`, `protection_policy_run` | 111 | 110.4_playbook_start_policy.yaml, 120.3_playbook_start_policy.yaml, 130.4_playbook_start_k8s_policy.yaml | converted |
+| [fjacquet.ppdm.protection.get_rules](protection/get_rules.yml) | List the protection rules, optionally filtered by name (read-only). | `protection_rule_info` | 112 | playbook_get_rule.yml | converted |
 | [fjacquet.ppdm.protection.get_policy](protection/get_policy.yml) | Show the protection policy of a given name (read-only). | `api` | 113 | playbook_get_k8s_policy.yml | converted |
-| [fjacquet.ppdm.protection.add_file_system_policy](protection/add_file_system_policy.yml) | Create a daily synthetic full policy on a Data Domain unless one of that name exists. | `api`, `storage_system_info` | 120 | 120.1_playbook_add_fs_policy.yaml | converted |
-| [fjacquet.ppdm.protection.add_mssql_policy](protection/add_mssql_policy.yml) | Create the OS credential and a daily full plus hourly log policy unless one of that name exists. | `api`, `credential`, `storage_system_info` | 121 | 120.1_playbook_add_mssql_policy.yaml | converted |
+| [fjacquet.ppdm.protection.add_file_system_policy](protection/add_file_system_policy.yml) | Ensure a daily synthetic full policy on a Data Domain, updated when it differs. | `protection_policy`, `storage_system_info` | 120 | 120.1_playbook_add_fs_policy.yaml | converted |
+| [fjacquet.ppdm.protection.add_mssql_policy](protection/add_mssql_policy.yml) | Create the OS credential and ensure a daily full plus hourly log policy, updated when it differs. | `credential`, `protection_policy`, `storage_system_info` | 121 | 120.1_playbook_add_mssql_policy.yaml | converted |
 | [fjacquet.ppdm.protection.add_exchange_policy](protection/add_exchange_policy.yml) | Create the OS credential and a daily synthetic full policy unless one of that name exists. | `api`, `credential`, `storage_system_info` | 122 | 120.1_playbook_add_exchange_policy.yaml | converted |
-| [fjacquet.ppdm.protection.assign_assets_to_policy](protection/assign_assets_to_policy.yml) | Assign the assets matching a filter to a policy (the body is a JSON array of asset ids). | `api` | 123 | 120.2_playbook_add_assets_to_policy.yaml | converted |
+| [fjacquet.ppdm.protection.assign_assets_to_policy](protection/assign_assets_to_policy.yml) | Assign the assets matching a filter to a policy, sending only the missing assignments; refuses to run unless assign_confirm is true. | `api`, `protection_policy_assets` | 123 | 120.2_playbook_add_assets_to_policy.yaml | converted |
+| [fjacquet.ppdm.protection.create_vm_policy](protection/create_vm_policy.yml) | Ensure a daily full policy for VMware virtual machines on a Data Domain, updated when it differs. | `protection_policy`, `storage_system_info` | - | - | new |
+| [fjacquet.ppdm.protection.create_k8s_policy](protection/create_k8s_policy.yml) | Ensure a daily full policy for Kubernetes namespaces on a Data Domain, updated when it differs. | `protection_policy`, `storage_system_info` | - | - | new |
+| [fjacquet.ppdm.protection.run_discovery](protection/run_discovery.yml) | Start a discovery on an inventory source and wait for it; refuses to run unless discovery_confirm is true. | `discovery` | - | - | new |
+| [fjacquet.ppdm.protection.create_rule](protection/create_rule.yml) | Ensure a v3 rule assigning the assets selected by the rule_filters variable (VMs with a tag) to a policy; the policy from create_vm_policy must exist first. | `protection_rule` | - | - | new |
+| [fjacquet.ppdm.protection.run_rule](protection/run_rule.yml) | Run a v3 protection rule now; refuses to run unless rule_run_confirm is true. | `protection_rule_run` | - | - | new |
 
 ### Kubernetes
 
@@ -131,7 +138,7 @@ Every original file is listed in exactly one of the two tables below.
 | [fjacquet.ppdm.kubernetes.restore_copy](kubernetes/restore_copy.yml) | Restore the latest copy of a namespace (to a new namespace by default); refuses to run unless restore_confirm is true. | `api` | 41 | 40.2-playbook_restore_k8s_asset_copies.yml | converted |
 | [fjacquet.ppdm.kubernetes.add_kubernetes](kubernetes/add_kubernetes.yml) | Trust the API server certificate, store the discovery token and add the cluster as an inventory source. | `certificate`, `credential`, `inventory_source` | 130 | playbook_add_k8s.yml, playbook_rbac_add_k8s_to_ppdm.yml, playbook_rbac_add_k8s_to_ppdm_reg_cred.yml, playbook_rbac_add_k8s_to_ppdm_reg_cred_assetsource_enable.yml | converted |
 | [fjacquet.ppdm.kubernetes.run_discovery](kubernetes/run_discovery.yml) | Start a discovery on the Kubernetes inventory source (change k8s_hostname for another source). | `api`, `inventory_source_info` | 131 | 130.3_playbook_start_k8s_discoveries_by_query.yaml, 130.4_playbook_start_k8s_discoveries.yaml, playbook_start_k8s_discoveries.yml | converted |
-| [fjacquet.ppdm.kubernetes.add_policy_and_rule](kubernetes/add_policy_and_rule.yml) | Create a Kubernetes policy, a rule moving namespaces with a label to it, and run the rules. | `api`, `storage_system_info` | 132 | 130.2_playbook_add_k8s_policy_and_rule.yaml | converted |
+| [fjacquet.ppdm.kubernetes.add_policy_and_rule](kubernetes/add_policy_and_rule.yml) | Create a Kubernetes policy, a v3 rule assigning the Kubernetes assets with a label to it, and run the rule. | `api`, `protection_rule`, `protection_rule_run`, `storage_system_info` | 132 | 130.2_playbook_add_k8s_policy_and_rule.yaml | converted |
 | [fjacquet.ppdm.kubernetes.add_kubernetes_with_vcenter](kubernetes/add_kubernetes_with_vcenter.yml) | Add the cluster with its vCenter (CSI drivers as a process): trust, credential, inventory source with k8s details. | `certificate`, `credential`, `inventory_source`, `inventory_source_info` | 133 | 130.1_playbook_rbac_add_k8s_to_ppdm.yaml | converted |
 | [fjacquet.ppdm.kubernetes.trust_root_certificate](kubernetes/trust_root_certificate.yml) | Add the root CA chain of the Kubernetes API server to the PPDM trust store (the chain is read from a local file). | `api` | 134 | playbook_set_k8s_root_cert.yml | converted |
 | [fjacquet.ppdm.kubernetes.set_controller_config](kubernetes/set_controller_config.yml) | Replace one details.k8s.configurations entry (deep change, so a read-modify-write with the api module). | `api`, `inventory_source_info` | 135 | 9.12-playbook_set_k8s_controller_config.yml | converted |

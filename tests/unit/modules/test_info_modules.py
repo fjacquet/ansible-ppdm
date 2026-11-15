@@ -9,9 +9,15 @@ from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
     filter_eq,
 )
 from ansible_collections.fjacquet.ppdm.plugins.modules import (
+    asset_info,
     certificate_info,
     credential_info,
+    host_info,
     inventory_source_info,
+    protection_group_info,
+    protection_policy_info,
+    protection_rule_info,
+    resource_group_info,
     storage_system_info,
 )
 from ansible_collections.fjacquet.ppdm.tests.unit.helpers import (
@@ -27,6 +33,12 @@ MODULES = [
     (inventory_source_info, "/api/v2/inventory-sources", "inventory_sources"),
     (storage_system_info, "/api/v2/storage-systems", "storage_systems"),
     (certificate_info, "/api/v2/certificates", "certificates"),
+    (protection_policy_info, "/api/v3/protection-policies", "protection_policies"),
+    (protection_rule_info, "/api/v3/rules", "protection_rules"),
+    (protection_group_info, "/api/v2/protection-groups", "protection_groups"),
+    (resource_group_info, "/api/v2/resource-groups", "resource_groups"),
+    (asset_info, "/api/v2/assets", "assets"),
+    (host_info, "/api/v2/hosts", "hosts"),
 ]
 ALL = pytest.mark.parametrize(
     "mod,base,key", MODULES, ids=[m.__name__.rsplit(".", 1)[1] for m, _unused, _unused in MODULES]
@@ -128,6 +140,12 @@ def test_info_by_id_404_is_empty(monkeypatch, mod, base, key):
 
 
 @ALL
+def test_info_by_id_204_is_empty(monkeypatch, mod, base, key):
+    out = run(monkeypatch, mod, FakeOpener(Resp(None, 204)), id="zz")
+    assert out["failed"] is False and out[key] == []
+
+
+@ALL
 def test_info_by_id_other_error_fails(monkeypatch, mod, base, key):
     out = run(monkeypatch, mod, FakeOpener(http_error(500, {"message": "boom"})), id="zz")
     assert out["failed"] and out["status"] == 500
@@ -176,3 +194,67 @@ def test_info_empty_id_fails_instead_of_listing(monkeypatch, mod, base, key):
 def test_info_non_dict_body_for_id_fails_cleanly(monkeypatch, mod, base, key, body):
     out = run(monkeypatch, mod, FakeOpener(Resp(body)), id="abc")
     assert out["failed"] and "unexpected response" in out["msg"]
+
+
+def test_protection_policy_info_asset_type_is_exact_and_filtered(monkeypatch):
+    items = [{"id": "1", "assetType": "FILE_SYSTEM"}, {"id": "2", "assetType": "KUBERNETES"}]
+    op = FakeOpener(page(items, 1, 1))
+    out = run(monkeypatch, protection_policy_info, op, asset_type="FILE_SYSTEM")
+    assert [p["id"] for p in out["protection_policies"]] == ["1"]
+    assert parse_qs(urlsplit(op.calls[0][0]).query)["filter"] == ['assetType eq "FILE_SYSTEM"']
+
+
+def test_protection_policy_info_name_and_asset_type_are_anded(monkeypatch):
+    op = FakeOpener(page([], 1, 0))
+    run(monkeypatch, protection_policy_info, op, name="g", asset_type="KUBERNETES")
+    assert parse_qs(urlsplit(op.calls[0][0]).query)["filter"] == ['name eq "g" and assetType eq "KUBERNETES"']
+
+
+def test_protection_policy_info_user_filter_is_parenthesised(monkeypatch):
+    op = FakeOpener(page([], 1, 0))
+    run(monkeypatch, protection_policy_info, op, filter='name lk "a%" or name lk "b%"', asset_type="KUBERNETES")
+    assert parse_qs(urlsplit(op.calls[0][0]).query)["filter"] == [
+        '(name lk "a%" or name lk "b%") and assetType eq "KUBERNETES"'
+    ]
+
+
+def test_protection_policy_info_asset_type_ignores_non_dict_items(monkeypatch):
+    op = FakeOpener(page(["junk", {"id": "1", "assetType": "FILE_SYSTEM"}], 1, 1))
+    out = run(monkeypatch, protection_policy_info, op, asset_type="FILE_SYSTEM")
+    assert [p["id"] for p in out["protection_policies"]] == ["1"]
+
+
+def test_asset_info_asset_type_is_anded_and_rechecked(monkeypatch):
+    items = [{"id": "1", "name": "n", "type": "FILE_SYSTEM"}, {"id": "2", "name": "n", "type": "KUBERNETES"}]
+    op = FakeOpener(page(items, 1, 1))
+    out = run(monkeypatch, asset_info, op, name="n", asset_type="FILE_SYSTEM")
+    assert [a["id"] for a in out["assets"]] == ["1"]
+    assert parse_qs(urlsplit(op.calls[0][0]).query)["filter"] == ['name eq "n" and type eq "FILE_SYSTEM"']
+
+
+def test_asset_info_asset_type_rejects_unknown_value(monkeypatch):
+    out = run(monkeypatch, asset_info, FakeOpener(), asset_type="NOPE")
+    assert out["failed"]
+
+
+def test_host_info_type_is_anded_and_rechecked(monkeypatch):
+    items = [{"id": "1", "type": "ESX_HOST"}, {"id": "2", "type": "APP_HOST"}]
+    op = FakeOpener(page(items, 1, 1))
+    out = run(monkeypatch, host_info, op, filter='name lk "a%" or name lk "b%"', type="ESX_HOST")
+    assert [h["id"] for h in out["hosts"]] == ["1"]
+    assert parse_qs(urlsplit(op.calls[0][0]).query)["filter"] == [
+        '(name lk "a%" or name lk "b%") and type eq "ESX_HOST"'
+    ]
+
+
+def test_asset_info_masks_credentials(monkeypatch):
+    asset = {
+        "id": "1",
+        "credentialId": "c1",
+        "credentials": [{"id": "c1", "extraInfo": [{"name": "k", "value": "hunter2"}]}],
+    }
+    out = run(monkeypatch, asset_info, FakeOpener(page([asset], 1, 1)))
+    assert "credentials" not in out["assets"][0] and out["assets"][0]["credentialId"] == "c1"
+    assert "hunter2" not in json.dumps(out)
+    out = run(monkeypatch, asset_info, FakeOpener(Resp(dict(asset))), id="1")
+    assert "hunter2" not in json.dumps(out)

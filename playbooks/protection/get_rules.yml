@@ -16,14 +16,13 @@
       port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
   tasks:
     - name: Get the protection rules
-      fjacquet.ppdm.api:
-        path: /api/v2/protection-rules
-        query: "{{ {'filter': 'name eq \"' ~ k8s_rule_name ~ '\"'} if k8s_rule_name else omit }}"
+      fjacquet.ppdm.protection_rule_info:
+        name: "{{ k8s_rule_name | default(omit, true) }}"
       register: ppdm_rules
 
     - name: Show the rules
       ansible.builtin.debug:
-        msg: "{{ item.name }} {{ item.id }} {{ item.inventorySourceType }}"
-      loop: "{{ ppdm_rules.result }}"
+        msg: "{{ item.name }} {{ item.id }} {{ item.action.name | default('-') }} priority {{ item.priority | default('-') }}"
+      loop: "{{ ppdm_rules.protection_rules }}"
       loop_control:
         label: "{{ item.name }}"
