@@ -14,11 +14,23 @@ description:
 - In PPDM 20.3.0 a Data Domain is added as an inventory source of type C(DDSYSTEM).
 - Names are not enforced unique by the API; if two inventory sources share the name the module fails and
   lists both IDs.
-version_added: 1.0.0
+version_added: 0.1.0
 author:
 - Frederic Jacquet (@fjacquet)
 extends_documentation_fragment:
 - fjacquet.ppdm.ppdm
+- action_common_attributes
+attributes:
+  check_mode:
+    support: full
+  diff_mode:
+    support: full
+notes:
+- Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0
+  REST API.
+seealso:
+- module: fjacquet.ppdm.inventory_source_info
+  description: List inventory sources.
 options:
   state:
     description:
@@ -125,10 +137,12 @@ inventory_source:
   description: The managed inventory source.
   returned: success
   type: dict
+  sample: {"id": "1", "name": "vc1", "type": "VCENTER", "address": "vc.example.com", "port": 443}
 diff:
   description: Before and after.
   returned: success
   type: dict
+  sample: {"before": {}, "after": {"name": "vc1", "type": "VCENTER"}}
 '''
 
 ARGUMENT_SPEC = dict(

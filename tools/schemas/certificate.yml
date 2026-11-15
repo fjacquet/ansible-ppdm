@@ -13,6 +13,18 @@ description:
   - A real C(state=present) run does the GET without C(nocache), per the API this retrieves the remote certificate and stores it in the trust store in a non-accepted state, BEFORE the I(fingerprint) pin is checked, and the entry stays there when the pin does not match (by design, PPDM exposes no side-effect-free way to read the presented certificate). Check mode and C(state=absent) use C(nocache=true) so they never write to the trust store.
   - Entries are matched on exact I(host) (case-insensitive), I(port) and I(type). More than one match fails.
   - With C(state=absent) an API entry without a C(type) is not matched, so C(changed=false) can mean "not found by this module".
+version_added: 0.1.0
+attributes:
+  check_mode:
+    support: full
+  diff_mode:
+    support: full
+notes:
+  - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
+  - A real C(state=present) run stores the fetched certificate in the PPDM trust store before the fingerprint pin is checked.
+seealso:
+  - module: fjacquet.ppdm.certificate_info
+    description: List trusted certificates.
 options:
   state:
     type: str
@@ -75,7 +87,9 @@ return: |
     description: The certificate entry (empty when absent and nothing was trusted).
     returned: success
     type: dict
+    sample: {"id": "c1", "host": "dd01.example.com", "port": 3009, "type": "HOST", "state": "ACCEPTED"}
   diff:
     description: Before and after.
     returned: success
     type: dict
+    sample: {"before": {"state": "UNKNOWN"}, "after": {"state": "ACCEPTED"}}

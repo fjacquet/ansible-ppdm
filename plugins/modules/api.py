@@ -15,11 +15,26 @@ description:
   are null.
 - I(body) is not masked, as with M(ansible.builtin.uri). Do not put secrets there that you do not want
   echoed in verbose output.
-version_added: 1.0.0
+version_added: 0.1.0
 author:
 - Frederic Jacquet (@fjacquet)
 extends_documentation_fragment:
 - fjacquet.ppdm.ppdm
+- action_common_attributes
+attributes:
+  check_mode:
+    support: partial
+    details: GET requests are sent, any other method is not sent and reports C(changed=true).
+  diff_mode:
+    support: none
+notes:
+- Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0
+  REST API.
+- Prefer a dedicated module when one exists, this one does not compare state, so it is not idempotent
+  for non-GET methods.
+seealso:
+- module: ansible.builtin.uri
+  description: Generic HTTP requests.
 options:
   method:
     description:
@@ -106,18 +121,22 @@ status:
   description: HTTP status code of the response (null in check mode for non-GET).
   returned: always
   type: int
+  sample: 200
 result:
   description: Parsed JSON response, or the concatenated C(content) list for paginated GETs.
   returned: always
   type: raw
+  sample: [{"id": "abc-123", "name": "alert-1"}]
 skipped_write:
   description: True when a non-GET request was not sent because of check mode.
   returned: when check mode skipped a write
   type: bool
+  sample: true
 activity:
   description: Final activity when I(wait=true) and the response carried an C(activityId).
   returned: when waited
   type: dict
+  sample: {"id": "act-1", "state": "COMPLETED", "result": {"status": "OK"}}
 '''
 
 ARGUMENT_SPEC = dict(

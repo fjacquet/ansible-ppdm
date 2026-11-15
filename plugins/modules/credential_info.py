@@ -12,11 +12,25 @@ description:
 - Read-only query of credentials. Never changes anything.
 - Returns every matching object, all pages.
 - The C(password) field is never returned.
-version_added: 1.0.0
+version_added: 0.1.0
 author:
 - Frederic Jacquet (@fjacquet)
 extends_documentation_fragment:
 - fjacquet.ppdm.ppdm
+- action_common_attributes
+attributes:
+  check_mode:
+    support: full
+    details: Read-only, behaves the same in check mode.
+  diff_mode:
+    support: none
+notes:
+- Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0
+  REST API.
+- The password field is never returned.
+seealso:
+- module: fjacquet.ppdm.credential
+  description: Manage credentials.
 options:
   name:
     description:
@@ -57,6 +71,7 @@ credentials:
   returned: always
   type: list
   elements: dict
+  sample: [{"id": "c1", "name": "vc-admin", "type": "VCENTER", "username": "svc"}]
 '''
 
 ARGUMENT_SPEC = dict(

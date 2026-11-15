@@ -138,9 +138,10 @@ def render_module_blocks(schema):
         "module": schema["module"],
         "short_description": schema["short_description"],
         "description": schema["description"],
-        "version_added": "1.0.0",
+        "version_added": schema["version_added"],
         "author": ["Frederic Jacquet (@fjacquet)"],
-        "extends_documentation_fragment": ["fjacquet.ppdm.ppdm"],
+        "extends_documentation_fragment": ["fjacquet.ppdm.ppdm", "action_common_attributes"],
+        **{k: schema[k] for k in ("attributes", "notes", "seealso") if k in schema},
         "options": doc_opts,
     }
     lines = ["ARGUMENT_SPEC = dict("]
@@ -211,7 +212,7 @@ def _str_list(value, strict=False):
 
 def validate_schema(schema, path):
     """Fail with the file and key named instead of a bare KeyError."""
-    for key in ("module", "short_description", "description", "examples", "return"):
+    for key in ("module", "short_description", "description", "version_added", "examples", "return"):
         if key not in schema:
             raise ValueError(f"{path}: missing required key {key!r}")
     if not _str_list(schema["description"], strict=True):

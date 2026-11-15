@@ -12,11 +12,24 @@ description:
 - Update an existing storage system, identified by its name.
 - Storage systems cannot be created or deleted through the API in 20.3.0, they appear when an inventory
   source is added; the module fails if none matches.
-version_added: 1.0.0
+version_added: 0.1.0
 author:
 - Frederic Jacquet (@fjacquet)
 extends_documentation_fragment:
 - fjacquet.ppdm.ppdm
+- action_common_attributes
+attributes:
+  check_mode:
+    support: full
+  diff_mode:
+    support: full
+notes:
+- Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0
+  REST API.
+- Storage systems cannot be created through the API, the module only updates an existing one.
+seealso:
+- module: fjacquet.ppdm.storage_system_info
+  description: List storage systems.
 options:
   state:
     description:
@@ -69,10 +82,12 @@ storage_system:
   description: The updated storage system.
   returned: success
   type: dict
+  sample: {"id": "1", "name": "dd1", "description": "Primary Data Domain"}
 diff:
   description: Before and after.
   returned: success
   type: dict
+  sample: {"before": {"description": "old"}, "after": {"description": "Primary Data Domain"}}
 '''
 
 ARGUMENT_SPEC = dict(

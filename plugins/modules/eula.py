@@ -13,11 +13,20 @@ description:
 - Singleton, there is no I(state) option, the module only ever accepts. The PATCH is sent only when the
   EULA is not already accepted.
 - This module does not un-accept a EULA, I(accepted=false) fails when the EULA is currently accepted.
-version_added: 1.0.0
+version_added: 0.1.0
 author:
 - Frederic Jacquet (@fjacquet)
 extends_documentation_fragment:
 - fjacquet.ppdm.ppdm
+- action_common_attributes
+attributes:
+  check_mode:
+    support: full
+  diff_mode:
+    support: full
+notes:
+- Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0
+  REST API.
 options:
   name:
     description:
@@ -48,10 +57,12 @@ eula:
   description: The EULA after the change.
   returned: success
   type: dict
+  sample: {"name": "PPDM", "accepted": true}
 diff:
   description: Before and after.
   returned: success
   type: dict
+  sample: {"before": {"accepted": false}, "after": {"accepted": true}}
 '''
 
 ARGUMENT_SPEC = dict(

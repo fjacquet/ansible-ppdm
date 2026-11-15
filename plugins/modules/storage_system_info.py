@@ -11,11 +11,24 @@ short_description: Get storage systems from PowerProtect Data Manager
 description:
 - Read-only query of storage systems. Never changes anything.
 - Returns every matching object, all pages.
-version_added: 1.0.0
+version_added: 0.1.0
 author:
 - Frederic Jacquet (@fjacquet)
 extends_documentation_fragment:
 - fjacquet.ppdm.ppdm
+- action_common_attributes
+attributes:
+  check_mode:
+    support: full
+    details: Read-only, behaves the same in check mode.
+  diff_mode:
+    support: none
+notes:
+- Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0
+  REST API.
+seealso:
+- module: fjacquet.ppdm.storage_system
+  description: Update storage systems.
 options:
   name:
     description:
@@ -56,6 +69,7 @@ storage_systems:
   returned: always
   type: list
   elements: dict
+  sample: [{"id": "1", "name": "dd1"}]
 '''
 
 ARGUMENT_SPEC = dict(

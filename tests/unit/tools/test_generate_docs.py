@@ -20,6 +20,7 @@ SCHEMA = {
     "kind": "ensure",
     "short_description": "Manage widgets",
     "description": ["Create or remove widgets."],
+    "version_added": "0.1.0",
     "options": {
         "name": {"type": "str", "required": True, "description": "Widget name."},
         "mode": {
@@ -41,7 +42,7 @@ def _spec(src):
 
 def test_render_includes_extends_documentation_fragment():
     doc, _unused = generate.render_module_blocks(SCHEMA)
-    assert yaml.safe_load(doc)["extends_documentation_fragment"] == ["fjacquet.ppdm.ppdm"]
+    assert yaml.safe_load(doc)["extends_documentation_fragment"] == ["fjacquet.ppdm.ppdm", "action_common_attributes"]
 
 
 def test_argument_spec_matches_documentation_options():
@@ -300,3 +301,27 @@ def test_one_invalid_schema_writes_no_module(tmp_path):
     (s / "zzz.yml").write_text(yaml.safe_dump({**SCHEMA, "module": "zzz", "examples": f"x {TQ} y\n"}))
     assert generate.main(["modules"], s, m) == 2
     assert list(m.iterdir()) == []  # aaa sorts first but nothing is written
+
+
+def test_doc_carries_version_attributes_notes_and_seealso():
+    extra = {
+        "attributes": {"check_mode": {"support": "full"}, "diff_mode": {"support": "none"}},
+        "notes": ["A note."],
+        "seealso": [{"module": "fjacquet.ppdm.api", "description": "Raw calls."}],
+    }
+    doc = yaml.safe_load(generate.render_module_blocks({**SCHEMA, **extra})[0])
+    assert doc["version_added"] == "0.1.0"
+    assert doc["attributes"] == extra["attributes"] and doc["notes"] == ["A note."]
+    assert doc["seealso"] == extra["seealso"]
+    assert doc["extends_documentation_fragment"] == ["fjacquet.ppdm.ppdm", "action_common_attributes"]
+
+
+def test_optional_doc_keys_are_omitted_when_absent():
+    doc = yaml.safe_load(generate.render_module_blocks(SCHEMA)[0])
+    assert not {"attributes", "notes", "seealso"} & set(doc)
+
+
+def test_version_added_is_required(tmp_path):
+    schema = {k: v for k, v in SCHEMA.items() if k != "version_added"}
+    with pytest.raises(ValueError, match="version_added"):
+        generate.validate_schema(schema, "widget.yml")

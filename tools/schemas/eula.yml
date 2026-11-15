@@ -7,6 +7,14 @@ description:
   - Accept one of the PowerProtect Data Manager EULAs (C(/api/v2/eulas/<name>)).
   - Singleton, there is no I(state) option, the module only ever accepts. The PATCH is sent only when the EULA is not already accepted.
   - This module does not un-accept a EULA, I(accepted=false) fails when the EULA is currently accepted.
+version_added: 0.1.0
+attributes:
+  check_mode:
+    support: full
+  diff_mode:
+    support: full
+notes:
+  - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
 options:
   name:
     type: str
@@ -28,7 +36,9 @@ return: |
     description: The EULA after the change.
     returned: success
     type: dict
+    sample: {"name": "PPDM", "accepted": true}
   diff:
     description: Before and after.
     returned: success
     type: dict
+    sample: {"before": {"accepted": false}, "after": {"accepted": true}}

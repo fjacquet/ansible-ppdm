@@ -27,11 +27,25 @@ description:
 - Entries are matched on exact I(host) (case-insensitive), I(port) and I(type). More than one match fails.
 - With C(state=absent) an API entry without a C(type) is not matched, so C(changed=false) can mean "not
   found by this module".
-version_added: 1.0.0
+version_added: 0.1.0
 author:
 - Frederic Jacquet (@fjacquet)
 extends_documentation_fragment:
 - fjacquet.ppdm.ppdm
+- action_common_attributes
+attributes:
+  check_mode:
+    support: full
+  diff_mode:
+    support: full
+notes:
+- Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0
+  REST API.
+- A real C(state=present) run stores the fetched certificate in the PPDM trust store before the fingerprint
+  pin is checked.
+seealso:
+- module: fjacquet.ppdm.certificate_info
+  description: List trusted certificates.
 options:
   state:
     description:
@@ -110,10 +124,12 @@ certificate:
   description: The certificate entry (empty when absent and nothing was trusted).
   returned: success
   type: dict
+  sample: {"id": "c1", "host": "dd01.example.com", "port": 3009, "type": "HOST", "state": "ACCEPTED"}
 diff:
   description: Before and after.
   returned: success
   type: dict
+  sample: {"before": {"state": "UNKNOWN"}, "after": {"state": "ACCEPTED"}}
 '''
 
 ARGUMENT_SPEC = dict(

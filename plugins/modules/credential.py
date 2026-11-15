@@ -11,11 +11,25 @@ short_description: Manage credentials on PowerProtect Data Manager
 description:
 - Create, update or remove a credential, identified by its name.
 - The password is never returned by PPDM and never shown in the result or the diff.
-version_added: 1.0.0
+version_added: 0.1.0
 author:
 - Frederic Jacquet (@fjacquet)
 extends_documentation_fragment:
 - fjacquet.ppdm.ppdm
+- action_common_attributes
+attributes:
+  check_mode:
+    support: full
+  diff_mode:
+    support: full
+notes:
+- Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0
+  REST API.
+- The password is write-only, it is never part of the idempotency comparison and is masked in the returned
+  object and diff.
+seealso:
+- module: fjacquet.ppdm.credential_info
+  description: List credentials.
 options:
   state:
     description:
@@ -111,10 +125,12 @@ credential:
   description: The managed credential, password masked.
   returned: success
   type: dict
+  sample: {"id": "c1", "name": "vc-admin", "type": "VCENTER", "username": "svc", "password": "VALUE_SPECIFIED_IN_NO_LOG_PARAMETER"}
 diff:
   description: Before and after, password masked.
   returned: success
   type: dict
+  sample: {"before": {}, "after": {"name": "vc-admin", "type": "VCENTER"}}
 '''
 
 ARGUMENT_SPEC = dict(

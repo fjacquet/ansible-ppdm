@@ -7,6 +7,17 @@ description:
   - Create, update or remove an inventory source (vCenter, Kubernetes, Data Domain, ...), identified by its name.
   - In PPDM 20.3.0 a Data Domain is added as an inventory source of type C(DDSYSTEM).
   - Names are not enforced unique by the API; if two inventory sources share the name the module fails and lists both IDs.
+version_added: 0.1.0
+attributes:
+  check_mode:
+    support: full
+  diff_mode:
+    support: full
+notes:
+  - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
+seealso:
+  - module: fjacquet.ppdm.inventory_source_info
+    description: List inventory sources.
 options:
   state:
     type: str
@@ -69,7 +80,9 @@ return: |
     description: The managed inventory source.
     returned: success
     type: dict
+    sample: {"id": "1", "name": "vc1", "type": "VCENTER", "address": "vc.example.com", "port": 443}
   diff:
     description: Before and after.
     returned: success
     type: dict
+    sample: {"before": {}, "after": {"name": "vc1", "type": "VCENTER"}}
