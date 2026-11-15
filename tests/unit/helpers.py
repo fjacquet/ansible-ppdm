@@ -8,8 +8,8 @@ class Resp:
         self.status = status
         self._raw = b"" if payload is None else json.dumps(payload).encode()
 
-    def read(self):
-        return self._raw
+    def read(self, size=-1):
+        return self._raw if size < 0 else self._raw[:size]
 
 
 class FakeOpener:

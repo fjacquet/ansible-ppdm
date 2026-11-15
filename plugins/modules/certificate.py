@@ -128,7 +128,6 @@ ARGUMENT_SPEC = dict(
 # END GENERATED
 
 import re
-from urllib.parse import quote
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
@@ -136,6 +135,7 @@ from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
     client_from_module,
     connection_argument_spec,
     fail_from,
+    quote_id,
 )
 
 PATH = "/api/v2/certificates"
@@ -143,8 +143,7 @@ PIN_ACCEPTS = ("UNKNOWN", "MISMATCHED", "REJECTED")
 
 
 def item_path(cert_id):
-    # the id comes from the server: it must not change the path (a bare "." or ".." is not touched by quote)
-    return "%s/%s" % (PATH, quote(str(cert_id), safe="").replace(".", "%2E"))
+    return "%s/%s" % (PATH, quote_id(cert_id))  # the id comes from the server: it must not change the path
 
 
 def norm(fp):

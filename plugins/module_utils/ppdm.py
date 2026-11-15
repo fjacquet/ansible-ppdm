@@ -1,10 +1,16 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-"""PowerProtect Data Manager REST client (HTTP only via ansible open_url)."""
+"""PowerProtect Data Manager REST client (HTTP only via ansible open_url).
+
+Bounds: PAGE_SIZE is the pageSize requested and the most items accepted in one page; MAX_BODY_BYTES
+(32 MiB) is the most bytes read from any response body (success or error). Beyond either, PpdmError.
+"""
 
 from __future__ import annotations
 
+import ipaddress
 import json
+import re
 import time
 from http.client import HTTPException
 from urllib.error import HTTPError, URLError
@@ -15,6 +21,7 @@ from ansible.module_utils.urls import open_url
 from ansible_collections.fjacquet.ppdm.plugins.module_utils._routes import ROUTES
 
 PAGE_SIZE = 100
+MAX_BODY_BYTES = 32 * 1024 * 1024
 MAX_PAGES = 10000  # the OpenAPI maximum of the `page` query parameter
 REDIRECT_CODES = frozenset([301, 302, 303, 307, 308])
 MASK = "VALUE_SPECIFIED_IN_NO_LOG_PARAMETER"
@@ -42,6 +49,34 @@ def merge_config(named, config):
     return dict(config, **{k: v for k, v in named.items() if v is not None})
 
 
+def quote_id(value):
+    """Percent-encode an id for one path segment; a bare "." or ".." is encoded too (quote leaves it as is)."""
+    text = str(value)
+    if text == "":
+        raise PpdmError("id must not be empty")
+    quoted = quote(text, safe="")
+    return quoted.replace(".", "%2E") if quoted in (".", "..") else quoted
+
+
+def _host_netloc(hostname):
+    """Bare host name or IP literal -> URL host part (IPv6 bracketed); PpdmError otherwise."""
+    host = hostname if isinstance(hostname, str) else ""
+    if not host or re.search(r"[\s@/?#\\%]", host):
+        raise PpdmError("hostname must be a bare host name or IP address (no scheme, user, port, path or spaces)")
+    inner = host[1:-1] if host.startswith("[") and host.endswith("]") else host
+    if ":" in inner:
+        try:
+            ipaddress.IPv6Address(inner)
+        except ValueError:
+            raise PpdmError(
+                "hostname must not contain a port (use the port option) and IPv6 must be a valid literal"
+            ) from None
+        return "[%s]" % inner
+    if "[" in host or "]" in host:
+        raise PpdmError("hostname has misplaced brackets")
+    return host
+
+
 def _mask(obj, secret_keys):
     return {k: (MASK if k in secret_keys else v) for k, v in obj.items()}
 
@@ -67,7 +102,7 @@ class PpdmClient:
         opener=open_url,
         sleep=time.sleep,
     ):
-        self.base_url = "https://%s:%s" % (hostname, port)
+        self.base_url = "https://%s:%s" % (_host_netloc(hostname), port)
         self.username = username
         self.password = password
         self.validate_certs = validate_certs
@@ -80,14 +115,13 @@ class PpdmClient:
 
     def _scrub(self, value):
         """Replace the password and the token inside string values only (keys kept); never raises."""
-        # longest first: a password that is a substring of the token must not cut it before it is replaced
+        # one pass, longest first: sequential replacement could leave a token tail next to a replaced password
         secrets = sorted({self.password, self.token} - {None, ""}, key=len, reverse=True)
+        pattern = re.compile("|".join(re.escape(x) for x in secrets)) if secrets else None
 
         def walk(v):
             if isinstance(v, str):
-                for secret in secrets:
-                    v = v.replace(secret, "********")
-                return v
+                return pattern.sub("********", v) if pattern else v
             if isinstance(v, dict):
                 return {k: walk(x) for k, x in v.items()}
             if isinstance(v, list):
@@ -98,6 +132,15 @@ class PpdmClient:
             return walk(value)
         except Exception:  # e.g. RecursionError on a hostile body: hide it rather than risk a leak
             return "********"
+
+    @staticmethod
+    def _read(resp, method, path):
+        raw = resp.read(MAX_BODY_BYTES + 1)
+        if len(raw) > MAX_BODY_BYTES:
+            raise PpdmError(
+                "%s %s failed: response body too large (more than %d bytes)" % (method, path, MAX_BODY_BYTES)
+            )
+        return raw
 
     def login(self):
         data = {"username": self.username, "password": self.password}
@@ -126,7 +169,7 @@ class PpdmClient:
                 timeout=self.timeout,
                 follow_redirects="none",  # never forward the Authorization header to a redirect target
             )
-            raw = resp.read()
+            raw = self._read(resp, method, path)
             status = getattr(resp, "status", None) or resp.getcode()
             self.last_status = status
         except HTTPError as e:
@@ -136,7 +179,7 @@ class PpdmClient:
                     % (method, path, e.code),
                     status=e.code,
                 ) from None
-            raw = e.read()
+            raw = self._read(e, method, path)
             try:
                 err_body = json.loads(raw) if raw else None
             except (ValueError, RecursionError):
@@ -178,6 +221,10 @@ class PpdmClient:
             content = data["content"] or []
             if not isinstance(content, list):
                 raise PpdmError("GET %s failed: 'content' is not a list" % path)
+            if len(content) > PAGE_SIZE:
+                raise PpdmError(
+                    "GET %s failed: page has %d items, more than the %d requested" % (path, len(content), PAGE_SIZE)
+                )
             items.extend(content)
             pg = data.get("page")
             total = pg.get("totalPages") if isinstance(pg, dict) else None
@@ -185,7 +232,8 @@ class PpdmClient:
                 not isinstance(total, int) or isinstance(total, bool) or total < 0 or total > MAX_PAGES
             ):
                 raise PpdmError(
-                    "GET %s failed: invalid page.totalPages %r (must be an integer 0..%d)" % (path, total, MAX_PAGES)
+                    "GET %s failed: invalid page.totalPages %.40r (must be an integer 0..%d)"
+                    % (path, self._scrub(total), MAX_PAGES)
                 )
             if total is None:
                 if content:
@@ -215,8 +263,10 @@ class PpdmClient:
         # make ensure/remove write to or delete another object)
         found = [o for o in found if isinstance(o, dict) and o.get(key) == value]
         if len(found) > 1:
-            ids = ", ".join(str(o.get("id")) for o in found)
-            raise PpdmError("%s: %d objects match %s=%s (ids: %s)" % (resource, len(found), key, value, ids))
+            ids = ", ".join(self._scrub(str(o.get("id")))[:64] for o in found[:10])
+            raise PpdmError(
+                self._scrub("%s: %d objects match %s=%s (ids: %s)" % (resource, len(found), key, value, ids))
+            )
         return found[0] if found else None
 
     def _route(self, resource, verb, obj_id=None):
@@ -227,7 +277,7 @@ class PpdmClient:
             return route["base"]
         if str(obj_id) == "":
             raise PpdmError("%s %s: id must not be empty" % (resource, verb))
-        return route["item"].replace("{id}", quote(str(obj_id), safe=""))
+        return route["item"].replace("{id}", quote_id(obj_id))
 
     def ensure(
         self,
@@ -342,16 +392,16 @@ def fail_from(module, err):
 
 def client_from_module(module):
     p = module.params
-    client = PpdmClient(
-        p["hostname"],
-        p["username"],
-        p["password"],
-        port=p["port"],
-        validate_certs=p["validate_certs"],
-        ca_path=p["ca_path"],
-        timeout=p["timeout"],
-    )
     try:
+        client = PpdmClient(
+            p["hostname"],
+            p["username"],
+            p["password"],
+            port=p["port"],
+            validate_certs=p["validate_certs"],
+            ca_path=p["ca_path"],
+            timeout=p["timeout"],
+        )
         client.login()
     except PpdmError as err:
         fail_from(module, err)
