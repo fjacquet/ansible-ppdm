@@ -9,3 +9,6 @@ action_groups:
     - inventory_source_info
     - storage_system_info
     - certificate_info
+    - credential
+    - inventory_source
+    - storage_system

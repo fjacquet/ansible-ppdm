@@ -1,0 +1,57 @@
+module: inventory_source
+resource: inventory-sources
+key: name
+kind: ensure
+short_description: Manage inventory sources on PowerProtect Data Manager
+description:
+  - Create, update or remove an inventory source (vCenter, Kubernetes, Data Domain, ...), identified by its name.
+  - In PPDM 20.3.0 a Data Domain is added as an inventory source of type C(DDSYSTEM).
+  - Names are not enforced unique by the API; if two inventory sources share the name the module fails and lists both IDs.
+options:
+  state:
+    type: str
+    choices: [present, absent]
+    default: present
+    description: Whether the inventory source must exist.
+  name:
+    type: str
+    required: true
+    description: Inventory source name, used as the key.
+  type:
+    type: str
+    choices: [APP_HOST, CLOUD_DIRECTOR, CLOUD_SNAPSHOT_MANAGER, CDR, DATA_MANAGER_APPLIANCE, DATA_MANAGER_APPLIANCE_CLUSTER, DATADOMAINMANAGEMENTCENTER, DDSYSTEM, DEFAULTAPPGROUP, EXTERNALDATADOMAIN, GENERICNASMANAGEMENTSERVER, HYPERV_CLUSTER, HYPERV_SERVER, KUBERNETES, NATIVEEDGE_CLUSTER, NATIVEEDGE_ENDPOINT, NATIVEEDGE_ORCHESTRATOR, NETAPP_MANAGEMENT_SERVER, NUTANIX_CLUSTER, NUTANIX_SERVER, ORACLEGROUP, POWERSCALEMANAGEMENTSERVER, POWERSTOREMANAGEMENTSERVER, PPDM, PRISM_CENTRAL, SQLGROUPS, UNITYMANAGEMENTSERVER, UNISPHERE, VCENTER]
+    description: Inventory source type. Required when I(state=present).
+  address:
+    type: str
+    description: IP address or hostname of the inventory source.
+  source_port:
+    type: int
+    description: Port of the inventory source.
+  credential_id:
+    type: str
+    description: ID of the credential used to reach the inventory source (see M(fjacquet.ppdm.credential_info)).
+  config:
+    type: dict
+    description:
+      - Extra request body fields passed through as is, for example C(details) for type-specific settings such as the vCenter certificate trust.
+      - Each top-level key replaces the whole value of that field.
+examples: |
+  - name: Ensure a vCenter inventory source
+    fjacquet.ppdm.inventory_source:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      name: vc01
+      type: VCENTER
+      address: vc01.example.com
+      source_port: 443
+      credential_id: "{{ cred.credential.id }}"
+return: |
+  inventory_source:
+    description: The managed inventory source.
+    returned: success
+    type: dict
+  diff:
+    description: Before and after.
+    returned: success
+    type: dict
