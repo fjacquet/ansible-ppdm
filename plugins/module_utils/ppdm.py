@@ -379,14 +379,20 @@ class PpdmClient:
         check_mode: bool = False,
         secret_keys: Any = (),
         update_secrets: str = "on_create",
+        create: bool = True,
     ) -> dict:
-        """Create or update one object; the merge over the existing object is shallow (top-level keys only)."""
+        """Create or update one object; the merge over the existing object is shallow (top-level keys only).
+
+        With create=False a missing object is a PpdmError instead of a POST.
+        """
         if update_secrets not in ("on_create", "always"):
             raise PpdmError("update_secrets must be 'on_create' or 'always', got %r" % (update_secrets,))
         secret_keys = set(secret_keys)
         existing = self.find_one(resource, key, desired[key])
         want = strip_readonly(resource, desired)
         if existing is None:
+            if not create:
+                raise PpdmError("%s %s=%s not found" % (resource, key, self.scrub_text(desired[key], 200)))
             path = self._route(resource, "POST")
             obj = want if check_mode else (self.request("POST", path, body=want) or want)
             return {

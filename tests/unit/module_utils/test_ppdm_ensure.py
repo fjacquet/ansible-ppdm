@@ -204,3 +204,10 @@ def test_item_path_empty_id_raises():
     c, _unused, _unused = mk()
     with pytest.raises(PpdmError, match="id"):
         c._route("credentials", "GET", "")
+
+
+def test_ensure_create_false_fails_on_missing_without_post():
+    c, op, _unused = mk(page([], 1, 0))
+    with pytest.raises(PpdmError, match="c1 not found"):
+        c.ensure("credentials", {"name": "c1"}, create=False)
+    assert writes(op) == []

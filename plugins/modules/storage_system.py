@@ -111,12 +111,7 @@ def main():
     }
     try:
         desired = merge_config(desired, p["config"])
-        if client.find_one("storage-systems", "name", p["name"]) is None:
-            module.fail_json(
-                msg="storage system %r not found: storage systems cannot be created through the "
-                "API, add the matching inventory source first" % p["name"]
-            )
-        res = client.ensure("storage-systems", desired, check_mode=module.check_mode)
+        res = client.ensure("storage-systems", desired, check_mode=module.check_mode, create=False)
     except PpdmError as err:
         fail_from(module, err)
     module.exit_json(changed=res["changed"], storage_system=res["object"], diff=res["diff"])

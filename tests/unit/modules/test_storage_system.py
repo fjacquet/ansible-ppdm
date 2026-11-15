@@ -26,29 +26,29 @@ def run(monkeypatch, op, check_mode=False, **kw):
 
 
 def test_storage_system_update_on_diff(monkeypatch):
-    op = FakeOpener(listing(EXISTING), listing(EXISTING), Resp({"id": "1"}))
+    op = FakeOpener(listing(EXISTING), Resp({"id": "1"}))
     out = run(monkeypatch, op, description="new")
-    assert out["changed"] and methods(op) == ["GET", "GET", "PUT"]
-    sent = json.loads(op.calls[2][1]["data"])
+    assert out["changed"] and methods(op) == ["GET", "PUT"]
+    sent = json.loads(op.calls[1][1]["data"])
     assert sent["description"] == "new" and sent["type"] == "DATA_DOMAIN_SYSTEM" and "lastDiscoveryAt" not in sent
 
 
 def test_storage_system_idempotent(monkeypatch):
-    op = FakeOpener(listing(EXISTING), listing(EXISTING))
+    op = FakeOpener(listing(EXISTING))
     out = run(monkeypatch, op, description="old")
-    assert not out["changed"] and methods(op) == ["GET", "GET"]
+    assert not out["changed"] and methods(op) == ["GET"]
 
 
 def test_storage_system_config_passthrough(monkeypatch):
-    op = FakeOpener(listing(EXISTING), listing(EXISTING), Resp({"id": "1"}))
+    op = FakeOpener(listing(EXISTING), Resp({"id": "1"}))
     out = run(monkeypatch, op, config={"local": True})
-    assert out["changed"] and json.loads(op.calls[2][1]["data"])["local"] is True
+    assert out["changed"] and json.loads(op.calls[1][1]["data"])["local"] is True
 
 
 def test_storage_system_check_mode(monkeypatch):
-    op = FakeOpener(listing(EXISTING), listing(EXISTING))
+    op = FakeOpener(listing(EXISTING))
     out = run(monkeypatch, op, check_mode=True, description="new")
-    assert out["changed"] and methods(op) == ["GET", "GET"]
+    assert out["changed"] and methods(op) == ["GET"]
 
 
 def test_storage_system_missing_fails(monkeypatch):
