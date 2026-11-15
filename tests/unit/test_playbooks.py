@@ -5,9 +5,21 @@ import re
 import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-EXAMPLES = ROOT / "docs" / "examples"
-README = (EXAMPLES / "README.md").read_text()
-FILES = sorted(EXAMPLES.glob("*.yml"))
+PLAYBOOKS = ROOT / "playbooks"
+README = (PLAYBOOKS / "README.md").read_text()
+FILES = sorted(p for p in PLAYBOOKS.glob("*/*.yml") if p.parent.name != "vars")
+NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+VARS = PLAYBOOKS / "vars" / "example.yml"
+
+
+def _fqcn(path):
+    return f"fjacquet.ppdm.{path.parent.name}.{path.stem}"
+
+
+def _short(path):
+    return f"{path.parent.name}.{path.stem}"
+
+
 DISCLAIMER = "Not yet validated against a live PPDM"
 TASK_KEYWORDS = {
     "name", "when", "register", "loop", "loop_control", "no_log", "vars", "block", "rescue", "always",
@@ -133,25 +145,30 @@ SKIPPED_BY_REASON = {
 SKIPPED = [name for names in SKIPPED_BY_REASON.values() for name in names]
 
 DESTRUCTIVE = {
-    "40-restore-vm-copy.yml": "restore_confirm",
-    "41-restore-k8s-copy.yml": "restore_confirm",
-    "50-disable-cloud-dr-component.yml": "cloud_dr_confirm",
-    "53-deploy-cloud-dr-server.yml": "cloud_dr_confirm",
-    "55-delete-cloud-dr-server.yml": "cloud_dr_confirm",
-    "89-set-local-user-setting.yml": "local_user_setting_confirm",
-    "90-replace-certificate.yml": "cert_confirm",
-    "91-set-license.yml": "license_confirm",
-    "94-install-update-package.yml": "update_confirm",
-    "95-delete-update-package.yml": "update_confirm",
-    "101-approve-agent-ips.yml": "whitelist_approve_confirm",
-    "102-delete-whitelist-entries.yml": "whitelist_confirm",
-    "104-approve-agents-by-hostname.yml": "whitelist_approve_confirm",
-    "132-add-k8s-policy-and-rule.yml": "rule_exec_confirm",
-    "134-trust-kubernetes-root-certificate.yml": "certificate_trust_confirm",
-    "135-set-kubernetes-controller-config.yml": "inventory_update_confirm",
+    "assets.restore_vm_copy": "restore_confirm",
+    "kubernetes.restore_copy": "restore_confirm",
+    "clouddr.disable_component": "cloud_dr_confirm",
+    "clouddr.deploy_server": "cloud_dr_confirm",
+    "clouddr.delete_server": "cloud_dr_confirm",
+    "bootstrap.set_local_user_setting": "local_user_setting_confirm",
+    "bootstrap.replace_certificate": "cert_confirm",
+    "bootstrap.set_license": "license_confirm",
+    "maintenance.install_update_package": "update_confirm",
+    "maintenance.delete_update_package": "update_confirm",
+    "agents.approve_agent_ips": "whitelist_approve_confirm",
+    "agents.delete_whitelist_entries": "whitelist_confirm",
+    "agents.approve_agents_by_hostname": "whitelist_approve_confirm",
+    "kubernetes.add_policy_and_rule": "rule_exec_confirm",
+    "kubernetes.trust_root_certificate": "certificate_trust_confirm",
+    "kubernetes.set_controller_config": "inventory_update_confirm",
 }
-# Writing examples left without a confirm guard on purpose; the README gives the reason.
-NOT_GUARDED = {"24", "27", "51", "111"}
+# Writing playbooks left without a confirm guard on purpose; the README gives the reason.
+NOT_GUARDED = {
+    "bootstrap.configure_smtp",
+    "bootstrap.set_sdr_existing_unit",
+    "clouddr.configure_account",
+    "protection.run_policy",
+}
 SECRET_RE = re.compile(r"password|token|license_key|privatekey|secretkey|userkey|secret|\"key\":", re.I)
 
 
@@ -165,7 +182,7 @@ def _walk(tasks):
 def _tasks(path):
     for play in yaml.safe_load(path.read_text()):
         if "roles" in play:
-            raise AssertionError(f"{path.name}: roles section not expected")
+            raise AssertionError(f"{_short(path)}: roles section not expected")
         yield from _walk(play.get("tasks", []))
 
 
@@ -182,11 +199,11 @@ def _is_write(task):
     return api is not None and str(api.get("method", "GET")).upper() != "GET"
 
 
-def test_examples_exist_and_parse():
+def test_playbooks_exist_and_parse():
     assert len(FILES) >= 50
     for path in FILES:
-        assert isinstance(yaml.safe_load(path.read_text()), list), path.name
-    assert yaml.safe_load((EXAMPLES / "vars" / "example.yml").read_text())
+        assert isinstance(yaml.safe_load(path.read_text()), list), _short(path)
+    assert yaml.safe_load(VARS.read_text())
 
 
 def test_modules_are_fully_qualified():
@@ -195,37 +212,37 @@ def test_modules_are_fully_qualified():
             if "block" in task:
                 continue
             modules = [k for k in task if k not in TASK_KEYWORDS and not k.startswith("with_")]
-            assert len(modules) == 1, (path.name, task.get("name"), modules)
-            assert modules[0].startswith(("fjacquet.ppdm.", "ansible.builtin.")), (path.name, modules[0])
+            assert len(modules) == 1, (_short(path), task.get("name"), modules)
+            assert modules[0].startswith(("fjacquet.ppdm.", "ansible.builtin.")), (_short(path), modules[0])
 
 
 def test_no_literal_secrets():
     pattern = re.compile(r"^\s*((?:\w+_)?(?:password|token|secret|privateKey)):\s*(\S.*)$", re.I)
-    for path in [*FILES, EXAMPLES / "vars" / "example.yml"]:
+    for path in [*FILES, VARS]:
         for line in path.read_text().splitlines():
             match = pattern.match(line)
             if match and not line.lstrip().startswith("#"):
-                assert "{{" in match.group(2), (path.name, line)
+                assert "{{" in match.group(2), (_short(path), line)
 
 
 def test_header_has_credit_line_and_no_disclaimer():
     for path in FILES:
         header = _header(path)
-        assert "# Inspired by bottkars/ansible_ppdm `" in header, path.name
-        assert "(workflow only; rewritten for fjacquet.ppdm)" in header, path.name
-        assert "PPDM_" in header, path.name
+        assert "# Inspired by bottkars/ansible_ppdm `" in header, _short(path)
+        assert "(workflow only; rewritten for fjacquet.ppdm)" in header, _short(path)
+        assert "PPDM_" in header, _short(path)
 
 
 def test_disclaimer_only_in_readme():
     assert DISCLAIMER in README
-    for path in [*FILES, *(EXAMPLES / "vars").glob("*.yml")]:
-        assert DISCLAIMER.lower() not in path.read_text().lower(), path.name
-        assert "pre-release" not in path.read_text().lower(), path.name
+    for path in [*FILES, *(PLAYBOOKS / "vars").glob("*.yml")]:
+        assert DISCLAIMER.lower() not in path.read_text().lower(), _short(path)
+        assert "pre-release" not in path.read_text().lower(), _short(path)
 
 
 def _readme_rows():
-    converted_part, skipped_part = README.split("## Converted")[1].split("## Not converted")
-    converted = re.findall(r"^\| \[([^\]]+)\]\([^)]*\) \|.*\| ([^|]+?) \| converted \|$", converted_part, re.M)
+    converted_part, skipped_part = README.split("## Index")[1].split("## Not converted")
+    converted = re.findall(r"^\| \[([^\]]+)\]\(([^)]*)\) \|.*\| ([^|]+?) \| converted \|$", converted_part, re.M)
     skipped = re.findall(r"^\| ([^|]+?) \| [^|]+ \|$", skipped_part, re.M)[1:]
     return converted, skipped
 
@@ -233,34 +250,57 @@ def _readme_rows():
 def test_readme_indexes_every_example_and_source_file():
     converted, skipped = _readme_rows()
     assert len(ALL_SOURCES) == 90
-    seen = [name for _, sources in converted for name in sources.split(", ")]
+    seen = [name for _, _, sources in converted for name in sources.split(", ")]
     seen += [name for row in skipped for name in row.split(", ")]
     for name in ALL_SOURCES:
         assert seen.count(name) == 1, f"{name} is in {seen.count(name)} table rows, expected exactly one"
     assert set(seen) == set(ALL_SOURCES), set(seen) ^ set(ALL_SOURCES)
-    listed = {example for example, _ in converted}
+    listed = {fqcn for fqcn, _, _ in converted}
     for path in FILES:
-        assert path.name in listed, f"{path.name} is not in the converted table"
+        assert _fqcn(path) in listed, f"{_fqcn(path)} is not in the converted table"
+    assert listed == {_fqcn(path) for path in FILES}
     assert "NOTICE" in README
+
+
+def test_readme_maps_each_fqcn_to_its_use_case_directory():
+    converted, _ = _readme_rows()
+    for fqcn, link, _ in converted:
+        _, _, usecase, name = fqcn.split(".")
+        assert link == f"{usecase}/{name}.yml", f"{fqcn} links to {link}"
+        assert (PLAYBOOKS / link).is_file(), link
+
+
+def test_names_are_addressable():
+    for path in FILES:
+        assert NAME_RE.match(path.stem), path
+        assert NAME_RE.match(path.parent.name), path
+    for directory in PLAYBOOKS.iterdir():
+        if directory.is_dir():
+            assert NAME_RE.match(directory.name) or directory.name in {"vars", "files", "templates", "tasks"}, directory
+
+
+def test_hosts_come_from_the_target_variable():
+    for path in FILES:
+        for play in yaml.safe_load(path.read_text()):
+            assert "target" in str(play.get("hosts")), (_short(path), play.get("hosts"))
 
 
 def test_header_credits_match_the_readme_row_of_each_example():
     converted, _ = _readme_rows()
-    row = {example: set(sources.split(", ")) for example, sources in converted}
+    row = {fqcn: set(sources.split(", ")) for fqcn, _, sources in converted}
     for path in FILES:
         text = path.read_text()
         credit = text[text.index("Inspired by") : text.index("(workflow only")]
         header = set(re.findall(r"`([^`]+)`", credit))
-        assert header == row[path.name], f"{path.name}: header and README differ: {header ^ row[path.name]}"
+        assert header == row[_fqcn(path)], f"{_short(path)}: header and README differ: {header ^ row[_fqcn(path)]}"
 
 
 def test_readme_lists_exactly_the_unguarded_examples():
-    match = re.search(r"are not guarded \(([\d, ]+)\)", README)
+    match = re.search(r"are not guarded \(([\w.`, ]+)\)", README)
     assert match
-    assert {n.strip() for n in match.group(1).split(",")} == NOT_GUARDED
-    for path in FILES:
-        number = path.name.split("-")[0]
-        assert not (number in NOT_GUARDED and path.name in DESTRUCTIVE), path.name
+    assert {n.strip(" `") for n in match.group(1).split(",")} == NOT_GUARDED
+    assert not NOT_GUARDED & set(DESTRUCTIVE)
+    assert NOT_GUARDED <= {_short(path) for path in FILES}
 
 
 def test_at_least_70_source_files_are_converted_and_credited():
@@ -268,7 +308,7 @@ def test_at_least_70_source_files_are_converted_and_credited():
     assert len(converted) >= 70
     credits = "\n".join(line for path in FILES for line in _header(path).splitlines() if line.startswith("#"))
     for name in converted:
-        assert f"`{name}`" in credits, f"{name} is not credited in any example header"
+        assert f"`{name}`" in credits, f"{name} is not credited in any playbook header"
     for name in SKIPPED:
         assert f"`{name}`" not in credits, f"{name} is skipped but credited"
 
@@ -280,9 +320,9 @@ def test_skip_table_only_has_the_allowed_categories():
 
 
 def test_destructive_examples_are_guarded_by_a_preceding_assert():
-    defaults = yaml.safe_load((EXAMPLES / "vars" / "example.yml").read_text())
+    defaults = yaml.safe_load(VARS.read_text())
     for name, var in DESTRUCTIVE.items():
-        tasks = list(_tasks(EXAMPLES / name))
+        tasks = list(_tasks(PLAYBOOKS / f"{name.replace('.', '/')}.yml"))
         guards = [
             i
             for i, t in enumerate(tasks)
@@ -295,10 +335,9 @@ def test_destructive_examples_are_guarded_by_a_preceding_assert():
 
 
 def test_readme_lists_the_destructive_set():
-    match = re.search(r"destructive or service affecting \(([\d, ]+)\)", README)
+    match = re.search(r"destructive or service affecting \(([\w.`, ]+)\)", README)
     assert match
-    listed = {n.strip() for n in match.group(1).split(",")}
-    assert listed == {name.split("-")[0] for name in DESTRUCTIVE}
+    assert {n.strip(" `") for n in match.group(1).split(",")} == set(DESTRUCTIVE)
 
 
 def test_secret_bearing_tasks_have_no_log():
@@ -307,7 +346,7 @@ def test_secret_bearing_tasks_have_no_log():
             dump = json.dumps(_module_args(task))
             returns_package = "/upgrade-packages" in dump and "DELETE" not in dump
             if SECRET_RE.search(dump) or returns_package:
-                assert task.get("no_log") is True, (path.name, task.get("name"))
+                assert task.get("no_log") is True, (_short(path), task.get("name"))
 
 
 def test_debug_never_echoes_a_secret_bearing_result():
@@ -320,4 +359,4 @@ def test_debug_never_echoes_a_secret_bearing_result():
             if "ansible.builtin.debug" in task:
                 dump = json.dumps(task["ansible.builtin.debug"]) + json.dumps(task.get("loop", ""))
                 for register in secret_registers:
-                    assert not re.search(rf"\b{register}\b", dump), (path.name, task.get("name"), register)
+                    assert not re.search(rf"\b{register}\b", dump), (_short(path), task.get("name"), register)
