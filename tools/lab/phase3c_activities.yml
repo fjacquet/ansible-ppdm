@@ -1,0 +1,105 @@
+---
+# Live-lab phase 3c: produce real activities with a throwaway credential and an unreachable vCenter source
+# (TEST-NET-1 address), then exercise discovery, activity_info, wait and activity_action on them.
+# Raw results: .ansible/lab-results/phase3c.json (no secret kept).
+- name: Phase 3c
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      ca_path: "{{ lookup('ansible.builtin.env', 'LAB_CA_PATH') }}"
+      tls_server_name: "{{ lookup('ansible.builtin.env', 'LAB_TLS_SERVER_NAME') }}"
+      timeout: 240  # PPDM contacts the vCenter while it creates the source
+  vars:
+    results_dir: "{{ playbook_dir }}/../../.ansible/lab-results"
+    cred_secret: "Zz-{{ lookup('ansible.builtin.password', '/dev/null length=16 chars=ascii_letters,digits') }}-9!"
+  tasks:
+    - name: Credential, create
+      fjacquet.ppdm.credential: &cred
+        name: zz-p3c-cred
+        type: VCENTER
+        method: BASIC
+        cred_username: zz-user
+        cred_password: "{{ cred_secret }}"
+      register: cred1
+      failed_when: false
+      no_log: true
+    - name: Credential, re-run
+      fjacquet.ppdm.credential: *cred
+      register: cred2
+      failed_when: false
+      no_log: true
+    - name: Credential, read id
+      fjacquet.ppdm.credential_info: {name: zz-p3c-cred}
+      register: cred_info
+      failed_when: false
+
+    - name: Inventory source, create (unreachable vCenter)
+      fjacquet.ppdm.inventory_source: &src
+        name: zz-p3c-vc
+        type: VCENTER
+        address: 192.0.2.10
+        source_port: 443
+        credential_id: "{{ (cred_info.credentials | default([{}]) | first).id | default('') }}"
+      register: src1
+      failed_when: false
+    - name: Inventory source, re-run
+      fjacquet.ppdm.inventory_source: *src
+      register: src2
+      failed_when: false
+
+    - name: Discovery with wait (expected to end FAILED, source unreachable)
+      fjacquet.ppdm.discovery: {inventory_source: zz-p3c-vc, wait: true, wait_timeout: 300}
+      register: disc_wait
+      failed_when: false
+    - name: Discovery without wait
+      fjacquet.ppdm.discovery: {inventory_source: zz-p3c-vc, ignore_running: true}
+      register: disc_nowait
+      failed_when: false
+
+    - name: Activities
+      fjacquet.ppdm.activity_info:
+      register: acts
+      failed_when: false
+    - name: One activity with steps
+      fjacquet.ppdm.activity_info: {id: "{{ acts.activities[0].id }}", steps: true}
+      register: act_steps
+      failed_when: false
+      when: acts.activities | default([]) | length > 0
+
+    - name: Cancel without confirm (guard)
+      fjacquet.ppdm.activity_action: {id: "{{ acts.activities[0].id }}", action: cancel}
+      register: cancel_guard
+      failed_when: false
+      when: acts.activities | default([]) | length > 0
+    - name: Retry the activity with wait
+      fjacquet.ppdm.activity_action: {id: "{{ acts.activities[0].id }}", action: retry, wait: true, wait_timeout: 300}
+      register: retry1
+      failed_when: false
+      when: acts.activities | default([]) | length > 0
+    - name: Cancel with confirm
+      fjacquet.ppdm.activity_action: {id: "{{ acts.activities[0].id }}", action: cancel, confirm: true}
+      register: cancel1
+      failed_when: false
+      when: acts.activities | default([]) | length > 0
+
+    - name: Cleanup source
+      fjacquet.ppdm.inventory_source: {name: zz-p3c-vc, state: absent}
+      register: src_del
+      failed_when: false
+    - name: Cleanup credential
+      fjacquet.ppdm.credential: {name: zz-p3c-cred, state: absent}
+      register: cred_del
+      failed_when: false
+      no_log: true
+
+    - name: Save
+      ansible.builtin.copy:
+        content: >-
+          {{ {'cred': {'c1': cred1.changed | default(none), 'c1_failed': cred1.failed | default(none), 'c2': cred2.changed | default(none),
+          'del': cred_del.changed | default(none)}, 'src1': src1, 'src2': src2, 'disc_wait': disc_wait, 'disc_nowait': disc_nowait,
+          'acts': acts, 'act_steps': act_steps | default({}), 'cancel_guard': cancel_guard | default({}), 'retry1': retry1 | default({}),
+          'cancel1': cancel1 | default({}), 'src_del': src_del} | to_nice_json }}
+        dest: "{{ results_dir }}/phase3c.json"
+        mode: "0600"

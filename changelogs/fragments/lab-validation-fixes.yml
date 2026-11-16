@@ -1,5 +1,8 @@
 ---
 bugfixes:
+  - Client - a short page without ``page.totalPages`` is now the last page instead of an error, the
+    ``/api/v2/server-disaster-recovery-configurations`` endpoint of PPDM 20.3 sends none (found by running a playbook on a
+    live lab). A full page without ``totalPages`` still fails.
   - protection_policy - timestamps such as ``window.startTime`` are compared as instants, PPDM stores
     ``...00.000Z`` as ``...00Z`` and every re-run reported a change (found on a live lab).
   - ensure (every module that updates with PATCH, for example resource_group, protection_rule, protection_group and

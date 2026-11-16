@@ -172,8 +172,8 @@ def test_login_without_access_token_raises_ppdm_error(resp):
     assert "S3cret!" not in e.value.msg
 
 
-def test_list_all_missing_page_with_content_raises():
-    op = FakeOpener(Resp({"access_token": "t"}), Resp({"content": [{"id": 1}]}))
+def test_list_all_missing_page_with_full_page_raises():
+    op = FakeOpener(Resp({"access_token": "t"}), Resp({"content": [{"id": i} for i in range(100)]}))
     c = client(op)
     c.login()
     with pytest.raises(PpdmError) as e:
@@ -194,10 +194,17 @@ def test_get_all_later_page_without_envelope_raises():
 
 
 @pytest.mark.parametrize("pg", [[], "x", {}, {"totalPages": None}])
-def test_list_all_unusable_page_with_content_raises(pg):
-    c = client(FakeOpener(Resp({"content": [{"id": 1}], "page": pg})))
+def test_list_all_unusable_page_with_a_full_page_raises(pg):
+    c = client(FakeOpener(Resp({"content": [{"id": i} for i in range(100)], "page": pg})))
     with pytest.raises(PpdmError, match="totalPages"):
         c.list_all("alerts")
+
+
+@pytest.mark.parametrize("pg", [[], "x", {}, {"totalPages": None}])
+def test_list_all_short_page_without_total_pages_is_the_last_page(pg):
+    # server-disaster-recovery-configurations sends no totalPages on PPDM 20.3 (seen on a live lab)
+    c = client(FakeOpener(Resp({"content": [{"id": 1}], "page": pg})))
+    assert c.list_all("alerts") == [{"id": 1}]
 
 
 @pytest.mark.parametrize("pg", [None, [], {}])

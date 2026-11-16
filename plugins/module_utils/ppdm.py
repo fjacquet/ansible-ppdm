@@ -402,9 +402,11 @@ class PpdmClient:
                     % (path, self.scrub_text(total, 40), MAX_PAGES)
                 )
             if total is None:
-                if content:
-                    raise PpdmError("GET %s failed: paginated response has no 'page.totalPages'" % path)
-                return items, True
+                # server-disaster-recovery-configurations sends no totalPages on 20.3 (live lab): a short page is the
+                # last one, a full page is ambiguous and fails rather than guessing
+                if len(content) < PAGE_SIZE:
+                    return items, True
+                raise PpdmError("GET %s failed: paginated response has no 'page.totalPages'" % path)
             if page >= total:
                 return items, True
             page += 1
