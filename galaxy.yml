@@ -22,7 +22,10 @@ documentation: https://github.com/fjacquet/ansible-ppdm
 issues: https://github.com/fjacquet/ansible-ppdm/issues
 build_ignore:
   - '*.tar.gz'
+  - '*.DS_Store'
   - .ansible
+  - .env
+  - .env.example
   - .ansible_collections
   - .ansible-lint
   - .github
@@ -34,6 +37,7 @@ build_ignore:
   - .superpowers
   - .venv
   - CLAUDE.md
+  - bin
   - docs/openapi
   - docs/superpowers
   - docs/validation
