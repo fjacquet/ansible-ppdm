@@ -27,8 +27,9 @@ notes:
 - The rule is found by name first, then by id; the module fails when several rules match.
 - The 20.3.0 OpenAPI documents the 202 answer of the execution endpoint without a body. With I(wait=true)
   the module expects an C(activityId) in the answer, polls it to completion and fails unless the activity
-  ends C(OK) (C(OK_WITH_ERRORS) only adds a warning); an answer without C(activityId) fails the module.
-  Without I(wait) the answer is returned as C(response) and nothing is polled.
+  ends C(OK) or C(SUCCESS) (the warn statuses C(OK_WITH_ERRORS), C(COMPLETED_WITH_EXCEPTIONS) only add
+  a warning); an answer without C(activityId) fails the module. Without I(wait) the answer is returned
+  as C(response) and nothing is polled.
 - Check mode reads the rule but sends no execution request.
 seealso:
 - module: fjacquet.ppdm.protection_rule
@@ -80,8 +81,8 @@ options:
   wait:
     description:
     - Wait for the activity of the run to complete.
-    - Fails unless the activity C(result.status) is C(OK) or C(OK_WITH_ERRORS) (the latter only warns),
-      and fails when the answer has no C(activityId).
+    - Fails unless the activity status is C(OK) or C(SUCCESS); C(OK_WITH_ERRORS) or C(COMPLETED_WITH_EXCEPTIONS)
+      warns, and fails when the answer has no C(activityId).
     type: bool
     default: false
   wait_timeout:
@@ -137,7 +138,7 @@ activities:
   type: list
   elements: dict
 warnings:
-  description: OK_WITH_ERRORS activities (when waited).
+  description: OK_WITH_ERRORS or COMPLETED_WITH_EXCEPTIONS activities (when waited).
   returned: when any
   type: list
   elements: str

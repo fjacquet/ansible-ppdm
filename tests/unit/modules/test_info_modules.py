@@ -258,3 +258,40 @@ def test_asset_info_masks_credentials(monkeypatch):
     assert "hunter2" not in json.dumps(out)
     out = run(monkeypatch, asset_info, FakeOpener(Resp(dict(asset))), id="1")
     assert "hunter2" not in json.dumps(out)
+
+
+def _generic(spec, **kw):
+    class Mod:
+        @staticmethod
+        def main():
+            ppdm.info_main("users", "users", spec, **kw)
+
+    return Mod
+
+
+def test_info_main_name_key_filters_and_rechecks(monkeypatch):
+    op = FakeOpener(page([{"id": "1", "username": "x"}, {"id": "2", "username": "xy"}], 1, 1))
+    spec = dict(name=dict(type="str"), id=dict(type="str"), filter=dict(type="str"))
+    out = run(monkeypatch, _generic(spec, name_key="username"), op, name="x")
+    assert out["users"] == [{"id": "1", "username": "x"}]
+    assert parse_qs(urlsplit(op.calls[0][0]).query)["filter"] == ['username eq "x"']
+
+
+def test_info_main_spec_without_name_filter_id_lists_all(monkeypatch):
+    op = FakeOpener(page([{"id": "1"}], 1, 1))
+    out = run(monkeypatch, _generic({}), op)
+    assert out["users"] == [{"id": "1"}]
+    assert "filter" not in parse_qs(urlsplit(op.calls[0][0]).query)
+
+
+def test_info_main_mutually_exclusive_only_present_options(monkeypatch):
+    seen = {}
+    real_init = ppdm.AnsibleModule.__init__
+
+    def spy(self, **kw):
+        seen.update(kw)
+        real_init(self, **kw)
+
+    monkeypatch.setattr(ppdm.AnsibleModule, "__init__", spy)
+    run(monkeypatch, _generic(dict(id=dict(type="str"), filter=dict(type="str"))), FakeOpener(page([], 1, 0)))
+    assert seen["mutually_exclusive"] == [("id", "filter")]

@@ -274,3 +274,75 @@ def test_start_action_409_keeps_status():
     with pytest.raises(PpdmError) as ei:
         c.start_action("/api/v3/protections", {}, check_mode=False)
     assert ei.value.status == 409
+
+
+def done(status, error=None):
+    return Resp({"id": "a", "state": "COMPLETED", "result": {"status": status, "error": error}})
+
+
+@pytest.mark.parametrize("status", ["OK", "SUCCESS"])
+def test_await_activity_success(status):
+    c, _unused, _unused = mk(done(status))
+    assert "warnings" not in c.await_activity("a", 10)
+
+
+@pytest.mark.parametrize("status", ["OK_WITH_ERRORS", "COMPLETED_WITH_EXCEPTIONS"])
+def test_await_activity_warns(status):
+    c, _unused, _unused = mk(done(status, "boom"))
+    assert len(c.await_activity("a", 10)["warnings"]) == 1
+
+
+def test_await_activity_canceled_raises_with_body():
+    c, _unused, _unused = mk(done("CANCELED"))
+    with pytest.raises(PpdmError, match="CANCELED") as e:
+        c.await_activity("a", 10)
+    assert e.value.body["result"]["status"] == "CANCELED"
+
+
+SMTP = {"id": "s1", "server": "mail", "port": 25}
+
+
+def test_ensure_singleton_creates_when_none():
+    c, op, _unused = mk(page([], 1, 0), Resp({"id": "s1", "server": "mail"}, 201))
+    assert c.ensure("smtp", {"server": "mail"}, key=None)["changed"]
+    url, kw = writes(op)[0]
+    assert kw["method"] == "POST" and url.endswith("/api/v2/smtp")
+
+
+def test_ensure_singleton_puts_on_difference():
+    c, op, _unused = mk(page([SMTP], 1, 1), Resp(SMTP))
+    assert c.ensure("smtp", {"server": "other"}, key=None)["changed"]
+    url, kw = writes(op)[0]
+    assert kw["method"] == "PUT" and url.endswith("/api/v2/smtp/s1")
+
+
+def test_ensure_singleton_same_no_write():
+    c, op, _unused = mk(page([SMTP], 1, 1))
+    assert not c.ensure("smtp", {"server": "mail"}, key=None)["changed"]
+    assert writes(op) == []
+
+
+def test_ensure_singleton_many_fails_without_write():
+    c, op, _unused = mk(page([SMTP, dict(SMTP, id="s2")], 1, 1))
+    with pytest.raises(PpdmError, match="smtp: 2 objects exist, expected at most one") as e:
+        c.ensure("smtp", {"server": "mail"}, key=None)
+    assert "s1" in e.value.msg and writes(op) == []
+
+
+def test_ensure_singleton_create_false_message():
+    c, _unused, _unused = mk(page([], 1, 0))
+    with pytest.raises(PpdmError, match="smtp: no object exists"):
+        c.ensure("smtp", {"server": "mail"}, key=None, create=False)
+
+
+def test_remove_singleton():
+    c, op, _unused = mk(page([SMTP], 1, 1), Resp(None, 204))
+    assert c.remove("smtp", None, None)["changed"]
+    url, kw = writes(op)[0]
+    assert kw["method"] == "DELETE" and url.endswith("/api/v2/smtp/s1")
+
+
+def test_remove_singleton_none_is_noop():
+    c, op, _unused = mk(page([], 1, 0))
+    assert c.remove("smtp", None, None)["changed"] is False
+    assert writes(op) == []

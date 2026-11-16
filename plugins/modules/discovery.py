@@ -27,8 +27,8 @@ notes:
   resource. The module builds it as C(/inventory-sources/<id>) from I(inventory_source), found by name
   first, then by id. C(level) defaults to C(DataCopies) on the server when omitted.
 - The 202 answer is the Discovery object, whose C(taskId) is the id of the discovery activity. With I(wait=true)
-  that activity is polled to completion and the module fails unless it ends C(OK) (C(OK_WITH_ERRORS) only
-  adds a warning).
+  that activity is polled to completion and the module fails unless it ends C(OK) or C(SUCCESS) (the warn
+  statuses C(OK_WITH_ERRORS), C(COMPLETED_WITH_EXCEPTIONS) only add a warning).
 seealso:
 - module: fjacquet.ppdm.inventory_source
   description: Manage inventory sources.
@@ -75,7 +75,8 @@ options:
   wait:
     description:
     - Wait for the discovery activity (C(taskId) of the answer) to complete.
-    - Fails unless the activity C(result.status) is C(OK) or C(OK_WITH_ERRORS) (the latter only warns).
+    - Fails unless the activity status is C(OK) or C(SUCCESS); C(OK_WITH_ERRORS) or C(COMPLETED_WITH_EXCEPTIONS)
+      warns.
     type: bool
     default: false
   wait_timeout:
@@ -128,7 +129,7 @@ activity:
   returned: when waited
   type: dict
 warnings:
-  description: Set when the activity ended OK_WITH_ERRORS.
+  description: Set when the activity ended OK_WITH_ERRORS or COMPLETED_WITH_EXCEPTIONS.
   returned: when any
   type: list
   elements: str
