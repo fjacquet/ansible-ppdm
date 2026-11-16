@@ -27,24 +27,16 @@
       register: rg3
       failed_when: false
 
-    - name: Rule, create (assigns to the resource group, VM filter)
+    - name: Rule, create (assigns to the resource group, POWERSTORE_BLOCK template)
       fjacquet.ppdm.protection_rule: &rule
         name: zz-validate-rule
-        priority: 99
         action: ASSIGN_RESOURCE_GROUP
         resource_group: zz-validate-rg
         description: lab validation
-        filters:
-          - objectType: ASSET
-            objectSubtype: VMWARE_VIRTUAL_MACHINE
-            type: INCLUDE
-            operator: AND
-            conditions:
-              - operator: AND
-                conditions:
-                  - fieldName: name
-                    operator: CONTAINS
-                    fieldData: {type: STRING, values: [zz-validate]}
+        filter_template:
+          name: ALL_ASSETS_BY_TYPE
+          objectSubtype: POWERSTORE_BLOCK
+          args: [{name: ASSET_TYPE, values: [POWERSTORE_BLOCK]}]
       register: rule1
       failed_when: false
     - name: Rule, re-run
@@ -57,6 +49,10 @@
         action: ASSIGN_RESOURCE_GROUP
         resource_group: zz-validate-rg
         description: lab validation updated
+        filter_template:
+          name: ALL_ASSETS_BY_TYPE
+          objectSubtype: POWERSTORE_BLOCK
+          args: [{name: ASSET_TYPE, values: [POWERSTORE_BLOCK]}]
       register: rule3
       failed_when: false
 

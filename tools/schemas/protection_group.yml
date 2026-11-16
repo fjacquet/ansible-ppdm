@@ -45,7 +45,7 @@ options:
   subtype:
     type: str
     choices: [GENERIC, MEDITECH]
-    description: Subtype, for C(STORAGE_DIRECT_APPLICATION) groups.
+    description: Subtype of the group. PPDM 20.3 rejects a group created without a subtype (verified on a live lab), so a new group gets C(GENERIC) when this is not set. An existing group keeps its subtype when this is not set.
   member_asset_type:
     type: str
     choices: [ORACLE_DATABASE, POWERSTORE_BLOCK, POWER_MAX_BLOCK]

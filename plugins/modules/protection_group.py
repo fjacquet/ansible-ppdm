@@ -64,7 +64,9 @@ options:
     - STORAGE_DIRECT_APPLICATION
   subtype:
     description:
-    - Subtype, for C(STORAGE_DIRECT_APPLICATION) groups.
+    - Subtype of the group. PPDM 20.3 rejects a group created without a subtype (verified on a live lab),
+      so a new group gets C(GENERIC) when this is not set. An existing group keeps its subtype when this
+      is not set.
     type: str
     choices:
     - GENERIC
@@ -256,9 +258,13 @@ def main():
             pid = policy_id(client, p)
             if pid is not None:
                 desired["protectionPolicyRef"] = {"id": pid}
+            existing = client.find_one("protection-groups", "name", p["name"])
+            if existing is None:
+                desired.setdefault("subtype", "GENERIC")  # PPDM 20.3 rejects a new group without a subtype
             res = client.ensure(
                 "protection-groups",
                 desired,
+                existing=existing,
                 check_mode=module.check_mode,
                 readonly=READONLY,
                 subset_keys=("protectionPolicyRef",),

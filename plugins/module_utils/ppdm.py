@@ -515,9 +515,12 @@ class PpdmClient:
                 },
             }
         verb = update_verb or ("PUT" if "PUT" in ROUTES[resource]["methods"] else "PATCH")
-        path = self._route(resource, verb, self._item_id(resource, existing))
+        item_id = self._item_id(resource, existing)
+        path = self._route(resource, verb, item_id)
         drop = (WRITE_ONLY_KEYS | secret_keys) - set(want)
         body = {k: v for k, v in shown.items() if k not in drop}
+        if verb == "PATCH" and item_id:
+            body["id"] = item_id  # PPDM 20.3 answers HTTP 400 to a PATCH without the id (live lab)
         obj = shown if check_mode else (self.request(verb, path, body=body) or shown)
         return {
             "changed": True,

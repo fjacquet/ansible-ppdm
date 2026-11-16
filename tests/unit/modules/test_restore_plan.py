@@ -69,7 +69,7 @@ def test_update_patches_on_difference(monkeypatch):
     out = run(monkeypatch, op, **args)
     assert out["changed"] and methods(op) == ["GET", "PATCH"]
     assert op.calls[1][0].endswith("/api/v2/restore-plans/rp1")
-    assert body(op, 1)["description"] == "new" and "id" not in body(op, 1) and "state" not in body(op, 1)
+    assert body(op, 1)["description"] == "new" and body(op, 1)["id"] == "rp1" and "state" not in body(op, 1)
 
 
 def test_update_patches_when_group_differs(monkeypatch):

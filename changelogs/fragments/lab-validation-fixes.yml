@@ -1,0 +1,6 @@
+---
+bugfixes:
+  - ensure (all modules that update with PATCH, for example resource_group, protection_rule, protection_group, restore_plan) - the PATCH body now carries the object ``id``, PPDM 20.3 answers HTTP 400 without it (found on a live lab).
+  - protection_group - a new group gets ``subtype`` ``GENERIC`` when the option is not set, PPDM 20.3 rejects a group without a subtype. An existing group keeps its subtype.
+minor_changes:
+  - protection_rule - new ``filter_template`` option (the ``filterTemplate`` field). PPDM 20.3 builds the rule filters from a template, and for an ``ASSIGN_RESOURCE_GROUP`` rule it requires ``priority`` and ``filters`` to be unset.
