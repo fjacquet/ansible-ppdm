@@ -1,5 +1,7 @@
 ---
 bugfixes:
+  - protection_policy - timestamps such as ``window.startTime`` are compared as instants, PPDM stores
+    ``...00.000Z`` as ``...00Z`` and every re-run reported a change (found on a live lab).
   - ensure (every module that updates with PATCH, for example resource_group, protection_rule, protection_group and
     restore_plan) - the PATCH body now carries the object ``id``, PPDM 20.3 answers HTTP 400 without it (found on a live lab).
   - protection_group - a new group gets ``subtype`` ``GENERIC`` when the option is not set, PPDM 20.3 rejects a group
@@ -7,3 +9,6 @@ bugfixes:
 minor_changes:
   - protection_rule - new ``filter_template`` option (the ``filterTemplate`` field). PPDM 20.3 builds the rule filters
     from a template, and for an ``ASSIGN_RESOURCE_GROUP`` rule it requires ``priority`` and ``filters`` to be unset.
+  - protection_rule_run - new ``all_rules_of_action`` option. PPDM 20.3 answers HTTP 400 when a single
+    ``ASSIGN_PROTECTION_POLICY`` rule is run by ``ruleId``, it only runs every rule of the action. The module now fails
+    before any request unless the option is set, then sends the action without ``ruleId``.

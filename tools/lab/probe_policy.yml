@@ -1,0 +1,49 @@
+---
+# Live-lab probe 5: can a throwaway POWERSTORE_BLOCK policy be created without a storage container (needed to
+# preview an ASSIGN_PROTECTION_POLICY rule)? Raw results: .ansible/lab-results/probe5.json.
+- name: Probe 5
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      ca_path: "{{ lookup('ansible.builtin.env', 'LAB_CA_PATH') }}"
+      tls_server_name: "{{ lookup('ansible.builtin.env', 'LAB_TLS_SERVER_NAME') }}"
+  vars:
+    results_dir: "{{ playbook_dir }}/../../.ansible/lab-results"
+  tasks:
+    - name: Policy with a SNAPSHOT objective, no target
+      fjacquet.ppdm.protection_policy:
+        name: zz-p5-policy
+        asset_type: POWERSTORE_BLOCK
+        purpose: CENTRALIZED
+        objectives:
+          - id: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+            type: SNAPSHOT
+            operations:
+              - id: 11111111-2222-4333-8444-555555555555
+                schedule:
+                  recurrence: {pattern: {type: DAILY, interval: 1}}
+                  window: {startTime: "2026-01-01T20:00:00.000Z", duration: PT8H}
+            retentions:
+              - id: 66666666-7777-4888-9999-aaaaaaaaaaaa
+                time: [{type: RETENTION, unitType: DAY, unitValue: 7}]
+      register: pol
+      failed_when: false
+    - name: Policy with an empty objectives list
+      fjacquet.ppdm.protection_policy:
+        name: zz-p5-policy-b
+        asset_type: POWERSTORE_BLOCK
+        purpose: CENTRALIZED
+        objectives: []
+      register: pol_b
+      failed_when: false
+    - name: Cleanup
+      fjacquet.ppdm.protection_policy: {name: "{{ item }}", state: absent}
+      loop: [zz-p5-policy, zz-p5-policy-b]
+      failed_when: false
+    - name: Save
+      ansible.builtin.copy:
+        content: "{{ {'pol': pol, 'pol_b': pol_b} | to_nice_json }}"
+        dest: "{{ results_dir }}/probe5.json"
+        mode: "0600"

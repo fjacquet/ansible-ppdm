@@ -1,0 +1,100 @@
+---
+# Live-lab phase 3b: throwaway POWERSTORE_BLOCK policy (create, re-run, update, preview of an ASSIGN_PROTECTION_POLICY
+# rule, rule run with wait, delete). Raw results: .ansible/lab-results/phase3b.json.
+- name: Phase 3b
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      ca_path: "{{ lookup('ansible.builtin.env', 'LAB_CA_PATH') }}"
+      tls_server_name: "{{ lookup('ansible.builtin.env', 'LAB_TLS_SERVER_NAME') }}"
+  vars:
+    results_dir: "{{ playbook_dir }}/../../.ansible/lab-results"
+  tasks:
+    - name: Policy, create
+      fjacquet.ppdm.protection_policy: &policy
+        name: zz-p3b-policy
+        asset_type: POWERSTORE_BLOCK
+        purpose: CENTRALIZED
+        description: lab validation
+        objectives:
+          - id: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+            type: SNAPSHOT
+            operations:
+              - id: 11111111-2222-4333-8444-555555555555
+                schedule:
+                  recurrence: {pattern: {type: DAILY, interval: 1}}
+                  window: {startTime: "2026-01-01T20:00:00.000Z", duration: PT8H}
+            retentions:
+              - id: 66666666-7777-4888-9999-aaaaaaaaaaaa
+                time: [{type: RETENTION, unitType: DAY, unitValue: 7}]
+      register: pol1
+      failed_when: false
+    - name: Policy, re-run
+      fjacquet.ppdm.protection_policy: *policy
+      register: pol2
+      failed_when: false
+    - name: Policy, update description
+      fjacquet.ppdm.protection_policy:
+        <<: *policy
+        description: lab validation updated
+      register: pol3
+      failed_when: false
+
+    - name: Rule assigning to the policy
+      fjacquet.ppdm.protection_rule:
+        name: zz-p3b-rule
+        action: ASSIGN_PROTECTION_POLICY
+        protection_policy: zz-p3b-policy
+        filter_template:
+          name: ALL_ASSETS_BY_TYPE
+          objectSubtype: POWERSTORE_BLOCK
+          args: [{name: ASSET_TYPE, values: [POWERSTORE_BLOCK]}]
+      register: rule1
+      failed_when: false
+    - name: Rule, re-run
+      fjacquet.ppdm.protection_rule:
+        name: zz-p3b-rule
+        action: ASSIGN_PROTECTION_POLICY
+        protection_policy: zz-p3b-policy
+        filter_template:
+          name: ALL_ASSETS_BY_TYPE
+          objectSubtype: POWERSTORE_BLOCK
+          args: [{name: ASSET_TYPE, values: [POWERSTORE_BLOCK]}]
+      register: rule2
+      failed_when: false
+    - name: Preview
+      fjacquet.ppdm.protection_rule_run: {rule: zz-p3b-rule, preview: true}
+      register: preview
+      failed_when: false
+    - name: Run without the all_rules_of_action opt-in (must fail before any request)
+      fjacquet.ppdm.protection_rule_run: {rule: zz-p3b-rule}
+      register: run_refused
+      failed_when: false
+    - name: Run every policy rule
+      fjacquet.ppdm.protection_rule_run: {rule: zz-p3b-rule, all_rules_of_action: true, object_subtypes: [POWERSTORE_BLOCK]}
+      register: run_all
+      failed_when: false
+    - name: Run with wait (202 has no activityId on 20.3)
+      fjacquet.ppdm.protection_rule_run: {rule: zz-p3b-rule, all_rules_of_action: true, wait: true}
+      register: run_wait
+      failed_when: false
+    - name: Activities after
+      fjacquet.ppdm.activity_info:
+      register: activities
+      failed_when: false
+
+    - name: Cleanup rule
+      fjacquet.ppdm.protection_rule: {name: zz-p3b-rule, state: absent}
+      failed_when: false
+    - name: Cleanup policy
+      fjacquet.ppdm.protection_policy: {name: zz-p3b-policy, state: absent}
+      register: pol_del
+      failed_when: false
+    - name: Save
+      ansible.builtin.copy:
+        content: "{{ {'pol1': pol1, 'pol2': pol2, 'pol3': pol3, 'rule1': rule1, 'rule2': rule2, 'preview': preview,
+          'run_refused': run_refused, 'run_all': run_all, 'run_wait': run_wait, 'activities': activities, 'pol_del': pol_del} | to_nice_json }}"
+        dest: "{{ results_dir }}/phase3b.json"
+        mode: "0600"

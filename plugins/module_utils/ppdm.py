@@ -15,6 +15,7 @@ import json
 import re
 import ssl
 import time
+from datetime import datetime
 from http.client import HTTPException
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
@@ -71,7 +72,19 @@ def is_subset(want: Any, have: Any) -> bool:
         return isinstance(have, dict) and all(k in have and is_subset(v, have[k]) for k, v in want.items())
     if isinstance(want, list):
         return isinstance(have, list) and len(want) == len(have) and all(map(is_subset, want, have))
-    return want == have
+    if want == have:
+        return True
+    return isinstance(want, str) and isinstance(have, str) and _same_instant(want, have)
+
+
+def _same_instant(a: str, b: str) -> bool:
+    """True when both strings are the same ISO 8601 instant (PPDM drops the zero milliseconds it was sent)."""
+    if "T" not in a or "T" not in b:
+        return False
+    try:
+        return datetime.fromisoformat(a) == datetime.fromisoformat(b)
+    except (ValueError, TypeError):  # not timestamps, or a naive one against an aware one
+        return False
 
 
 def merge_config(named: dict, config: dict | None) -> dict:

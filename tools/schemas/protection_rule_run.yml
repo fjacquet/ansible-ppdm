@@ -42,15 +42,25 @@ options:
     type: list
     elements: str
     choices: [CLOUD_DIRECTOR_VAPP, CLOUD_NATIVE_ENTITY, FILE_SYSTEM, GENERIC_APPLICATION_ASSET, HYPERV_VIRTUAL_MACHINE, KUBERNETES, MICROSOFT_EXCHANGE_DATABASE, MICROSOFT_SQL_DATABASE, NAS_SHARE, NATIVEEDGE_VIRTUAL_MACHINE, NUTANIX_VIRTUAL_MACHINE, ORACLE_DATABASE, POWERSTORE_BLOCK, POWER_MAX_BLOCK, SAP_HANA_DATABASE, VMWARE_VIRTUAL_MACHINE]
+  all_rules_of_action:
+    version_added: 0.4.1
+    description:
+      - PPDM 20.3 cannot run a single C(ASSIGN_PROTECTION_POLICY) rule, it answers HTTP 400 to a request with a C(ruleId) (verified on a live lab). It only runs every rule of that action.
+      - Set to C(true) to run every C(ASSIGN_PROTECTION_POLICY) rule (limited by I(object_subtypes) when set). Without it the module fails for such a rule before any request.
+      - Not used for C(ASSIGN_RESOURCE_GROUP) rules, which run by their own C(ruleId).
+    type: bool
+    default: false
   preview:
     description:
       - Preview the conflicts of the existing I(rule) instead of running it.
+      - PPDM 20.3 supports the preview only for C(ASSIGN_PROTECTION_POLICY) rules (HTTP 400 for C(ASSIGN_RESOURCE_GROUP)), and answered HTTP 500 for a C(POWERSTORE_BLOCK) template rule on the lab.
       - Cannot be combined with I(wait).
     type: bool
     default: false
   wait:
     description:
       - Wait for the activity of the run to complete.
+      - PPDM 20.3 answers the run with a 202 that echoes the request and has no C(activityId) (verified on a live lab), so the module fails with a clear message when this is set.
       - Fails unless the activity status is C(OK) or C(SUCCESS); C(OK_WITH_ERRORS) or C(COMPLETED_WITH_EXCEPTIONS) warns, and fails when the answer has no C(activityId).
     type: bool
     default: false

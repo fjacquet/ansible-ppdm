@@ -1,0 +1,72 @@
+---
+# Live-lab probe 6: POST /api/v3/rule-execution request shapes for a policy rule and a resource-group rule.
+# Raw results: .ansible/lab-results/probe6.json.
+- name: Probe 6
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      ca_path: "{{ lookup('ansible.builtin.env', 'LAB_CA_PATH') }}"
+      tls_server_name: "{{ lookup('ansible.builtin.env', 'LAB_TLS_SERVER_NAME') }}"
+  vars:
+    results_dir: "{{ playbook_dir }}/../../.ansible/lab-results"
+    tmpl: {name: ALL_ASSETS_BY_TYPE, objectSubtype: POWERSTORE_BLOCK, args: [{name: ASSET_TYPE, values: [POWERSTORE_BLOCK]}]}
+  tasks:
+    - name: Policy
+      fjacquet.ppdm.protection_policy:
+        name: zz-p6-policy
+        asset_type: POWERSTORE_BLOCK
+        purpose: CENTRALIZED
+        objectives:
+          - id: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+            type: SNAPSHOT
+            operations:
+              - id: 11111111-2222-4333-8444-555555555555
+                schedule:
+                  recurrence: {pattern: {type: DAILY, interval: 1}}
+                  window: {startTime: "2026-01-01T20:00:00Z", duration: PT8H}
+            retentions:
+              - id: 66666666-7777-4888-9999-aaaaaaaaaaaa
+                time: [{type: RETENTION, unitType: DAY, unitValue: 7}]
+    - name: Resource group
+      fjacquet.ppdm.resource_group: {name: zz-p6-rg}
+    - name: Policy rule
+      fjacquet.ppdm.protection_rule:
+        {name: zz-p6-rule-pp, action: ASSIGN_PROTECTION_POLICY, protection_policy: zz-p6-policy, filter_template: "{{ tmpl }}"}
+      register: rpp
+    - name: Group rule
+      fjacquet.ppdm.protection_rule:
+        {name: zz-p6-rule-rg, action: ASSIGN_RESOURCE_GROUP, resource_group: zz-p6-rg, filter_template: "{{ tmpl }}"}
+      register: rrg
+    - name: PP rule, ruleId only
+      fjacquet.ppdm.api: {method: POST, path: /api/v3/rule-execution, body: {ruleId: "{{ rpp.protection_rule.id }}", objectType: ASSET}}
+      register: a
+      failed_when: false
+    - name: PP rule, ruleId and actionName
+      fjacquet.ppdm.api: {method: POST, path: /api/v3/rule-execution, body: {ruleId: "{{ rpp.protection_rule.id }}", objectType: ASSET, actionName: ASSIGN_PROTECTION_POLICY}}
+      register: b
+      failed_when: false
+    - name: PP, actionName only (all rules of the action)
+      fjacquet.ppdm.api: {method: POST, path: /api/v3/rule-execution, body: {objectType: ASSET, actionName: ASSIGN_PROTECTION_POLICY}}
+      register: c
+      failed_when: false
+    - name: RG rule, ruleId only
+      fjacquet.ppdm.api: {method: POST, path: /api/v3/rule-execution, body: {ruleId: "{{ rrg.protection_rule.id }}", objectType: ASSET}}
+      register: d
+      failed_when: false
+    - name: Cleanup
+      fjacquet.ppdm.protection_rule: {name: "{{ item }}", state: absent}
+      loop: [zz-p6-rule-pp, zz-p6-rule-rg]
+      failed_when: false
+    - name: Cleanup policy
+      fjacquet.ppdm.protection_policy: {name: zz-p6-policy, state: absent}
+      failed_when: false
+    - name: Cleanup group
+      fjacquet.ppdm.resource_group: {name: zz-p6-rg, state: absent}
+      failed_when: false
+    - name: Save
+      ansible.builtin.copy:
+        content: "{{ {'a': a, 'b': b, 'c': c, 'd': d} | to_nice_json }}"
+        dest: "{{ results_dir }}/probe6.json"
+        mode: "0600"
