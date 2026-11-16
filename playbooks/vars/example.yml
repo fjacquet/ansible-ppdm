@@ -112,7 +112,13 @@ agent_enable_lookups: true
 resource_group_name: example-resource-group
 resource_group_description: Example resource group
 resource_group_rule_name: example-resource-group-rule
-resource_group_rule_filters: "{{ rule_filters }}"
+resource_group_rule_filter_template:
+  name: ALL_ASSETS_BY_TYPE
+  objectSubtype: VMWARE_VIRTUAL_MACHINE
+  args:
+    - name: ASSET_TYPE
+      values:
+        - VMWARE_VIRTUAL_MACHINE
 protection_group_name: example-protection-group
 protection_group_type: STORAGE_DIRECT_APPLICATION
 protection_group_subtype: GENERIC

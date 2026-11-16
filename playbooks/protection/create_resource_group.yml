@@ -1,6 +1,7 @@
 ---
-# Ensure a resource group, then a v3 rule that assigns the assets selected by resource_group_rule_filters (VMs with a tag
-# by default) to it. Both are updated when they differ (idempotent). Edit resource_group_rule_filters to select other assets.
+# Ensure a resource group, then a v3 rule that assigns the assets selected by resource_group_rule_filter_template (all VMs
+# by default) to it. Both are updated when they differ (idempotent). Edit resource_group_rule_filter_template to select
+# other assets. PPDM 20.3 builds the filters from the template and refuses a priority on a resource group rule.
 # Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
 - name: Create a resource group and its rule
   hosts: "{{ target | default('localhost') }}"
@@ -24,6 +25,5 @@
       fjacquet.ppdm.protection_rule:
         name: "{{ resource_group_rule_name }}"
         action: ASSIGN_RESOURCE_GROUP
-        priority: "{{ rule_priority }}"
         resource_group: "{{ resource_group_name }}"
-        filters: "{{ resource_group_rule_filters }}"
+        filter_template: "{{ resource_group_rule_filter_template }}"

@@ -58,6 +58,31 @@ unchanged despite server-generated `filters`, PATCH update, delete, delete again
 unchanged, delete; protection_group (default `subtype` GENERIC) create and delete. User create and idempotence were
 validated in probe 3 (the phase 2 user step is not a reliable signal, it reports neither change nor failure).
 
+## Phase 3b/3c/3d: agent host, activities, collection playbooks
+
+- A File System agent 20.3.0.10-31 installs and registers on SLES 16.1 (`--skip-driver`), outside Dell's documented
+  matrix for 20.3. Registration goes `WAITING` then `REGISTERED` once its address is on the whitelist
+  (`agents/approve_agents_by_hostname`, `agents/get_registration_status`: PASS).
+- `discovery` with `wait` against the default app group: the activity ends `FAILED` ("ADM ... hostId"), and the module
+  reports it correctly (`wait` on a terminal v3 failure: PASS). PPDM's ADM answers 400 "Unable to source the hostId":
+  discovery of an agent host starts at `/hosts/<id>`, which the `discovery` module cannot target (**gap**: it only
+  takes an inventory source). Via the raw API `POST /api/v2/discoveries {"start": "/hosts/<id>"}` returns 202.
+- `activity_info` (list, by id with steps): PASS on real activities. `activity_action`: cancel without `confirm`
+  refused before any request (PASS); cancel on a COMPLETED activity is an unchanged no-op (PASS); retry or cancel on an
+  activity with empty `supportedActions` is refused with the state (PASS). The server-side cancel and retry success
+  paths are NOT validated: discovery activities never offer those actions.
+- Unreachable-address `inventory_source` (TEST-NET): PPDM tries to connect during the POST, the client times out, and a
+  hidden record keeps the name (create answers 400 "already exists", the list is empty). Do not use this to make
+  activities.
+- Collection playbooks run on the lab with `SSL_CERT_FILE` and `PPDM_TLS_SERVER_NAME` only: 15 read-only playbooks
+  PASS (empty lists skip cleanly); `get_sdr_configuration` found the paging bug below; three failures are expected
+  (placeholder names, Cloud DR unsupported on this platform); `create_resource_group` x2 (changed, unchanged),
+  `create_protection_group` x2, `run_rule`, `approve_agents_by_hostname`, `get_registration_status`: PASS.
+- **Playbook bug, fixed**: `create_resource_group` sent raw VM `filters` and a `priority`, which PPDM 20.3 refuses for
+  `ASSIGN_RESOURCE_GROUP`; it now uses `filter_template`.
+- **Client bug, fixed**: `/api/v2/server-disaster-recovery-configurations` returns no `page.totalPages`; a short page
+  is now the last page.
+
 ## Fixed in 0.4.1 (branch feat/lab-validation)
 
 PATCH `id`, `protection_rule.filter_template`, `protection_group` default `subtype`, `tls_server_name`, `docs/validation`
@@ -79,6 +104,31 @@ in `build_ignore`. Still open: document the user password policy.
 | protection_rule_run `preview` | RG rule: HTTP 400 "not supported for ASSIGN_RESOURCE_GROUP". Policy rule on POWERSTORE_BLOCK: HTTP 500 "Unable to retrieve condition config for fieldName type and objectSubtype POWERSTORE_BLOCK" (server side). Errors are relayed correctly; success path NOT validated |
 | activity_action (cancel guard, cancel, retry) | NOT validated: the lab has no activity at all (no assets, no storage target) |
 | `wait` on v3 activity statuses | NOT validated live (unit tests only), no activity to wait on |
+
+## Phase 3b/3c/3d: agent host, activities, collection playbooks
+
+- A File System agent 20.3.0.10-31 installs and registers on SLES 16.1 (`--skip-driver`), outside Dell's documented
+  matrix for 20.3. Registration goes `WAITING` then `REGISTERED` once its address is on the whitelist
+  (`agents/approve_agents_by_hostname`, `agents/get_registration_status`: PASS).
+- `discovery` with `wait` against the default app group: the activity ends `FAILED` ("ADM ... hostId"), and the module
+  reports it correctly (`wait` on a terminal v3 failure: PASS). PPDM's ADM answers 400 "Unable to source the hostId":
+  discovery of an agent host starts at `/hosts/<id>`, which the `discovery` module cannot target (**gap**: it only
+  takes an inventory source). Via the raw API `POST /api/v2/discoveries {"start": "/hosts/<id>"}` returns 202.
+- `activity_info` (list, by id with steps): PASS on real activities. `activity_action`: cancel without `confirm`
+  refused before any request (PASS); cancel on a COMPLETED activity is an unchanged no-op (PASS); retry or cancel on an
+  activity with empty `supportedActions` is refused with the state (PASS). The server-side cancel and retry success
+  paths are NOT validated: discovery activities never offer those actions.
+- Unreachable-address `inventory_source` (TEST-NET): PPDM tries to connect during the POST, the client times out, and a
+  hidden record keeps the name (create answers 400 "already exists", the list is empty). Do not use this to make
+  activities.
+- Collection playbooks run on the lab with `SSL_CERT_FILE` and `PPDM_TLS_SERVER_NAME` only: 15 read-only playbooks
+  PASS (empty lists skip cleanly); `get_sdr_configuration` found the paging bug below; three failures are expected
+  (placeholder names, Cloud DR unsupported on this platform); `create_resource_group` x2 (changed, unchanged),
+  `create_protection_group` x2, `run_rule`, `approve_agents_by_hostname`, `get_registration_status`: PASS.
+- **Playbook bug, fixed**: `create_resource_group` sent raw VM `filters` and a `priority`, which PPDM 20.3 refuses for
+  `ASSIGN_RESOURCE_GROUP`; it now uses `filter_template`.
+- **Client bug, fixed**: `/api/v2/server-disaster-recovery-configurations` returns no `page.totalPages`; a short page
+  is now the last page.
 
 ## Fixed in 0.4.1 (branch feat/lab-validation)
 

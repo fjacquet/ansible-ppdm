@@ -1,0 +1,33 @@
+---
+# Live-lab phase 3e: start a discovery without waiting, then cancel its activity while it runs (race, may find it finished).
+# Raw results: .ansible/lab-results/phase3e.json.
+- name: Phase 3e
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      ca_path: "{{ lookup('ansible.builtin.env', 'LAB_CA_PATH') }}"
+      tls_server_name: "{{ lookup('ansible.builtin.env', 'LAB_TLS_SERVER_NAME') }}"
+  vars:
+    results_dir: "{{ playbook_dir }}/../../.ansible/lab-results"
+  tasks:
+    - name: Start a discovery, no wait
+      fjacquet.ppdm.discovery: {inventory_source: Default Group for Application Hosts, ignore_running: true}
+      register: disc
+      failed_when: false
+    - name: Read the activity of that discovery
+      fjacquet.ppdm.activity_info: {id: "{{ disc.discovery.taskId }}"}
+      register: act
+      failed_when: false
+      when: disc.discovery.taskId is defined
+    - name: Cancel it with confirm and wait
+      fjacquet.ppdm.activity_action: {id: "{{ disc.discovery.taskId }}", action: cancel, confirm: true, wait: true, wait_timeout: 120}
+      register: cancel
+      failed_when: false
+      when: disc.discovery.taskId is defined
+    - name: Save
+      ansible.builtin.copy:
+        content: "{{ {'disc': disc, 'act': act | default({}), 'cancel': cancel | default({})} | to_nice_json }}"
+        dest: "{{ results_dir }}/phase3e.json"
+        mode: "0600"
