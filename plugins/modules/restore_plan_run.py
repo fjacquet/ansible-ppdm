@@ -168,6 +168,8 @@ def main():
         res = client.start_action("/api/v2/restore-plans/%s/execute" % quote_id(plan["id"]), body, module.check_mode)
         resp = res["response"]
         warnings, activities = [], []
+        if p["wait"] and not module.check_mode and not isinstance(resp, dict):
+            raise PpdmError("PPDM answered no activities, nothing to wait for")
         if isinstance(resp, dict):
             out["result"] = resp
             entries = [a for a in resp.get("activities") or [] if isinstance(a, dict)]

@@ -38,14 +38,12 @@ def body(op, i):
 
 
 def test_create_with_role_name_masks_password(monkeypatch):
-    op = FakeOpener(
-        listing(ROLE), listing(), listing(), Resp({"id": "u1", "username": "jdoe", "password": SECRET}, 201)
-    )
+    op = FakeOpener(listing(ROLE), listing(), Resp({"id": "u1", "username": "jdoe", "password": SECRET}, 201))
     out = run(monkeypatch, op, user_password=SECRET, role="Administrator", force_password_change=True)
-    assert out["changed"] and methods(op) == ["GET", "GET", "GET", "POST"]
+    assert out["changed"] and methods(op) == ["GET", "GET", "POST"]
     assert op.calls[0][0].split("?")[0].endswith("/api/v2/roles")
     assert op.calls[1][0].split("?")[0].endswith("/api/v2/users")
-    assert body(op, 3) == {
+    assert body(op, 2) == {
         "username": "jdoe",
         "firstName": "Jane",
         "lastName": "Doe",
@@ -58,25 +56,25 @@ def test_create_with_role_name_masks_password(monkeypatch):
 
 
 def test_update_puts_only_on_difference_without_password(monkeypatch):
-    op = FakeOpener(listing(EXISTING), listing(EXISTING), Resp({"id": "u1"}))
+    op = FakeOpener(listing(EXISTING), Resp({"id": "u1"}))
     out = run(monkeypatch, op, email="new@example.com")
-    assert out["changed"] and methods(op) == ["GET", "GET", "PUT"]
-    assert op.calls[2][0].endswith("/api/v2/users/u1")
-    sent = body(op, 2)
+    assert out["changed"] and methods(op) == ["GET", "PUT"]
+    assert op.calls[1][0].endswith("/api/v2/users/u1")
+    sent = body(op, 1)
     assert sent["emailAddress"] == "new@example.com" and "password" not in sent
     assert "id" not in sent and "createdDate" not in sent
 
 
 def test_idempotent_missing_fields_use_existing_user(monkeypatch):
-    op = FakeOpener(listing(EXISTING), listing(EXISTING))
+    op = FakeOpener(listing(EXISTING))
     out = run_module(monkeypatch, user, op, name="jdoe")
-    assert not out["changed"] and methods(op) == ["GET", "GET"]
+    assert not out["changed"] and methods(op) == ["GET"]
 
 
 def test_idempotent_ignores_password(monkeypatch):
-    op = FakeOpener(listing(EXISTING), listing(EXISTING))
+    op = FakeOpener(listing(EXISTING))
     out = run(monkeypatch, op, user_password=SECRET, role_id="r1")
-    assert not out["changed"] and methods(op) == ["GET", "GET"]
+    assert not out["changed"] and methods(op) == ["GET"]
 
 
 def test_update_password_always_forces_put(monkeypatch):
@@ -94,9 +92,9 @@ def test_absent_deletes(monkeypatch):
 
 
 def test_check_mode_sends_no_write(monkeypatch):
-    op = FakeOpener(listing(), listing())
+    op = FakeOpener(listing())
     out = run(monkeypatch, op, user_password=SECRET, check_mode=True)
-    assert out["changed"] and methods(op) == ["GET", "GET"]
+    assert out["changed"] and methods(op) == ["GET"]
     out = run_module(monkeypatch, user, FakeOpener(listing(EXISTING)), name="jdoe", state="absent", check_mode=True)
     assert out["changed"]
 
@@ -140,10 +138,10 @@ def test_user_info_filters_username_and_drops_password(monkeypatch):
 
 
 def test_on_create_existing_user_update_drops_password(monkeypatch):
-    op = FakeOpener(listing(EXISTING), listing(EXISTING), Resp({"id": "u1"}))
+    op = FakeOpener(listing(EXISTING), Resp({"id": "u1"}))
     out = run(monkeypatch, op, email="new@example.com", user_password=SECRET)
-    assert out["changed"] and methods(op) == ["GET", "GET", "PUT"]
-    assert "password" not in body(op, 2) and SECRET not in json.dumps(out)
+    assert out["changed"] and methods(op) == ["GET", "PUT"]  # one lookup, shared with ensure
+    assert "password" not in body(op, 1) and SECRET not in json.dumps(out)
 
 
 def test_absent_masks_password_in_diff(monkeypatch):
@@ -159,3 +157,8 @@ def test_passwords_are_registered_as_client_secrets(monkeypatch):
     monkeypatch.setattr(PpdmClient, "add_secret", lambda self, s: (seen.append(s), orig(self, s))[1])
     run(monkeypatch, op, user_password=SECRET, update_password="always")
     assert SECRET in seen
+
+
+def test_create_error_scrubs_name(monkeypatch):
+    out = run_module(monkeypatch, user, FakeOpener(listing()), name="s3cret-user")
+    assert out["failed"] and "s3cret" not in out["msg"]

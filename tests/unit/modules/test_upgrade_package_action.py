@@ -213,3 +213,17 @@ def test_no_empty_no_log_value_so_result_strings_stay_intact(monkeypatch):
         upgrade_package_action.main()
     assert e.value.kwargs["upgrade_package"]["state"] == "INSTALLED"
     assert e.value.kwargs["upgrade_package"]["category"] == "ACTIVE"
+
+
+def test_short_server_token_is_not_masked_everywhere(monkeypatch):
+    """A 1-char server-supplied token must not turn unrelated output into stars."""
+    op = FakeOpener(pkg(upgradeToken="u", lockboxPassphrase=5), http_error(400, {"message": "bad request"}))
+    out = run(monkeypatch, op)
+    assert out["failed"] and "bad request" in out["msg"]
+
+
+def test_failure_keeps_standard_shape_and_hides_secrets(monkeypatch):
+    op = FakeOpener(pkg(), http_error(500, {"message": "boom %s" % TOK}))
+    out = run(monkeypatch, op)
+    assert out["failed"] and out["status"] == 500 and "boom" in json.dumps(out["body"])
+    assert TOK not in json.dumps(out) and PP not in json.dumps(out)

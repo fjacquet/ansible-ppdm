@@ -136,7 +136,7 @@ def main():
             )
             out["results"] = client.scrub(results)
             errors = [
-                "%s: %s" % (r.get("id"), client.scrub_text(r["errorResponseObject"], 300))
+                "%s: %s" % (client.scrub_text(r.get("id"), 64), client.scrub_text(r["errorResponseObject"], 300))
                 for r in results
                 if r.get("errorResponseObject")
             ]

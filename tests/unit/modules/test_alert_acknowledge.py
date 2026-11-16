@@ -77,3 +77,10 @@ def test_fewer_acknowledged_than_sent_fails(monkeypatch):
     op = FakeOpener(alert("a"), alert("b"), alert("c"), Resp({"acknowledgementCount": 1, "bulkResults": []}, 207))
     out = run(monkeypatch, op, ids=["a", "b", "c"])
     assert out["failed"] and "1 of 3" in out["msg"]
+
+
+def test_bulk_error_id_is_scrubbed(monkeypatch):
+    bad = "id-s3cret-9"  # contains the connection password
+    op = FakeOpener(alert(bad), bulk({"id": bad, "errorResponseObject": {"message": "x"}}))
+    out = run(monkeypatch, op, ids=[bad])
+    assert out["failed"] and "s3cret" not in out["msg"]

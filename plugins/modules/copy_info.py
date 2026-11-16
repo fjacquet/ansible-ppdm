@@ -102,6 +102,8 @@ from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
     quote_id,
 )
 
+LATEST_CHUNK = 50
+
 
 def main():
     module = AnsibleModule(
@@ -133,13 +135,17 @@ def main():
                 query={"filter": p["filter"]} if p["filter"] else None,
             )
         else:
-            flt = "assetId in (%s)" % ", ".join(filter_quote(i) for i in p["latest_asset_ids"])
-            if p["filter"]:
-                flt += " and (%s)" % p["filter"]
-            body = client.request("GET", "/api/v2/latest-copies", query={"filter": flt})
-            if not isinstance(body, dict) or not isinstance(body.get("content"), list):
-                raise PpdmError("GET latest-copies failed: unexpected response")
-            copies = body["content"]
+            copies = []
+            ids = list(dict.fromkeys(p["latest_asset_ids"]))
+            # the spec gives latest-copies a filter only, no paging: bound each request by chunking the ids
+            for start in range(0, len(ids), LATEST_CHUNK):
+                flt = "assetId in (%s)" % ", ".join(filter_quote(i) for i in ids[start : start + LATEST_CHUNK])
+                if p["filter"]:
+                    flt += " and (%s)" % p["filter"]
+                body = client.request("GET", "/api/v2/latest-copies", query={"filter": flt})
+                if not isinstance(body, dict) or not isinstance(body.get("content"), list):
+                    raise PpdmError("GET latest-copies failed: unexpected response")
+                copies += body["content"]
     except PpdmError as err:
         fail_from(module, err)
     module.exit_json(changed=False, copies=copies)

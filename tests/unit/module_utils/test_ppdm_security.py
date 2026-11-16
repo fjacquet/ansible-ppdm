@@ -216,3 +216,13 @@ def test_login_failure_still_hides_password():
     with pytest.raises(PpdmError) as e:
         c.login()
     assert "hunter22" not in e.value.msg + json.dumps(e.value.body)
+
+
+def test_add_secret_rule():
+    client = PpdmClient("h", "u", "pw-long-enough")
+    for ignored in (None, "", "ab", True, 7, [], {}):
+        client.add_secret(ignored)
+    assert client.extra_secrets == set()
+    client.add_secret(123456)
+    client.add_secret("123456")
+    assert client.extra_secrets == {"123456"} and client.scrub("n=123456") == "n=********"

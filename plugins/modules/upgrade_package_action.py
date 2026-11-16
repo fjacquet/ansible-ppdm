@@ -159,10 +159,12 @@ from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
     _mask,
     client_from_module,
     connection_argument_spec,
+    fail_from,
     quote_id,
 )
 
 SECRET_KEYS = ("lockboxPassphrase", "upgradeToken")
+MIN_SERVER_SECRET = 8  # a shorter server-supplied value would mask unrelated text, so it is not registered
 
 
 def main():
@@ -177,9 +179,6 @@ def main():
     client.add_secret(p["lockbox_passphrase"])
     if p["lockbox_passphrase"]:  # never add "": remove_values would mangle every result string
         module.no_log_values.add(p["lockbox_passphrase"])
-
-    def fail(msg, **kw):
-        module.fail_json(msg=client.scrub_text(msg, 1000), **kw)
 
     out = {}
     try:
@@ -197,7 +196,7 @@ def main():
         if not isinstance(pkg, dict):
             raise PpdmError("GET %s failed: unexpected response" % path)
         for key in SECRET_KEYS:
-            if isinstance(pkg.get(key), str) and pkg[key]:
+            if isinstance(pkg.get(key), str) and len(pkg[key]) >= MIN_SERVER_SECRET:
                 client.add_secret(pkg[key])
                 module.no_log_values.add(pkg[key])
         out["upgrade_package"] = _mask(pkg, SECRET_KEYS)
@@ -249,7 +248,8 @@ def main():
                 if done.get("warnings"):
                     out["warnings"] = done["warnings"]
     except PpdmError as err:
-        fail(err.msg, status=err.status)
+        # messages raised here carry server text: scrub them (and the body) with the late-registered secrets
+        fail_from(module, PpdmError(client.scrub_text(err.msg, 1000), err.status, client.scrub(err.body)))
     module.exit_json(changed=True, **out)
 
 

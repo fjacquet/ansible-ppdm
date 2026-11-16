@@ -118,6 +118,10 @@ def _mask(obj, secret_keys):
     return {k: (MASK if k in secret_keys else v) for k, v in obj.items()}
 
 
+MIN_SECRET_LENGTH = 4  # shorter values are not registered as secrets (see PpdmClient.add_secret)
+_UNSET = object()
+
+
 class PpdmError(Exception):
     """Any client failure: msg is safe to show (scrubbed), status the HTTP code if any, body the scrubbed error body."""
 
@@ -153,17 +157,24 @@ class PpdmClient:
         self.sleep = sleep
         self.token = None
         self.last_status = None
-        self.extra_secrets = []
+        self.extra_secrets = set()
 
     def add_secret(self, value):
-        """Also mask value (a passphrase, a package token) wherever scrub is applied, escaped forms included."""
-        if isinstance(value, str) and value:
-            self.extra_secrets.append(value)
+        """Also mask value (a passphrase, a package token) wherever scrub is applied, escaped forms included.
+
+        Rule: None, bool and empty values are ignored; other scalars (an int) are taken as str(); a value of
+        fewer than MIN_SECRET_LENGTH characters is ignored, masking it would mangle unrelated text. Kept in a set.
+        """
+        if value is None or isinstance(value, bool) or not isinstance(value, (str, int, float)):
+            return
+        text = str(value)
+        if len(text) >= MIN_SECRET_LENGTH:
+            self.extra_secrets.add(text)
 
     def _secret_strings(self):
         """The password and the token plus their JSON (lower and upper case \\uXXXX) and repr escaped forms."""
         out = set()
-        for x in (self.password, self.token, *self.extra_secrets):
+        for x in (self.password, self.token, *sorted(self.extra_secrets)):
             if isinstance(x, str) and x:
                 ascii_form = json.dumps(x)[1:-1]
                 upper = re.sub(r"\\u([0-9a-f]{4})", lambda m: "\\u" + m.group(1).upper(), ascii_form)  # Jackson
@@ -424,6 +435,7 @@ class PpdmClient:
         update_verb: str | None = None,
         readonly: Any = None,
         subset_keys: Any = (),
+        existing: Any = _UNSET,
     ) -> dict:
         """Create or update one object; the merge over the existing object is shallow (top-level keys only).
 
@@ -431,12 +443,14 @@ class PpdmClient:
         the route offers it, else PATCH. readonly overrides the ROUTES readOnly key set. A desired value of a
         subset_keys key that is a subset of the existing one (see is_subset) counts as unchanged, so server-added
         ids and defaults do not cause an update. An update then sends the existing value (with its ids) for those keys,
-        and the desired value as given for keys that really differ.
+        and the desired value as given for keys that really differ. existing, when given (an object already
+        fetched by the caller, or None for "none exists"), replaces the lookup.
         """
         if update_secrets not in ("on_create", "always"):
             raise PpdmError("update_secrets must be 'on_create' or 'always', got %r" % (update_secrets,))
         secret_keys = set(secret_keys)
-        existing = self._find(resource, key, desired[key] if key else None)
+        if existing is _UNSET:
+            existing = self._find(resource, key, desired[key] if key else None)
         want = strip_readonly(resource, desired, readonly)
         if existing is None:
             if not create:

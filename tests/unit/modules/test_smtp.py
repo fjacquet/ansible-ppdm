@@ -142,3 +142,27 @@ def test_smtp_info_drops_password(monkeypatch):
         smtp_info.main()
     out = e.value.kwargs
     assert out["smtp"] == [EXISTING] and SECRET not in json.dumps(out)
+
+
+def test_config_cannot_supply_mail_server(monkeypatch):
+    """merge_config refuses named keys in config, so required_if(mail_server) never demands what config could give."""
+    out = run_module(monkeypatch, smtp, FakeOpener(), config={"mailServer": "smtp.example.com"})
+    assert out["failed"] and "mail_server" in out["msg"]
+
+
+def test_test_with_username_needs_password(monkeypatch):
+    op = FakeOpener()
+    out = run(monkeypatch, op, recipient="ops@example.com", smtp_username="relay", test=True)
+    assert out["failed"] and "smtp_password" in out["msg"] and op.calls == []
+
+
+def test_test_with_stored_username_needs_password(monkeypatch):
+    op = FakeOpener(listing(dict(EXISTING, recipient="ops@example.com", username="relay")))
+    out = run(monkeypatch, op, recipient="ops@example.com", test=True)
+    assert out["failed"] and "smtp_password" in out["msg"] and methods(op) == ["GET"]
+
+
+def test_test_uses_stored_configuration(monkeypatch):
+    op = FakeOpener(listing(dict(EXISTING, recipient="ops@example.com")), Resp(None, 200))
+    run_module(monkeypatch, smtp, op, recipient="ops@example.com", test=True, mail_server="smtp.example.com")
+    assert body(op, 1)["mailFrom"] == "ppdm@example.com" and body(op, 1)["port"] == 587

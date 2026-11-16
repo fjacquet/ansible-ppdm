@@ -83,3 +83,11 @@ def test_filter_with_id_fails(monkeypatch):
     op = FakeOpener()
     out = run(monkeypatch, op, id="a", filter="f")
     assert out["failed"] and "filter" in out["msg"] and op.calls == []
+
+
+def test_latest_asset_ids_are_chunked(monkeypatch):
+    ids = ["a%d" % i for i in range(120)]
+    op = FakeOpener(*(Resp({"content": [{"id": "c%d" % i}]}) for i in range(3)))
+    out = run(monkeypatch, op, latest_asset_ids=ids)
+    assert len(op.calls) == 3 and [c["id"] for c in out["copies"]] == ["c0", "c1", "c2"]
+    assert query(op, 0)["filter"][0].count('"a') == 50 and query(op, 2)["filter"][0].count('"a') == 20

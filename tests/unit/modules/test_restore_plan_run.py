@@ -138,3 +138,8 @@ def test_unknown_plan_fails(monkeypatch):
     op = FakeOpener(listing(), listing())
     out = run(monkeypatch, op)
     assert out["failed"] and "not found" in out["msg"] and methods(op) == ["GET", "GET"]
+
+
+def test_wait_with_empty_answer_fails(monkeypatch):
+    out = run(monkeypatch, FakeOpener(listing(PLAN), Resp(None, 204)), wait=True)
+    assert out["failed"] and "no activities" in out["msg"]

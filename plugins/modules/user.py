@@ -193,11 +193,17 @@ def main():
         )
         required = ("firstName", "lastName", "emailAddress", "password")
         drop_password = "password" in desired and p["update_password"] != "always"
+        known = {}  # the looked-up user, handed to ensure so it is fetched once
         if drop_password or any(k not in desired for k in required):
-            exists = client.find_one("users", "username", p["name"]) is not None
-            if not exists and any(k not in desired for k in required):
-                raise PpdmError("creating user %s needs first_name, last_name, email and user_password" % p["name"])
-            if exists and drop_password:
+            found = client.find_one("users", "username", p["name"])
+            known["existing"] = found
+            if found is None and any(k not in desired for k in required):
+                raise PpdmError(
+                    client.scrub_text(
+                        "creating user %s needs first_name, last_name, email and user_password" % p["name"]
+                    )
+                )
+            if found is not None and drop_password:
                 desired.pop("password")  # on_create never touches an existing password
         res = client.ensure(
             "users",
@@ -207,6 +213,7 @@ def main():
             secret_keys=("password",),
             update_secrets=p["update_password"],
             readonly=READONLY,
+            **known,
         )
     except PpdmError as err:
         fail_from(module, err)

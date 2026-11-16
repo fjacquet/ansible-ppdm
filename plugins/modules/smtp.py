@@ -79,6 +79,8 @@ options:
     - Send a test email with the desired values after the configuration is ensured.
     - Skipped in check mode, because it sends a real email. It never sets C(changed) by itself.
     - Requires I(recipient).
+    - The test uses the stored configuration for the options not given. PPDM never returns the stored
+      password, so with an SMTP username the test needs I(smtp_password) and fails clearly without it.
     type: bool
     default: false
   config:
@@ -180,6 +182,9 @@ def main():
             },
             p["config"],
         )
+        if p["test"] and not p["smtp_password"] and desired.get("username"):
+            # PPDM never returns the stored password, so the test email could not authenticate
+            raise PpdmError("test=true with an SMTP username needs smtp_password: PPDM does not return the stored one")
         res = client.ensure(
             "smtp",
             desired,
@@ -191,7 +196,16 @@ def main():
         )
         if p["test"] and not module.check_mode:  # a real email, so never in check mode
             fields = ("mailServer", "mailFrom", "recipient", "port", "username", "password")
-            client.request("POST", "/api/v2/smtp/test", body={k: desired[k] for k in fields if k in desired})
+            stored = res["object"] if isinstance(res["object"], dict) else {}
+            test_body = {k: desired.get(k, stored.get(k)) for k in fields if k != "password"}
+            test_body = {k: v for k, v in test_body.items() if v is not None}
+            if p["smtp_password"]:
+                test_body["password"] = p["smtp_password"]
+            elif test_body.get("username"):  # the stored username came from PPDM; its password is never returned
+                raise PpdmError(
+                    "test=true with an SMTP username needs smtp_password: PPDM does not return the stored one"
+                )
+            client.request("POST", "/api/v2/smtp/test", body=test_body)
     except PpdmError as err:
         fail_from(module, err)
     module.exit_json(changed=res["changed"], smtp=res["object"], diff=res["diff"])

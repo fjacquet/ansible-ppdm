@@ -61,6 +61,7 @@ options:
       - Send a test email with the desired values after the configuration is ensured.
       - Skipped in check mode, because it sends a real email. It never sets C(changed) by itself.
       - Requires I(recipient).
+      - The test uses the stored configuration for the options not given. PPDM never returns the stored password, so with an SMTP username the test needs I(smtp_password) and fails clearly without it.
   config:
     type: dict
     description:
