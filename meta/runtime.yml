@@ -24,6 +24,8 @@ action_groups:
     - protection_rule_run
     - resource_group
     - resource_group_info
+    - restore_plan
+    - restore_plan_info
     - protection_group
     - protection_group_info
     - asset_info

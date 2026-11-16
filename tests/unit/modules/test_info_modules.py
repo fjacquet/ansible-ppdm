@@ -19,6 +19,7 @@ from ansible_collections.fjacquet.ppdm.plugins.modules import (
     protection_policy_info,
     protection_rule_info,
     resource_group_info,
+    restore_plan_info,
     role_info,
     storage_system_info,
 )
@@ -39,6 +40,7 @@ MODULES = [
     (protection_rule_info, "/api/v3/rules", "protection_rules"),
     (protection_group_info, "/api/v2/protection-groups", "protection_groups"),
     (resource_group_info, "/api/v2/resource-groups", "resource_groups"),
+    (restore_plan_info, "/api/v2/restore-plans", "restore_plans"),
     (asset_info, "/api/v2/assets", "assets"),
     (host_info, "/api/v2/hosts", "hosts"),
     (role_info, "/api/v2/roles", "roles"),
