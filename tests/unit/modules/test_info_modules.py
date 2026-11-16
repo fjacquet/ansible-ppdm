@@ -9,6 +9,7 @@ from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
     filter_eq,
 )
 from ansible_collections.fjacquet.ppdm.plugins.modules import (
+    alert_info,
     asset_info,
     certificate_info,
     credential_info,
@@ -295,3 +296,25 @@ def test_info_main_mutually_exclusive_only_present_options(monkeypatch):
     monkeypatch.setattr(ppdm.AnsibleModule, "__init__", spy)
     run(monkeypatch, _generic(dict(id=dict(type="str"), filter=dict(type="str"))), FakeOpener(page([], 1, 0)))
     assert seen["mutually_exclusive"] == [("id", "filter")]
+
+
+def test_alert_info_list(monkeypatch):
+    op = FakeOpener(page([{"id": "1", "severity": "CRITICAL"}], 1, 1))
+    out = run(monkeypatch, alert_info, op)
+    assert out["alerts"] == [{"id": "1", "severity": "CRITICAL"}]
+    assert urlsplit(op.calls[0][0]).path == "/api/v2/alerts"
+
+
+def test_alert_info_severity_anded_and_rechecked(monkeypatch):
+    op = FakeOpener(page([{"id": "1", "severity": "CRITICAL"}, {"id": "2", "severity": "WARNING"}], 1, 1))
+    out = run(monkeypatch, alert_info, op, severity="CRITICAL", filter='category eq "LICENSE"')
+    assert out["alerts"] == [{"id": "1", "severity": "CRITICAL"}]
+    flt = parse_qs(urlsplit(op.calls[0][0]).query)["filter"]
+    assert flt == ['(category eq "LICENSE") and severity eq "CRITICAL"']
+
+
+def test_alert_info_by_id(monkeypatch):
+    op = FakeOpener(Resp({"id": "abc"}))
+    out = run(monkeypatch, alert_info, op, id="abc")
+    assert out["alerts"] == [{"id": "abc"}]
+    assert urlsplit(op.calls[0][0]).path == "/api/v2/alerts/abc"

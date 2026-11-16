@@ -1,0 +1,52 @@
+module: activity_info
+resource: activities
+kind: info
+short_description: Get activities from PowerProtect Data Manager
+description:
+  - Read-only query of activities (jobs). Never changes anything.
+  - Without I(id), returns every matching activity, all pages. An unfiltered list pages through every activity (up to the client limit), so pass a I(filter).
+  - The C(state) of an activity is one of C(QUEUED), C(RUNNING), C(PENDING_CANCELLATION), C(COMPLETED). The C(result.status) is one of C(OK), C(OK_WITH_ERRORS), C(FAILED), C(CANCELED), C(SKIPPED), C(UNKNOWN).
+version_added: 0.4.0
+attributes:
+  check_mode:
+    support: full
+    details: Read-only, behaves the same in check mode.
+  diff_mode:
+    support: none
+notes:
+  - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
+options:
+  id:
+    type: str
+    description: Return only the activity with this ID. Mutually exclusive with I(filter). A 404 answer gives an empty list.
+  filter:
+    type: str
+    description: PPDM filter string, for example C(state eq "RUNNING"). It is passed to PPDM unchanged and its result is not re-checked. Mutually exclusive with I(id).
+  steps:
+    type: bool
+    default: false
+    description: Also fetch the steps of the activity and return them as C(steps) of the activity. Only valid with I(id).
+examples: |
+  - name: Failed activities of the last day
+    fjacquet.ppdm.activity_info:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      filter: 'result.status eq "FAILED" and startTime gt "2026-11-15T00:00:00.000Z"'
+    register: result
+
+  - name: One activity with its steps
+    fjacquet.ppdm.activity_info:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      id: "{{ activity_id }}"
+      steps: true
+
+return: |
+  activities:
+    description: Matching activities, an empty list when nothing matches. With I(steps) each one has a C(steps) list.
+    returned: always
+    type: list
+    elements: dict
+    sample: [{"id": "a1", "name": "Protect VM", "state": "COMPLETED", "result": {"status": "OK"}}]

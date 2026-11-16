@@ -28,3 +28,5 @@ action_groups:
     - protection_group_info
     - asset_info
     - host_info
+    - activity_info
+    - alert_info
