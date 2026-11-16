@@ -152,7 +152,20 @@ def build_enums(openapi_dir):
     rr = get("RuleRelationalCondition")[1]
     rx = get("RuleExecution")[1]
     pg = get("ProtectionGroup")[1]
+    alert_spec, alert = get("Alert")
+    ack_spec, ack = get("AlertAcknowledgement")
+    rp_spec, rplan = get("RestorePlan")
+    rr_spec, rrun = get("RestorePlanExecutionRequest")
+    up_spec, upkg = get("UpgradePackage")
+    rs_spec, retry = get("RetryActivityOption")
     enums = {
+        "activity.retry_option": set(retry["enum"]),
+        "alert.severity": set(_prop(alert_spec, alert, "severity")["enum"]),
+        "alert.category": set(_prop(alert_spec, alert, "category")["enum"]),
+        "alert.acknowledge_state": set(_prop(ack_spec, ack, "acknowledgeState")["enum"]),
+        "restore_plan.fallback_strategy": set(_prop(rp_spec, rplan, "fallbackStrategy")["enum"]),
+        "restore_plan_run.execution_type": set(_prop(rr_spec, rrun, "executionType")["enum"]),
+        "upgrade_package.category": set(_prop(up_spec, upkg, "category")["enum"]),
         "protection_policy.asset_type": asset,
         "protection_policy.purpose": purpose,
         "objective.type": otype,
