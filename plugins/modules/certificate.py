@@ -10,8 +10,8 @@ module: certificate
 short_description: Trust or remove a host certificate on PowerProtect Data Manager
 description:
 - Manage the trust store entry of a remote host certificate (C(/api/v2/certificates)).
-- With C(state=present) the certificate presented by I(host):I(port) is fetched through PPDM and accepted
-  with a PUT (a POST when the entry has no ID).
+- With C(state=present) the certificate presented by I(host):I(host_port) is fetched through PPDM and
+  accepted with a PUT (a POST when the entry has no ID).
 - Secure by default, C(state=present) requires I(fingerprint), the presented fingerprint must match it.
   Without it the module fails unless I(accept_any_certificate=true).
 - With a I(fingerprint) pin, the states C(UNKNOWN), C(MISMATCHED) and C(REJECTED) are accepted, C(EXPIRED),
@@ -24,7 +24,8 @@ description:
   and the entry stays there when the pin does not match (by design, PPDM exposes no side-effect-free way
   to read the presented certificate). Check mode and C(state=absent) use C(nocache=true) so they never
   write to the trust store.
-- Entries are matched on exact I(host) (case-insensitive), I(port) and I(type). More than one match fails.
+- Entries are matched on exact I(host) (case-insensitive), I(host_port) and I(type). More than one match
+  fails.
 - With C(state=absent) an API entry without a C(type) is not matched, so C(changed=false) can mean "not
   found by this module".
 version_added: 0.1.0
@@ -55,9 +56,9 @@ options:
     - Host name or IP address presenting the certificate.
     type: str
     required: true
-  port:
+  host_port:
     description:
-    - TLS port of the host.
+    - TLS port of the host (not the PPDM connection port, see I(port) of the connection options).
     type: int
     default: 443
   type:
@@ -99,7 +100,7 @@ EXAMPLES = r'''
     username: admin
     password: "{{ ppdm_password }}"
     host: dd01.example.com
-    port: 3009
+    host_port: 3009
     fingerprint: "AB:CD:EF:..."
 
 - name: Trust whatever the host presents (insecure)
@@ -108,7 +109,7 @@ EXAMPLES = r'''
     username: admin
     password: "{{ ppdm_password }}"
     host: lab-dd.example.com
-    port: 3009
+    host_port: 3009
     accept_any_certificate: true
 
 - name: Remove the trust
@@ -117,7 +118,7 @@ EXAMPLES = r'''
     username: admin
     password: "{{ ppdm_password }}"
     host: dd01.example.com
-    port: 3009
+    host_port: 3009
     state: absent
 '''
 
@@ -137,7 +138,7 @@ diff:
 ARGUMENT_SPEC = dict(
     state=dict(type='str', choices=['present', 'absent'], default='present'),
     host=dict(type='str', required=True),
-    port=dict(type='int', default=443),
+    host_port=dict(type='int', default=443),
     type=dict(type='str', choices=['HOST', 'ROOT', 'INTERMEDIATE'], default='HOST'),
     fingerprint=dict(type='str'),
     accept_any_certificate=dict(type='bool', default=False),
@@ -187,7 +188,7 @@ def main():
     if present and p["accept_any_certificate"]:
         module.warn("accept_any_certificate=true trusts whatever certificate the host presents")
     client = client_from_module(module)
-    query = {"host": p["host"], "port": p["port"], "type": p["type"]}
+    query = {"host": p["host"], "port": p["host_port"], "type": p["type"]}
     if module.check_mode or not present:
         query["nocache"] = "true"  # never write to the trust store
     try:
@@ -198,7 +199,7 @@ def main():
             for c in found
             if isinstance(c, dict)
             and str(c.get("host") or "").lower() == p["host"].lower()
-            and str(c.get("port")) == str(p["port"])
+            and str(c.get("port")) == str(p["host_port"])
             and str(c.get("type") or "").lower() == p["type"].lower()
         ]
         if len(matches) > 1:
@@ -206,7 +207,7 @@ def main():
                 msg="more than one certificate matches %s:%s: %s"
                 % (
                     p["host"],
-                    p["port"],
+                    p["host_port"],
                     ", ".join(
                         "%s (%s)" % (client.scrub_text(c.get("id"), 64), client.scrub_text(c.get("fingerprint"), 128))
                         for c in matches[:10]
@@ -222,7 +223,7 @@ def main():
                 client.request("DELETE", item_path(cert["id"]))
             module.exit_json(changed=True, certificate={}, diff={"before": cert, "after": {}})
         if cert is None:
-            module.fail_json(msg="PPDM returned no certificate for %s:%s" % (p["host"], p["port"]))
+            module.fail_json(msg="PPDM returned no certificate for %s:%s" % (p["host"], p["host_port"]))
         if p["fingerprint"]:
             if norm(cert.get("fingerprint")) != norm(p["fingerprint"]):
                 module.fail_json(
@@ -237,7 +238,7 @@ def main():
         if state not in acceptable:
             module.fail_json(
                 msg="certificate for %s:%s is in state %s, refusing to accept it"
-                % (p["host"], p["port"], client.scrub_text(state, 64))
+                % (p["host"], p["host_port"], client.scrub_text(state, 64))
             )
         after = dict(cert, state="ACCEPTED")
         if not module.check_mode:

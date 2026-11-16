@@ -18,7 +18,7 @@
     - name: Trust the Data Domain certificate
       fjacquet.ppdm.certificate:
         host: "{{ ddve_hostname }}"
-        port: "{{ ddve_port }}"
+        host_port: "{{ ddve_port }}"
         fingerprint: "{{ ddve_fingerprint }}"
 
     - name: Ensure the Data Domain credential

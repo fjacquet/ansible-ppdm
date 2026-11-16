@@ -27,7 +27,7 @@ def run(monkeypatch, op, **kw):
         monkeypatch,
         certificate,
         op,
-        **dict(dict(host="dd01", port=3009, fingerprint="AB:CD"), **kw),
+        **dict(dict(host="dd01", host_port=3009, fingerprint="AB:CD"), **kw),
     )
 
 

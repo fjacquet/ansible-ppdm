@@ -9,11 +9,7 @@ MODULES = sorted(
 )
 
 
-# certificate.port (TLS port of the host) shadows the connection port: a known clash, fixed by a rename later.
-KNOWN = {"certificate": pytest.mark.xfail(strict=True, reason="certificate.port shadows the connection port")}
-
-
-@pytest.mark.parametrize("name", [pytest.param(n, marks=KNOWN.get(n, ())) for n in MODULES])
+@pytest.mark.parametrize("name", MODULES)
 def test_module_options_do_not_collide_with_connection_options(name):
     mod = importlib.import_module("ansible_collections.fjacquet.ppdm.plugins.modules." + name)
     spec = getattr(mod, "ARGUMENT_SPEC", None)

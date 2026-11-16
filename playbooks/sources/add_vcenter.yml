@@ -18,7 +18,7 @@
     - name: Trust the vCenter certificate
       fjacquet.ppdm.certificate:
         host: "{{ vcenter_hostname }}"
-        port: 443
+        host_port: 443
         fingerprint: "{{ vcenter_fingerprint }}"
 
     - name: Ensure the vCenter credential
