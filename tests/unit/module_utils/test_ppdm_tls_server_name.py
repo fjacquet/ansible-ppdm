@@ -18,7 +18,10 @@ def tls_server(tmp_path, monkeypatch):
     cert, key = tmp_path / "c.pem", tmp_path / "k.pem"
     subprocess.run(
         ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-subj", "/CN=ppdm-core"]
-        + ["-addext", "subjectAltName=DNS:ppdm-core", "-keyout", str(key), "-out", str(cert)],
+        + ["-addext", "subjectAltName=DNS:ppdm-core", "-addext", "basicConstraints=critical,CA:TRUE"]
+        # Python 3.13+ verifies strictly: a self-signed CA needs these extensions
+        + ["-addext", "keyUsage=critical,keyCertSign,digitalSignature", "-addext", "subjectKeyIdentifier=hash"]
+        + ["-addext", "authorityKeyIdentifier=keyid:always", "-keyout", str(key), "-out", str(cert)],
         check=True,
         capture_output=True,
     )
