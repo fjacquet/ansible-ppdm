@@ -4,6 +4,29 @@ fjacquet.ppdm Release Notes
 
 .. contents:: Topics
 
+v1.0.0
+======
+
+Release Summary
+---------------
+
+First stable release. The modules and playbooks were exercised against a disposable PowerProtect Data Manager 20.3.0 appliance and the bugs found there are fixed. Paths that need a vCenter, a Data Domain or protected data could not be run, the README lists what was validated and what was not.
+
+Minor Changes
+-------------
+
+- Add the ``tls_server_name`` connection option (env ``PPDM_TLS_SERVER_NAME``) to verify the PPDM certificate, and send SNI, against a name other than ``hostname``; chain verification stays on.
+- protection_rule - new ``filter_template`` option (the ``filterTemplate`` field). PPDM 20.3 builds the rule filters from a template, and for an ``ASSIGN_RESOURCE_GROUP`` rule it requires ``priority`` and ``filters`` to be unset.
+- protection_rule_run - new ``all_rules_of_action`` option. PPDM 20.3 answers HTTP 400 when a single ``ASSIGN_PROTECTION_POLICY`` rule is run by ``ruleId``, it only runs every rule of the action. The module now fails before any request unless the option is set, then sends the action without ``ruleId``.
+
+Bugfixes
+--------
+
+- Client - a short page without ``page.totalPages`` is now the last page instead of an error, the ``/api/v2/server-disaster-recovery-configurations`` endpoint of PPDM 20.3 sends none (found by running a playbook on a live lab). A full page without ``totalPages`` still fails.
+- ensure (every module that updates with PATCH, for example resource_group, protection_rule, protection_group and restore_plan) - the PATCH body now carries the object ``id``, PPDM 20.3 answers HTTP 400 without it (found on a live lab).
+- protection_group - a new group gets ``subtype`` ``GENERIC`` when the option is not set, PPDM 20.3 rejects a group without a subtype. An existing group keeps its subtype.
+- protection_policy - timestamps such as ``window.startTime`` are compared as instants, PPDM stores ``...00.000Z`` as ``...00Z`` and every re-run reported a change (found on a live lab).
+
 v0.4.0
 ======
 

@@ -4,7 +4,7 @@
 [![License: GPL v3+](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
 [![Ansible Galaxy](https://img.shields.io/badge/galaxy-fjacquet.ppdm-660198.svg)](https://galaxy.ansible.com/ui/repo/published/fjacquet/ppdm/)
 [![ansible-core](https://img.shields.io/badge/ansible--core-%E2%89%A5%202.20-1A1918.svg)](https://docs.ansible.com/projects/ansible/latest/)
-[![Pre-release](https://img.shields.io/badge/status-0.x%20pre--release-orange.svg)](#)
+[![Status](https://img.shields.io/badge/status-1.0%20lab--validated%20(partial)-green.svg)](#validation-status)
 
 Ansible collection for Dell PowerProtect Data Manager (PPDM) 20.3.0: modules, a bootstrap role and ready-to-run playbooks
 that talk to the PPDM REST API.
@@ -12,43 +12,42 @@ that talk to the PPDM REST API.
 This collection is **unofficial**. It is not affiliated with, endorsed by, or supported by Dell Technologies.
 PowerProtect is a trademark of Dell Technologies.
 
-> **0.x pre-release, not yet validated against a live PPDM 20.3.** Endpoints and request bodies follow the 20.3.0
-> OpenAPI files, but nothing has been run against a real appliance. Try it on a lab first.
+## Validation status
 
-Lab checklist before 1.0.0:
+> **1.0.0.** The modules and playbooks were exercised against one disposable PowerProtect Data
+> Manager 20.3.0 appliance (AWS, 2026-11-16), and the bugs found there are fixed in this release. That lab had no vCenter,
+> no Data Domain and no protected data, so a part of the collection could only be checked against the OpenAPI files.
+> Try every write on a lab before production, and read the lists below.
 
-- PUT-replace with write-only fields: confirm that an update does not clear or overwrite secrets (credential
-  `password`, SMTP `password`, Cloud DR `secretKey`) when they are not part of the request body.
-- `certificate` `state=absent` lists with `nocache=true`: confirm it still finds the stored trust-store entry.
-- Bootstrap readiness: confirm how a 401/403 is handled while the appliance is still starting (the wait stops at the first one).
-- Bootstrap config-status poll: confirm when PPDM switches to the new admin password (the poll uses it from the first try and stops on the first 401/403).
-- `protection_policy` update uses PATCH: confirm that whole-list `objectives` and `overrides` replace the existing lists and that stripping the read-only fields is enough for PPDM to accept the body.
-- Protection policy names are not enforced unique by the API: confirm the behaviour on a duplicate name (the module fails and lists the ids).
-- `protection_policy_assets` idempotence reads `GET /api/v2/protection-policies/<id>/asset-assignments`: confirm it returns Asset objects with an `id`, as the module assumes.
-- Activity results: confirm that `GET /api/v3/activities/{id}` reports `result.status` `SUCCESS`, `COMPLETED_WITH_EXCEPTIONS` or `FAILED` (v3), whether any path still returns the v2 values `OK`, `OK_WITH_ERRORS`, and that the 202 bodies of `/api/v3/protections` and `/api/v2/discoveries` are not activities (`activityId` and `taskId` are polled).
-- `activity_info`: confirm how deep v3 paging goes on `/api/v3/activities`.
-- `activity_action`: confirm that cancel and retry accept an empty body `{}`, that retry answers a new `activityId`, that a cancelled activity ends `COMPLETED` with `result.status` `CANCELED`, and what the 202 bodies of retry and cancel contain.
-- `alert_acknowledge`: confirm the 207 `bulkResults` shape, that `errorResponseObject` is set only on failed items (only failures are reported) and the `acknowledgementCount` value.
-- `copy_info`: confirm that `/api/v2/latest-copies` rejects `page`/`pageSize` under strict validation, the `assetId in (...)` filter syntax, and that `/api/v3/copies/{id}` answers 404 for an unknown id (the module treats it as not found).
-- `smtp`: confirm that POST answers 201 with an empty body or 200 with the object. A PUT without `password` may clear the relay password (the same unverified point as in the first item), and the `update_password` semantics differ from `user`. Confirm that `smtp/test` takes the body field `recipient` (the endpoint text says `mailRecipient`).
-- `user` and `user_info` use `/api/v2/users`, which 20.3.0 deprecates in favour of `/api/v3/identity-access-provisions`. Confirm that PUT without `password` keeps it and that the role is matched by `name` (not `displayName`).
-- `restore_plan`: confirm that PATCH replaces `restoreGroups` as a whole list and keeps their order, and confirm the read-only set. `restoreGroups[].extendedData` is free-form and may carry credentials; it is not masked (credentials are normally referenced by id), so use `no_log: true` if you put secrets there.
-- `restore_plan_run`: confirm the 201/202 `activities` list, that one activity is started per restore group, and how `wait` behaves with an empty response body.
-- `upgrade_package_action`: service-affecting, untested on a live appliance. Confirm that the PUT needs the GET body including `upgradeToken`, that 202 is the only success (the spec gives 200 an `ErrorMessage`), the `forceUpgrade` semantics, when `lockboxPassphrase` is required, and that revert applies only to `HOTFIX` packages with `revertSupported`. The precheck `wait` polls `resp.activityId`, which the spec ties to hotfix and revert: it may be missing after a precheck. The default revert id picks the `ACTIVE` package. Confirm how the `INSTALLED_CORE` and `WITH_ERRORS` states are handled.
-- `restore_plan_run` and `upgrade_package_action` are service-affecting and have not been run on a live appliance.
-- `protection.create_protection_group`: confirm the minimal body for `STORAGE_DIRECT_APPLICATION` and `ORACLE_DATA_GUARD`.
-- `protection_policy` `overrides`: confirm whether GET returns an empty `overrides` list or omits it, since an empty list removes all overrides.
-- `protection_policy` compares reordered `objectives` by index: confirm PPDM keeps the order of the objectives it stores.
-- `protection.add_file_system_policy` and `protection.add_mssql_policy` compare the policy with `startTime`/`duration`: confirm GET returns them exactly as sent (else the fs/mssql policy playbooks PATCH on every run).
-- Rule `filters`: confirm the `fieldName`/`fieldData` shapes PPDM accepts (a minimal tag or name condition per asset type). The `tags` (VMs) and `userTags` (Kubernetes) `fieldName` values are unverified guesses.
-- Rule `args` items `{name, values}` for `PROTECTION_POLICY_ID` and `RESOURCE_GROUP_ID`: confirm the shape.
-- Rules carry no `protectionPolicyRef`, the policy is the `action.args[PROTECTION_POLICY_ID]` item. Protection group `protectionPolicyRef`: confirm PPDM accepts `{id}` only on POST/PATCH, and whether `autoAssignToPolicy` without a policy reference is rejected.
-- Confirm whether PPDM re-orders `filters` conditions or `natural_ids` (a flapping `changed`).
-- Protection group `PATCH` of `naturalIds`: confirm it replaces the whole list (protection groups have no `rules`).
-- Rule `scopes` and `categories` are compared in order: confirm PPDM keeps the order it stores (else a flapping `changed`).
-- `protection_rule_run`: confirm the 202 body of `rule-execution` (activity or not), the preview semantics, that an explicit `action_name` differing from the rule action is handled, and that preview accepts the rule body including read-only fields.
-- `protection_policy_run` requires `asset_ids` or `protection_group_ids` and cannot set `operation.backupLevel`; `Source` has no required field in the spec.
-- `protection_rule_run` preview POSTs even in check mode (documented as read-only): confirm it changes nothing.
+**Validated on the live lab:**
+
+- Connection and TLS (including `tls_server_name` with a pinned CA chain), login and token refresh.
+- All `*_info` modules (read-only).
+- Idempotent create, re-run, update (PATCH) and delete: `resource_group`, `protection_rule` (with `filter_template`),
+  `protection_policy`, `protection_group`, `smtp`, `user`, `credential`.
+- `alert_acknowledge` (check mode, acknowledge, re-run, restore), `protection_rule_run` (resource group rules by id,
+  policy rules with `all_rules_of_action`), `discovery` with `wait` (a failed activity is reported), `activity_info`.
+- `activity_action` guards: refusal without `confirm`, no-op on a finished activity, refusal when PPDM offers no action.
+- Agent registration on a Linux host (`agents` playbooks), 15 read-only playbooks and the resource group, protection
+  group and rule-run playbooks.
+
+**Not validated on a live appliance** (written against the 20.3.0 OpenAPI only, treat as untested):
+
+- `activity_action` cancel and retry success paths, `restore_plan`, `restore_plan_run`, `upgrade_package_action`
+  (the last two are service-affecting), `protection_rule_run` preview success path and `wait` (PPDM 20.3 answers a rule
+  run with no `activityId`), `protection_policy_run`, `protection_policy_assets`, `copy_info`, `storage_system`,
+  `inventory_source` for vCenter or Data Domain, `certificate`, Cloud DR and Kubernetes playbooks, bootstrap playbooks
+  that change the appliance (`bootstrap`, `set_license`, `replace_certificate`).
+- `discovery` can only start from an inventory source. PPDM needs `/hosts/<id>` to discover an agent host, use the
+  `api` module for that.
+- Behaviour that only shows on real data: rule `filters` for asset types other than the lab's, ordering of lists PPDM
+  stores, the `smtp` and `user` password handling on update (`user` uses `/api/v2/users`, which 20.3.0 deprecates).
+
+**Facts learned from the live appliance:** PATCH needs the object `id` in the body; a v3 rule is built from a
+`filterTemplate` (and `priority` and `filters` must be unset for `ASSIGN_RESOURCE_GROUP`); a new protection group needs a
+`subtype`; a new policy needs client-supplied UUIDs on objectives, operations and retentions; policy timestamps come
+back without milliseconds; PPDM runs `ASSIGN_PROTECTION_POLICY` rules only all together; local user passwords need 9 to
+100 characters with a lower case letter, an upper case letter, a digit and a special character.
 
 ## Requirements
 

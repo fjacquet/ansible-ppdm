@@ -1,5 +1,0 @@
----
-minor_changes:
-  - >-
-    Add the ``tls_server_name`` connection option (env ``PPDM_TLS_SERVER_NAME``) to verify the PPDM certificate,
-    and send SNI, against a name other than ``hostname``; chain verification stays on.
