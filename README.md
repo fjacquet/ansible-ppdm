@@ -73,6 +73,7 @@ Every module reads its connection settings from environment variables, so no sec
 | `PPDM_USERNAME` | PPDM user |
 | `PPDM_PASSWORD` | PPDM password |
 | `PPDM_PORT` | REST port, default 8443 |
+| `PPDM_TLS_SERVER_NAME` | name the certificate is verified against (optional) |
 
 To share explicit values across tasks, use the `ppdm` action group:
 
@@ -85,6 +86,20 @@ To share explicit values across tasks, use the `ppdm` action group:
       password: "{{ lookup('env', 'PPDM_PASSWORD') }}"
   tasks:
     - fjacquet.ppdm.storage_system_info:
+```
+
+### Certificate issued for another name
+
+When PPDM is reached through an address its certificate was not issued for (for example an AWS public DNS name
+while the certificate carries `ip-10-0-14-147.eu-west-1.compute.internal`), verification fails with "IP address
+mismatch". Set `tls_server_name` to verify the certificate against that name (also sent as SNI) while still connecting
+to `hostname`. Chain verification stays fully on (`validate_certs`, `ca_path`); this does not disable it.
+
+```yaml
+- fjacquet.ppdm.storage_system_info:
+    hostname: ec2-203-0-113-10.eu-west-1.compute.amazonaws.com
+    tls_server_name: ip-10-0-14-147.eu-west-1.compute.internal
+    ca_path: /etc/ssl/ppdm-ca.pem
 ```
 
 ## Modules

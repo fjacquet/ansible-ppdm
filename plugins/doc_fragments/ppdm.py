@@ -40,6 +40,13 @@ options:
     description:
       - Path to a CA bundle used to verify the PPDM TLS certificate.
     type: path
+  tls_server_name:
+    description:
+      - Name the PPDM TLS certificate is verified against, and sent as SNI, instead of O(hostname).
+      - Use it when PPDM is reached through an address that its certificate was not issued for.
+      - Verification stays on; it is not a way to disable it. See O(validate_certs) and O(ca_path).
+      - Falls back to the E(PPDM_TLS_SERVER_NAME) environment variable.
+    type: str
   timeout:
     description:
       - HTTP timeout in seconds.
