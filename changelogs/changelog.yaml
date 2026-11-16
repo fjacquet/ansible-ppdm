@@ -90,25 +90,26 @@ releases:
   0.3.0:
     changes:
       breaking_changes:
-      - 'protection_rule - now uses the v3 rule API. The options ``conditions`` and ``condition_connector``
-        are replaced by ``filters`` (the object subtype goes in ``filters[].objectSubtype``,
-        there is no ``object_subtypes`` option), ``tenant`` is removed, ``policy`` is replaced
-        by ``action`` plus ``protection_policy`` (or ``protection_policy_id``), and ``action``
-        lost ``MOVE_TO_GROUP`` and takes the v3 action names. New options are ``variant``,
-        ``scopes``, ``categories``, ``resource_group`` and ``resource_group_id``.'
+      - kubernetes.add_policy_and_rule playbook - now creates or updates the rule
+        (before, it only created it when missing) and runs only that rule (before,
+        all Kubernetes rules). The ``protection.create_rule`` and ``protection.run_rule``
+        playbook variables changed accordingly.
+      - protection_rule - now uses the v3 rule API. The options ``conditions`` and
+        ``condition_connector`` are replaced by ``filters`` (the object subtype goes
+        in ``filters[].objectSubtype``, there is no ``object_subtypes`` option), ``tenant``
+        is removed, ``policy`` is replaced by ``action`` plus ``protection_policy``
+        (or ``protection_policy_id``), and ``action`` lost ``MOVE_TO_GROUP`` and takes
+        the v3 action names. New options are ``variant``, ``scopes``, ``categories``,
+        ``resource_group`` and ``resource_group_id``.
       - protection_rule and protection_rule_info - the returned objects (``protection_rule``,
         ``protection_rules``) now have the v3 shape, for example ``action`` is a dict
         instead of a string, and ``inventorySourceType`` and ``conditions`` are gone.
       - protection_rule_run - ``rule`` keeps its name but is now a required rule name
-        or id (a string), no longer a ProtectionRule dict (the preview body). The module
-        runs one rule per call, the old ``rules`` list ran several rules or all rules
-        of an inventory source type. ``inventory_source_type`` is replaced by ``object_subtypes``,
-        and ``preview_action`` is removed (``action_name`` is the run action, the preview
-        ignores it).
-      - 'kubernetes.add_policy_and_rule playbook - now creates or updates the rule (before,
-        it only created it when missing) and runs only that rule (before, all Kubernetes
-        rules). The ``protection.create_rule`` and ``protection.run_rule`` playbook variables
-        changed accordingly.'
+        or id (a string), no longer a ProtectionRule dict (the preview body). The
+        module runs one rule per call, the old ``rules`` list ran several rules or
+        all rules of an inventory source type. ``inventory_source_type`` is replaced
+        by ``object_subtypes``, and ``preview_action`` is removed (``action_name``
+        is the run action, the preview ignores it).
       minor_changes:
       - Adds the modules resource_group, resource_group_info, protection_group, protection_group_info,
         asset_info and host_info.
@@ -138,3 +139,85 @@ releases:
       name: resource_group_info
       namespace: ''
     release_date: '2026-11-15'
+  0.4.0:
+    changes:
+      breaking_changes:
+      - certificate - the option ``port`` (TLS port of the host) is renamed ``host_port``.
+        ``port`` now means the PPDM connection port, as in every other module; use
+        ``host_port`` for the TLS port of the host presenting the certificate.
+      bugfixes:
+      - certificate - the ``port`` option shadowed the PPDM connection port, so the
+        module connected to PPDM on the TLS port of the host; this is fixed by the
+        ``host_port`` rename.
+      - discovery, protection_policy_run and protection_rule_run - with ``wait=true``
+        a finished activity was reported as failed because the v3 statuses ``SUCCESS``
+        and ``COMPLETED_WITH_EXCEPTIONS`` were not recognised (only the v2 ``OK``
+        and ``OK_WITH_ERRORS``). Both sets are now accepted.
+      known_issues:
+      - user and user_info use the v2 users API (``/api/v2/users``), which PPDM 20.3.0
+        marks deprecated in favour of ``/api/v3/identity-access-provisions``.
+      minor_changes:
+      - Adds the modules activity_info, activity_action, alert_info, alert_acknowledge,
+        copy_info, smtp_info, smtp, user_info, user, role_info, restore_plan_info,
+        restore_plan, restore_plan_run, upgrade_package_info and upgrade_package_action.
+      - Adds the playbooks assets.find_assets, protection.create_resource_group and
+        protection.create_protection_group.
+      - The shared ``ensure`` and ``remove`` helpers handle singleton objects (for example
+        the SMTP configuration) with ``key=None``.
+      - The shared info helper gains a ``name_key`` argument (the object field the
+        ``name`` option is matched against).
+      release_summary: Adds monitoring and operations modules (activities, alerts,
+        copies, SMTP, users and roles, restore plans, upgrade packages) and three
+        playbooks (66 in total), and fixes waited activities on the v3 statuses. The
+        upgrade and restore modules are service-affecting and untested on a live appliance.
+    fragments:
+    - certificate-host-port.yml
+    - lot4-monitoring-ops.yml
+    modules:
+    - description: Cancel or retry an activity on PowerProtect Data Manager
+      name: activity_action
+      namespace: ''
+    - description: Get activities from PowerProtect Data Manager
+      name: activity_info
+      namespace: ''
+    - description: Acknowledge or unacknowledge alerts on PowerProtect Data Manager
+      name: alert_acknowledge
+      namespace: ''
+    - description: Get alerts from PowerProtect Data Manager
+      name: alert_info
+      namespace: ''
+    - description: Get copies (backups) from PowerProtect Data Manager
+      name: copy_info
+      namespace: ''
+    - description: Manage restore plans on PowerProtect Data Manager
+      name: restore_plan
+      namespace: ''
+    - description: Get restore plans from PowerProtect Data Manager
+      name: restore_plan_info
+      namespace: ''
+    - description: Execute a restore plan on PowerProtect Data Manager
+      name: restore_plan_run
+      namespace: ''
+    - description: Get roles from PowerProtect Data Manager
+      name: role_info
+      namespace: ''
+    - description: Manage the SMTP configuration of PowerProtect Data Manager
+      name: smtp
+      namespace: ''
+    - description: Get the SMTP configuration from PowerProtect Data Manager
+      name: smtp_info
+      namespace: ''
+    - description: Precheck, install or revert an upgrade package on PowerProtect
+        Data Manager
+      name: upgrade_package_action
+      namespace: ''
+    - description: Get upgrade packages from PowerProtect Data Manager
+      name: upgrade_package_info
+      namespace: ''
+    - description: Manage local users of PowerProtect Data Manager
+      name: user
+      namespace: ''
+    - description: Get users from PowerProtect Data Manager
+      name: user_info
+      namespace: ''
+    release_date: '2026-11-16'

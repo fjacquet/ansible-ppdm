@@ -1,0 +1,55 @@
+module: alert_info
+resource: alerts
+kind: info
+short_description: Get alerts from PowerProtect Data Manager
+description:
+  - Read-only query of alerts. Never changes anything.
+  - Returns every matching object, all pages.
+version_added: 0.4.0
+attributes:
+  check_mode:
+    support: full
+    details: Read-only, behaves the same in check mode.
+  diff_mode:
+    support: none
+notes:
+  - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
+  - Alerts have no name. The acknowledgement state is nested (C(acknowledgement.acknowledgeState)), so it can only be selected with I(filter).
+options:
+  severity:
+    type: str
+    choices: [CRITICAL, INFORMATIONAL, WARNING]
+    description: Return only alerts of this severity (exact match, combined with I(filter) when given).
+  category:
+    type: str
+    choices: [AGENT, ANOMALY_DETECTION, APPLIANCE_INFRASTRUCTURE_HARDWARE, APPLIANCE_INFRASTRUCTURE_SERVICES, APP_HOST_CONFIGURATION, ARCHIVE, CAPACITY, CLOUD_TIER, COMPLIANCE, DISCOVER, EXPORT_LOG, FILESYSTEM, FIRMWARE, LICENSE, NAS_SERVER_DR, NETWORK, PROTECTION, PROTECTION_COPY, PROTECTION_INFRASTRUCTURE, PROTECTION_POLICY, PROTECTION_RULE, PROTECTION_SOURCE, PUSH_UPDATE, REPLICATION, REPORTING, RESTORE, RESTORE_PLAN, SECURITY, SELF_SERVICE, SERVER_DR, STORAGE, SYSTEM]
+    description: Return only alerts of this category (exact match, combined with I(filter) when given).
+  filter:
+    type: str
+    description: PPDM filter string, for example C(acknowledgement.acknowledgeState eq "UNACKNOWLEDGED"). It is passed to PPDM unchanged and its result is not re-checked. Mutually exclusive with I(id).
+  id:
+    type: str
+    description: Return only the alert with this ID. Mutually exclusive with I(filter). A 404 or 204 answer gives an empty list.
+examples: |
+  - name: List critical alerts
+    fjacquet.ppdm.alert_info:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      severity: CRITICAL
+    register: result
+
+  - name: List unacknowledged alerts
+    fjacquet.ppdm.alert_info:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      filter: 'acknowledgement.acknowledgeState eq "UNACKNOWLEDGED"'
+
+return: |
+  alerts:
+    description: Matching objects, an empty list when nothing matches.
+    returned: always
+    type: list
+    elements: dict
+    sample: [{"id": "a1", "severity": "CRITICAL", "category": "LICENSE"}]

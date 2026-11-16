@@ -63,6 +63,17 @@ def test_schema_choices_match_enums():
         ("protection_rule_run", "object_subtypes"): "rule_run.object_subtype",
         ("discovery", "level"): "discovery.level",
         ("asset_info", "asset_type"): "asset.type",
+        ("protection_group", "type"): "protection_group.type",
+        ("protection_group", "subtype"): "protection_group.subtype",
+        ("protection_group", "member_asset_type"): "protection_group.member_asset_type",
+        ("protection_group", "backup_strategy"): "protection_group.backup_strategy",
+        ("activity_action", "retry_options"): "activity.retry_option",
+        ("alert_acknowledge", "acknowledge_state"): "alert.acknowledge_state",
+        ("alert_info", "severity"): "alert.severity",
+        ("alert_info", "category"): "alert.category",
+        ("restore_plan", "fallback_strategy"): "restore_plan.fallback_strategy",
+        ("restore_plan_run", "execution_type"): "restore_plan_run.execution_type",
+        ("upgrade_package_info", "category"): "upgrade_package.category",
     }
     for (mod, opt), key in pairs.items():
         opts = yaml.safe_load((schemas / (mod + ".yml")).read_text())["options"]
@@ -91,3 +102,14 @@ def test_v3_rule_and_group_enums():
     assert enums["protection_group.subtype"] == ("GENERIC", "MEDITECH")
     assert enums["protection_group.member_asset_type"] == ("ORACLE_DATABASE", "POWERSTORE_BLOCK", "POWER_MAX_BLOCK")
     assert "BACKUP_ALL" in enums["protection_group.backup_strategy"]
+
+
+def test_lot4_enums():
+    enums, _unused = build_enums(SPECS)
+    assert enums["activity.retry_option"] == ("ALL", "FROM_FAILED_STEP", "NO_AUDIT_LOG", "VIRTUAL_GROUP")
+    assert enums["alert.severity"] == ("CRITICAL", "INFORMATIONAL", "WARNING")
+    assert enums["alert.category"] == tuple(sorted(enums["alert.category"])) and enums["alert.category"]
+    assert enums["alert.acknowledge_state"] == ("ACKNOWLEDGED", "UNACKNOWLEDGED")
+    assert enums["restore_plan.fallback_strategy"] == ("CANCEL_ON_FAILURE", "CONTINUE_ON_FAILURE")
+    assert enums["restore_plan_run.execution_type"] == ("IMMEDIATELY", "SCHEDULE")
+    assert enums["upgrade_package.category"] == ("ACTIVE", "HISTORY")

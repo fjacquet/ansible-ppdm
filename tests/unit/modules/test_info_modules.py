@@ -9,6 +9,7 @@ from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import (
     filter_eq,
 )
 from ansible_collections.fjacquet.ppdm.plugins.modules import (
+    alert_info,
     asset_info,
     certificate_info,
     credential_info,
@@ -18,7 +19,10 @@ from ansible_collections.fjacquet.ppdm.plugins.modules import (
     protection_policy_info,
     protection_rule_info,
     resource_group_info,
+    restore_plan_info,
+    role_info,
     storage_system_info,
+    upgrade_package_info,
 )
 from ansible_collections.fjacquet.ppdm.tests.unit.helpers import (
     Exit,
@@ -37,8 +41,11 @@ MODULES = [
     (protection_rule_info, "/api/v3/rules", "protection_rules"),
     (protection_group_info, "/api/v2/protection-groups", "protection_groups"),
     (resource_group_info, "/api/v2/resource-groups", "resource_groups"),
+    (restore_plan_info, "/api/v2/restore-plans", "restore_plans"),
     (asset_info, "/api/v2/assets", "assets"),
     (host_info, "/api/v2/hosts", "hosts"),
+    (role_info, "/api/v2/roles", "roles"),
+    (upgrade_package_info, "/api/v2/upgrade-packages", "upgrade_packages"),
 ]
 ALL = pytest.mark.parametrize(
     "mod,base,key", MODULES, ids=[m.__name__.rsplit(".", 1)[1] for m, _unused, _unused in MODULES]
@@ -258,3 +265,70 @@ def test_asset_info_masks_credentials(monkeypatch):
     assert "hunter2" not in json.dumps(out)
     out = run(monkeypatch, asset_info, FakeOpener(Resp(dict(asset))), id="1")
     assert "hunter2" not in json.dumps(out)
+
+
+def _generic(spec, **kw):
+    class Mod:
+        @staticmethod
+        def main():
+            ppdm.info_main("users", "users", spec, **kw)
+
+    return Mod
+
+
+def test_info_main_name_key_filters_and_rechecks(monkeypatch):
+    op = FakeOpener(page([{"id": "1", "username": "x"}, {"id": "2", "username": "xy"}], 1, 1))
+    spec = dict(name=dict(type="str"), id=dict(type="str"), filter=dict(type="str"))
+    out = run(monkeypatch, _generic(spec, name_key="username"), op, name="x")
+    assert out["users"] == [{"id": "1", "username": "x"}]
+    assert parse_qs(urlsplit(op.calls[0][0]).query)["filter"] == ['username eq "x"']
+
+
+def test_info_main_spec_without_name_filter_id_lists_all(monkeypatch):
+    op = FakeOpener(page([{"id": "1"}], 1, 1))
+    out = run(monkeypatch, _generic({}), op)
+    assert out["users"] == [{"id": "1"}]
+    assert "filter" not in parse_qs(urlsplit(op.calls[0][0]).query)
+
+
+def test_info_main_mutually_exclusive_only_present_options(monkeypatch):
+    seen = {}
+    real_init = ppdm.AnsibleModule.__init__
+
+    def spy(self, **kw):
+        seen.update(kw)
+        real_init(self, **kw)
+
+    monkeypatch.setattr(ppdm.AnsibleModule, "__init__", spy)
+    run(monkeypatch, _generic(dict(id=dict(type="str"), filter=dict(type="str"))), FakeOpener(page([], 1, 0)))
+    assert seen["mutually_exclusive"] == [("id", "filter")]
+
+
+def test_alert_info_list(monkeypatch):
+    op = FakeOpener(page([{"id": "1", "severity": "CRITICAL"}], 1, 1))
+    out = run(monkeypatch, alert_info, op)
+    assert out["alerts"] == [{"id": "1", "severity": "CRITICAL"}]
+    assert urlsplit(op.calls[0][0]).path == "/api/v2/alerts"
+
+
+def test_alert_info_severity_anded_and_rechecked(monkeypatch):
+    op = FakeOpener(page([{"id": "1", "severity": "CRITICAL"}, {"id": "2", "severity": "WARNING"}], 1, 1))
+    out = run(monkeypatch, alert_info, op, severity="CRITICAL", filter='category eq "LICENSE"')
+    assert out["alerts"] == [{"id": "1", "severity": "CRITICAL"}]
+    flt = parse_qs(urlsplit(op.calls[0][0]).query)["filter"]
+    assert flt == ['(category eq "LICENSE") and severity eq "CRITICAL"']
+
+
+def test_alert_info_by_id(monkeypatch):
+    op = FakeOpener(Resp({"id": "abc"}))
+    out = run(monkeypatch, alert_info, op, id="abc")
+    assert out["alerts"] == [{"id": "abc"}]
+    assert urlsplit(op.calls[0][0]).path == "/api/v2/alerts/abc"
+
+
+def test_upgrade_package_info_drops_secrets(monkeypatch):
+    pkg = {"id": "u1", "category": "ACTIVE", "lockboxPassphrase": "pp-sentinel", "upgradeToken": "tok-sentinel"}
+    out = run(monkeypatch, upgrade_package_info, FakeOpener(page([pkg], 1, 1)), category="ACTIVE")
+    assert out["upgrade_packages"] == [{"id": "u1", "category": "ACTIVE"}]
+    out = run(monkeypatch, upgrade_package_info, FakeOpener(Resp(dict(pkg))), id="u1")
+    assert "sentinel" not in json.dumps(out)

@@ -1,0 +1,58 @@
+module: alert_acknowledge
+resource: alerts
+key: id
+kind: action
+short_description: Acknowledge or unacknowledge alerts on PowerProtect Data Manager
+description:
+  - Set the acknowledge state of alerts with one call to C(POST /api/v2/alerts/acknowledgements).
+  - Alerts that already have the desired state are left alone. The module reports C(changed=false) when there is nothing to change.
+version_added: 0.4.0
+attributes:
+  check_mode:
+    support: full
+  diff_mode:
+    support: none
+notes:
+  - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
+  - Every alert is read first. The module fails before any write when an id does not exist.
+  - PPDM answers 207 with one result per alert, the module fails when any result carries an error, the results are still returned.
+seealso:
+  - module: fjacquet.ppdm.alert_info
+    description: List and query alerts.
+options:
+  ids:
+    type: list
+    elements: str
+    required: true
+    description: Ids of the alerts, at least one.
+  acknowledge_state:
+    type: str
+    choices: [ACKNOWLEDGED, UNACKNOWLEDGED]
+    default: ACKNOWLEDGED
+    description: Desired acknowledge state.
+examples: |
+  - name: Acknowledge two alerts
+    fjacquet.ppdm.alert_acknowledge:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      ids: ["{{ alert_a }}", "{{ alert_b }}"]
+
+  - name: Unacknowledge an alert
+    fjacquet.ppdm.alert_acknowledge:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      ids: ["{{ alert_a }}"]
+      acknowledge_state: UNACKNOWLEDGED
+return: |
+  updated_ids:
+    description: Ids of the alerts whose state changed (or would change in check mode).
+    returned: always
+    type: list
+    elements: str
+  results:
+    description: C(bulkResults) of the PPDM answer, failures only, one per alert that PPDM could not update.
+    returned: when the request was sent
+    type: list
+    elements: dict

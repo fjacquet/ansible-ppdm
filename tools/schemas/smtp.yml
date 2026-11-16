@@ -1,0 +1,97 @@
+module: smtp
+resource: smtp
+key: null
+kind: ensure
+short_description: Manage the SMTP configuration of PowerProtect Data Manager
+description:
+  - Create, update or remove the SMTP configuration. PPDM allows only one.
+  - The password is never returned by PPDM and never shown in the result or the diff.
+version_added: 0.4.0
+attributes:
+  check_mode:
+    support: full
+  diff_mode:
+    support: full
+notes:
+  - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
+  - The password is write-only, it is never part of the idempotency comparison and is masked in the returned object and diff.
+  - The module fails when PPDM holds more than one SMTP configuration.
+seealso:
+  - module: fjacquet.ppdm.smtp_info
+    description: Read the SMTP configuration.
+options:
+  state:
+    type: str
+    choices: [present, absent]
+    default: present
+    description: Whether the SMTP configuration must exist.
+  mail_server:
+    type: str
+    description: Host name or address of the mail server. Required when I(state=present).
+  mail_from:
+    type: str
+    description: Sender address of the emails.
+  recipient:
+    type: str
+    description: Recipient address of the emails. Required when I(test=true).
+  smtp_port:
+    type: int
+    description: Port of the mail server.
+  smtp_username:
+    type: str
+    description: User name for the mail server. This is not the PPDM login, which is the connection option C(username).
+  smtp_password:
+    type: str
+    no_log: true
+    description: Password for the mail server. This is not the PPDM login, which is the connection option C(password).
+  start_tls:
+    type: bool
+    description: Whether to use STARTTLS.
+  update_password:
+    type: str
+    choices: [on_create, always]
+    default: on_create
+    description:
+      - C(on_create) never compares the password and never causes a change by itself; it is sent on create and whenever an update is sent for another difference.
+      - C(always) forces an update on every run (always reports changed) and sends the password, because PPDM never returns it.
+  test:
+    type: bool
+    default: false
+    description:
+      - Send a test email with the desired values after the configuration is ensured.
+      - Skipped in check mode, because it sends a real email. It never sets C(changed) by itself.
+      - Requires I(recipient).
+      - The test uses the stored configuration for the options not given. PPDM never returns the stored password, so with an SMTP username the test needs I(smtp_password) and fails clearly without it.
+  config:
+    type: dict
+    description:
+      - The module also fails when C(config) contains C(id) or C(_links), the server owns them.
+      - The module fails when C(config) contains a key that a named option sets (C(mailServer), C(mailFrom), C(recipient), C(port), C(username), C(password) and C(isStartTls)), use the option instead.
+      - Extra request body fields passed through as is.
+      - Each top-level key replaces the whole value of that field, the merge with the existing object is shallow (top-level keys only), nested values are not merged.
+      - Do not put secrets here, values are not masked in diff or return values.
+examples: |
+  - name: Configure SMTP and send a test email
+    fjacquet.ppdm.smtp:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      mail_server: smtp.example.com
+      mail_from: ppdm@example.com
+      recipient: ops@example.com
+      smtp_port: 587
+      start_tls: true
+      smtp_username: relay
+      smtp_password: "{{ smtp_secret }}"
+      test: true
+return: |
+  smtp:
+    description: The managed SMTP configuration, password masked. Absent with I(state=absent).
+    returned: success
+    type: dict
+    sample: {"id": "s1", "mailServer": "smtp.example.com", "port": 587, "password": "VALUE_SPECIFIED_IN_NO_LOG_PARAMETER"}
+  diff:
+    description: Before and after, password masked.
+    returned: success
+    type: dict
+    sample: {"before": {}, "after": {"mailServer": "smtp.example.com"}}

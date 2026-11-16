@@ -1,0 +1,78 @@
+module: activity_action
+resource: activities
+key: id
+kind: action
+short_description: Cancel or retry an activity on PowerProtect Data Manager
+description:
+  - Cancel a running activity or retry a failed one, through C(POST /api/v3/activities/{id}/cancel) or C(POST /api/v3/activities/{id}/retry).
+  - The module is not idempotent, it reports C(changed=true) when it sends the request. In check mode nothing is sent and C(changed=true) is reported. Cancelling an activity that is already C(COMPLETED) reports C(changed=false).
+version_added: 0.4.0
+attributes:
+  check_mode:
+    support: full
+  diff_mode:
+    support: none
+notes:
+  - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
+  - Cancelling is service-affecting, the module fails before any request unless I(confirm=true).
+  - The action must be listed in C(supportedActions) of the activity, otherwise the module fails with the activity state and sends nothing.
+  - With I(wait=true) a retry polls the new activity started by PPDM and fails unless it ends C(OK) or C(SUCCESS) (the warn statuses only add a warning). A cancel polls the cancelled activity until it is C(COMPLETED), whatever its result (C(CANCELED) is the expected one).
+seealso:
+  - module: fjacquet.ppdm.activity_info
+    description: List and query activities.
+options:
+  id:
+    type: str
+    required: true
+    description: Id of the activity.
+  action:
+    type: str
+    required: true
+    choices: [cancel, retry]
+    description: Action to run on the activity.
+  retry_options:
+    type: list
+    elements: str
+    choices: [ALL, FROM_FAILED_STEP, NO_AUDIT_LOG, VIRTUAL_GROUP]
+    description: Retry options, used only with I(action=retry). Not sent when omitted.
+  confirm:
+    type: bool
+    default: false
+    description: Must be C(true) for I(action=cancel), a safeguard against an accidental cancel.
+  wait:
+    type: bool
+    default: false
+    description: Wait for the activity to complete (see the notes).
+  wait_timeout:
+    type: int
+    default: 600
+    description: Seconds to wait when I(wait=true).
+examples: |
+  - name: Cancel an activity
+    fjacquet.ppdm.activity_action:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      id: "{{ activity_id }}"
+      action: cancel
+      confirm: true
+      wait: true
+
+  - name: Retry a failed activity from the failed step
+    fjacquet.ppdm.activity_action:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      id: "{{ activity_id }}"
+      action: retry
+      retry_options: [FROM_FAILED_STEP]
+return: |
+  activity:
+    description: The activity before the action, or the final activity when waited.
+    returned: always
+    type: dict
+  response:
+    description: PPDM answer of the action, C({activityId}). For a retry it is the id of the new activity.
+    returned: when the request was sent
+    type: dict
+    sample: {"activityId": "a2"}

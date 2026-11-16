@@ -22,7 +22,7 @@
     - name: Trust the Kubernetes API certificate
       fjacquet.ppdm.certificate:
         host: "{{ k8s_hostname }}"
-        port: "{{ k8s_port }}"
+        host_port: "{{ k8s_port }}"
         fingerprint: "{{ k8s_fingerprint }}"
 
     - name: Ensure the Kubernetes credential

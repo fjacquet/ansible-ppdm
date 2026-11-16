@@ -25,10 +25,10 @@ notes:
 - The policy is found by name first, then by id.
 - 'The 202 answer of PPDM is C({results: [{activityId, objectiveId, status, reason, remediation}]}), one
   entry per started activity, not a single activity. With I(wait=true) every C(activityId) is polled to
-  completion, the module fails unless each activity ends C(OK) (C(OK_WITH_ERRORS) only adds a warning).
-  With I(wait=true) an empty C(results) or an entry without C(activityId) or with status C(FAILED) (the
-  run was not started) fails the module with its C(reason); without I(wait) such an entry only adds a
-  warning.'
+  completion, the module fails unless each activity ends C(OK) or C(SUCCESS) (the warn statuses C(OK_WITH_ERRORS),
+  C(COMPLETED_WITH_EXCEPTIONS) only add a warning). With I(wait=true) an empty C(results) or an entry
+  without C(activityId) or with status C(FAILED) (the run was not started) fails the module with its C(reason);
+  without I(wait) such an entry only adds a warning.'
 - At least one of I(asset_ids) and I(protection_group_ids) is required, the module fails before any request
   otherwise.
 seealso:
@@ -60,8 +60,8 @@ options:
   wait:
     description:
     - Wait for every started activity to complete.
-    - Fails unless each activity C(result.status) is C(OK) or C(OK_WITH_ERRORS) (the latter only warns),
-      and fails when PPDM started no activity.
+    - Fails unless each activity status is C(OK) or C(SUCCESS); C(OK_WITH_ERRORS) or C(COMPLETED_WITH_EXCEPTIONS)
+      warns, and fails when PPDM started no activity.
     type: bool
     default: false
   wait_timeout:
@@ -113,7 +113,7 @@ activities:
   type: list
   elements: dict
 warnings:
-  description: Entries that did not start an activity (without I(wait)), and OK_WITH_ERRORS activities (when waited).
+  description: Entries that did not start an activity, and activities that ended with errors.
   returned: when any
   type: list
   elements: str

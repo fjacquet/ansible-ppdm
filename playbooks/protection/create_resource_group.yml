@@ -1,0 +1,29 @@
+---
+# Ensure a resource group, then a v3 rule that assigns the assets selected by resource_group_rule_filters (VMs with a tag
+# by default) to it. Both are updated when they differ (idempotent). Edit resource_group_rule_filters to select other assets.
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Create a resource group and its rule
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Ensure the resource group
+      fjacquet.ppdm.resource_group:
+        name: "{{ resource_group_name }}"
+        description: "{{ resource_group_description }}"
+
+    - name: Ensure the rule assigning assets to the resource group
+      fjacquet.ppdm.protection_rule:
+        name: "{{ resource_group_rule_name }}"
+        action: ASSIGN_RESOURCE_GROUP
+        priority: "{{ rule_priority }}"
+        resource_group: "{{ resource_group_name }}"
+        filters: "{{ resource_group_rule_filters }}"

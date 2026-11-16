@@ -33,9 +33,12 @@ MAX_SCRUB_TEXT = 1024 * 1024  # a server text longer than this is never scrubbed
 MAX_PAGES = 10000  # the OpenAPI maximum of the `page` query parameter
 REDIRECT_CODES = frozenset([301, 302, 303, 307, 308])
 MASK = "VALUE_SPECIFIED_IN_NO_LOG_PARAMETER"
-# OpenAPI 20.3.0 Activity.state: QUEUED/RUNNING/PENDING_CANCELLATION|CANCELING/RETRYING/COMPLETED.
-# COMPLETED is the only terminal state; success/failure is in result.status (OK, FAILED, CANCELED, ...).
+# Activity.state (v3): QUEUED/RUNNING/CANCELING/RETRYING/COMPLETED (v2 also PENDING_CANCELLATION).
+# COMPLETED is the only terminal state; success/failure is in result.status: v3 SUCCESS,
+# COMPLETED_WITH_EXCEPTIONS, FAILED, CANCELED, SKIPPED, RETRIED; v2 OK, OK_WITH_ERRORS, ... (both accepted).
 ACTIVITY_TERMINAL_STATES = frozenset(["COMPLETED"])
+ACTIVITY_OK_STATUSES = frozenset(["OK", "SUCCESS"])
+ACTIVITY_WARN_STATUSES = frozenset(["OK_WITH_ERRORS", "COMPLETED_WITH_EXCEPTIONS"])
 
 
 # Write-only fields PPDM does not return in clear: a GET value is never sent back in a PUT unless the caller set it.
@@ -50,10 +53,15 @@ def strip_readonly(resource: str, obj: dict, readonly: Any = None) -> dict:
     return {k: v for k, v in obj.items() if k not in drop}
 
 
-def filter_eq(key: str, value: Any) -> str:
-    """PPDM filter expression `key eq "value"` (backslash and double quote escaped)."""
+def filter_quote(value: Any) -> str:
+    """A filter string literal `"value"` (backslash and double quote escaped)."""
     # shortcut: the OpenAPI does not document filter escaping; backslash-escaping \ and " is best effort.
-    return '%s eq "%s"' % (key, str(value).replace("\\", "\\\\").replace('"', '\\"'))
+    return '"%s"' % str(value).replace("\\", "\\\\").replace('"', '\\"')
+
+
+def filter_eq(key: str, value: Any) -> str:
+    """PPDM filter expression `key eq "value"`."""
+    return "%s eq %s" % (key, filter_quote(value))
 
 
 def is_subset(want: Any, have: Any) -> bool:
@@ -110,6 +118,10 @@ def _mask(obj, secret_keys):
     return {k: (MASK if k in secret_keys else v) for k, v in obj.items()}
 
 
+MIN_SECRET_LENGTH = 4  # shorter values are not registered as secrets (see PpdmClient.add_secret)
+_UNSET = object()
+
+
 class PpdmError(Exception):
     """Any client failure: msg is safe to show (scrubbed), status the HTTP code if any, body the scrubbed error body."""
 
@@ -145,11 +157,24 @@ class PpdmClient:
         self.sleep = sleep
         self.token = None
         self.last_status = None
+        self.extra_secrets = set()
+
+    def add_secret(self, value):
+        """Also mask value (a passphrase, a package token) wherever scrub is applied, escaped forms included.
+
+        Rule: None, bool and empty values are ignored; other scalars (an int) are taken as str(); a value of
+        fewer than MIN_SECRET_LENGTH characters is ignored, masking it would mangle unrelated text. Kept in a set.
+        """
+        if value is None or isinstance(value, bool) or not isinstance(value, (str, int, float)):
+            return
+        text = str(value)
+        if len(text) >= MIN_SECRET_LENGTH:
+            self.extra_secrets.add(text)
 
     def _secret_strings(self):
         """The password and the token plus their JSON (lower and upper case \\uXXXX) and repr escaped forms."""
         out = set()
-        for x in (self.password, self.token):
+        for x in (self.password, self.token, *sorted(self.extra_secrets)):
             if isinstance(x, str) and x:
                 ascii_form = json.dumps(x)[1:-1]
                 upper = re.sub(r"\\u([0-9a-f]{4})", lambda m: "\\u" + m.group(1).upper(), ascii_form)  # Jackson
@@ -368,6 +393,18 @@ class PpdmClient:
             )
         return found[0] if found else None
 
+    def _find(self, resource, key, value):
+        """find_one, or with key None the only item of the resource (PpdmError when there are several)."""
+        if key is not None:
+            return self.find_one(resource, key, value)
+        found = [o for o in self.list_all(resource) if isinstance(o, dict)]
+        if len(found) > 1:
+            ids = ", ".join(self.scrub_text(o.get("id"), 64) for o in found[:10])
+            raise PpdmError(
+                self._scrub("%s: %d objects exist, expected at most one (ids: %s)" % (resource, len(found), ids))
+            )
+        return found[0] if found else None
+
     def _route(self, resource, verb, obj_id=None):
         route = ROUTES[resource]
         if verb not in route["methods"]:
@@ -390,7 +427,7 @@ class PpdmClient:
         self,
         resource: str,
         desired: dict,
-        key: str = "name",
+        key: str | None = "name",
         check_mode: bool = False,
         secret_keys: Any = (),
         update_secrets: str = "on_create",
@@ -398,6 +435,7 @@ class PpdmClient:
         update_verb: str | None = None,
         readonly: Any = None,
         subset_keys: Any = (),
+        existing: Any = _UNSET,
     ) -> dict:
         """Create or update one object; the merge over the existing object is shallow (top-level keys only).
 
@@ -405,15 +443,19 @@ class PpdmClient:
         the route offers it, else PATCH. readonly overrides the ROUTES readOnly key set. A desired value of a
         subset_keys key that is a subset of the existing one (see is_subset) counts as unchanged, so server-added
         ids and defaults do not cause an update. An update then sends the existing value (with its ids) for those keys,
-        and the desired value as given for keys that really differ.
+        and the desired value as given for keys that really differ. existing, when given (an object already
+        fetched by the caller, or None for "none exists"), replaces the lookup.
         """
         if update_secrets not in ("on_create", "always"):
             raise PpdmError("update_secrets must be 'on_create' or 'always', got %r" % (update_secrets,))
         secret_keys = set(secret_keys)
-        existing = self.find_one(resource, key, desired[key])
+        if existing is _UNSET:
+            existing = self._find(resource, key, desired[key] if key else None)
         want = strip_readonly(resource, desired, readonly)
         if existing is None:
             if not create:
+                if key is None:
+                    raise PpdmError("%s: no object exists" % resource)
                 raise PpdmError("%s %s=%s not found" % (resource, key, self.scrub_text(desired[key], 200)))
             path = self._route(resource, "POST")
             obj = want if check_mode else (self.request("POST", path, body=want) or want)
@@ -455,9 +497,11 @@ class PpdmClient:
             },
         }
 
-    def remove(self, resource: str, key: str, value: Any, check_mode: bool = False, secret_keys: Any = ()) -> dict:
+    def remove(
+        self, resource: str, key: str | None, value: Any, check_mode: bool = False, secret_keys: Any = ()
+    ) -> dict:
         """Delete the object whose key equals value; {changed, diff}. Nothing is sent in check mode."""
-        existing = self.find_one(resource, key, value)
+        existing = self._find(resource, key, value)
         if existing is None:
             return {"changed": False, "diff": {"before": {}, "after": {}}}
         path = self._route(resource, "DELETE", self._item_id(resource, existing))
@@ -478,20 +522,20 @@ class PpdmClient:
         return {"changed": True, "response": self.request("POST", path, body=body)}
 
     def await_activity(self, activity_id: str, timeout: int) -> dict:
-        """Poll the activity to COMPLETED; {"activity"} (plus "warnings" on OK_WITH_ERRORS), PpdmError unless OK."""
+        """Poll the activity to COMPLETED; {"activity"} (plus "warnings" on a warn status), PpdmError unless OK."""
         act = self.wait_activity(activity_id, timeout)
         result = act.get("result") if isinstance(act.get("result"), dict) else {}
         status = result.get("status")
         out = {"activity": act}
-        if status == "OK_WITH_ERRORS":
+        if status in ACTIVITY_WARN_STATUSES:
             out["warnings"] = [self.scrub_text(result.get("error") or result, 1000)]
-        elif status != "OK":
+        elif status not in ACTIVITY_OK_STATUSES:
             raise PpdmError(
                 "activity %s ended %s: %s"
                 % (
                     self.scrub_text(act.get("id"), 64),
                     self.scrub_text(status, 64),
-                    self.scrub_text(result.get("error"), 500),
+                    self.scrub_text(result.get("error") or result.get("issues"), 500),
                 ),
                 body=self.scrub(act),  # the final activity, so a caller can keep it
             )
@@ -567,42 +611,51 @@ def client_from_module(module: AnsibleModule) -> PpdmClient:
 
 
 def info_main(
-    resource: str, result_key: str, argument_spec: dict, secret_fields: Any = (), extra_eq: dict | None = None
+    resource: str,
+    result_key: str,
+    argument_spec: dict,
+    secret_fields: Any = (),
+    extra_eq: dict | None = None,
+    name_key: str = "name",
 ) -> None:
     """Shared main() of the read-only *_info modules.
 
     extra_eq maps an extra option to the object field it must equal exactly (ANDed into the filter, re-checked).
+    name_key is the object field I(name) is matched against. The options id, name and filter are all optional.
     """
     module = AnsibleModule(
         argument_spec=dict(connection_argument_spec(), **argument_spec),
         supports_check_mode=True,
-        mutually_exclusive=[("id", "name"), ("id", "filter"), ("name", "filter")],
+        mutually_exclusive=[
+            pair for pair in (("id", "name"), ("id", "filter"), ("name", "filter")) if set(pair) <= set(argument_spec)
+        ],
     )
     p = module.params
     extra = extra_eq or {}
-    if p["name"] == "":  # an empty name must not silently become "list everything"
+    name, obj_id, flt = p.get("name"), p.get("id"), p.get("filter")
+    if name == "":  # an empty name must not silently become "list everything"
         module.fail_json(msg="name must not be empty (omit it to list all)")
     client = client_from_module(module)
     try:
-        if p["id"] is not None:  # an empty id must fail in _route, not fall through to a full list
+        if obj_id is not None:  # an empty id must fail in _route, not fall through to a full list
             try:
-                body = client.request("GET", client._route(resource, "GET", p["id"]))
+                body = client.request("GET", client._route(resource, "GET", obj_id))
             except PpdmError as err:
                 if err.status != 404:
                     raise
                 found = []
             else:
                 if body is not None and not isinstance(body, dict):
-                    raise PpdmError("GET %s/%s failed: unexpected response" % (resource, p["id"]))
+                    raise PpdmError("GET %s/%s failed: unexpected response" % (resource, obj_id))
                 found = [] if body is None else [body]  # 204 (no body) means not found
         else:
-            terms = [filter_eq("name", p["name"])] if p["name"] else []
+            terms = [filter_eq(name_key, name)] if name else []
             terms += [filter_eq(f, p[o]) for o, f in extra.items() if p[o] is not None]
-            if p["filter"]:  # parenthesised so an `or` in it cannot escape the ANDed terms
-                terms.insert(0, "(%s)" % p["filter"] if terms else p["filter"])
+            if flt:  # parenthesised so an `or` in it cannot escape the ANDed terms
+                terms.insert(0, "(%s)" % flt if terms else flt)
             found = client.list_all(resource, filter=" and ".join(terms) or None)
-            if p["name"]:  # the server-side filter is advisory (and I(filter) is passed through unchanged)
-                found = [o for o in found if isinstance(o, dict) and o.get("name") == p["name"]]
+            if name:  # the server-side filter is advisory (and I(filter) is passed through unchanged)
+                found = [o for o in found if isinstance(o, dict) and o.get(name_key) == name]
     except PpdmError as err:
         fail_from(module, err)
     for opt, field in extra.items():  # the server-side filter is advisory

@@ -1,0 +1,25 @@
+---
+# Ensure one protection group (storage-direct application by default), updated when it differs. PPDM 20.3.0 knows only
+# storage-direct and Oracle Data Guard groups. Set protection_group_policy to assign a protection policy that exists.
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Create a protection group
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Ensure the protection group
+      fjacquet.ppdm.protection_group:
+        name: "{{ protection_group_name }}"
+        type: "{{ protection_group_type | default('STORAGE_DIRECT_APPLICATION') }}"
+        subtype: "{{ protection_group_subtype }}"
+        member_asset_type: "{{ protection_group_member_asset_type }}"
+        natural_ids: "{{ protection_group_natural_ids }}"
+        protection_policy: "{{ protection_group_policy | default(omit) }}"

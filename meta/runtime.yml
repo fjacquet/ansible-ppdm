@@ -24,7 +24,22 @@ action_groups:
     - protection_rule_run
     - resource_group
     - resource_group_info
+    - restore_plan
+    - restore_plan_info
+    - restore_plan_run
     - protection_group
     - protection_group_info
     - asset_info
     - host_info
+    - activity_info
+    - copy_info
+    - alert_info
+    - activity_action
+    - alert_acknowledge
+    - smtp
+    - smtp_info
+    - user
+    - user_info
+    - role_info
+    - upgrade_package_info
+    - upgrade_package_action

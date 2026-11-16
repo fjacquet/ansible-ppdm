@@ -16,6 +16,26 @@ plugins:
   inventory: {}
   lookup: {}
   module:
+    activity_action:
+      description: Cancel or retry an activity on PowerProtect Data Manager
+      name: activity_action
+      namespace: ''
+      version_added: 0.4.0
+    activity_info:
+      description: Get activities from PowerProtect Data Manager
+      name: activity_info
+      namespace: ''
+      version_added: 0.4.0
+    alert_acknowledge:
+      description: Acknowledge or unacknowledge alerts on PowerProtect Data Manager
+      name: alert_acknowledge
+      namespace: ''
+      version_added: 0.4.0
+    alert_info:
+      description: Get alerts from PowerProtect Data Manager
+      name: alert_info
+      namespace: ''
+      version_added: 0.4.0
     api:
       description: Call any PowerProtect Data Manager REST endpoint
       name: api
@@ -36,6 +56,11 @@ plugins:
       name: certificate_info
       namespace: ''
       version_added: 0.1.0
+    copy_info:
+      description: Get copies (backups) from PowerProtect Data Manager
+      name: copy_info
+      namespace: ''
+      version_added: 0.4.0
     credential:
       description: Manage credentials on PowerProtect Data Manager
       name: credential
@@ -128,6 +153,36 @@ plugins:
       name: resource_group_info
       namespace: ''
       version_added: 0.3.0
+    restore_plan:
+      description: Manage restore plans on PowerProtect Data Manager
+      name: restore_plan
+      namespace: ''
+      version_added: 0.4.0
+    restore_plan_info:
+      description: Get restore plans from PowerProtect Data Manager
+      name: restore_plan_info
+      namespace: ''
+      version_added: 0.4.0
+    restore_plan_run:
+      description: Execute a restore plan on PowerProtect Data Manager
+      name: restore_plan_run
+      namespace: ''
+      version_added: 0.4.0
+    role_info:
+      description: Get roles from PowerProtect Data Manager
+      name: role_info
+      namespace: ''
+      version_added: 0.4.0
+    smtp:
+      description: Manage the SMTP configuration of PowerProtect Data Manager
+      name: smtp
+      namespace: ''
+      version_added: 0.4.0
+    smtp_info:
+      description: Get the SMTP configuration from PowerProtect Data Manager
+      name: smtp_info
+      namespace: ''
+      version_added: 0.4.0
     storage_system:
       description: Update a storage system on PowerProtect Data Manager
       name: storage_system
@@ -138,9 +193,30 @@ plugins:
       name: storage_system_info
       namespace: ''
       version_added: 0.1.0
+    upgrade_package_action:
+      description: Precheck, install or revert an upgrade package on PowerProtect
+        Data Manager
+      name: upgrade_package_action
+      namespace: ''
+      version_added: 0.4.0
+    upgrade_package_info:
+      description: Get upgrade packages from PowerProtect Data Manager
+      name: upgrade_package_info
+      namespace: ''
+      version_added: 0.4.0
+    user:
+      description: Manage local users of PowerProtect Data Manager
+      name: user
+      namespace: ''
+      version_added: 0.4.0
+    user_info:
+      description: Get users from PowerProtect Data Manager
+      name: user_info
+      namespace: ''
+      version_added: 0.4.0
   netconf: {}
   shell: {}
   strategy: {}
   test: {}
   vars: {}
-version: 0.3.0
+version: 0.4.0
