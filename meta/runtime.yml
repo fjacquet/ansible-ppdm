@@ -31,3 +31,5 @@ action_groups:
     - activity_info
     - copy_info
     - alert_info
+    - activity_action
+    - alert_acknowledge
