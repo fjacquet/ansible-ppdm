@@ -51,7 +51,19 @@ documented enums.
 - A new rule starts `status: CREATING`, then becomes `ACTIVE` with `lastRunAt` set within seconds (the server runs it
   on creation).
 
-## To fix (0.4.1)
+## Phase 2 re-run with the fixes (commit 750b06f): PASS
+
+resource_group create, re-run, PATCH update, delete; protection_rule (POWERSTORE_BLOCK `filter_template`) create, re-run
+unchanged despite server-generated `filters`, PATCH update, delete, delete again unchanged; smtp create, re-run
+unchanged, delete; protection_group (default `subtype` GENERIC) create and delete. User create and idempotence were
+validated in probe 3 (the phase 2 user step is not a reliable signal, it reports neither change nor failure).
+
+## Fixed in 0.4.1 (branch feat/lab-validation)
+
+PATCH `id`, `protection_rule.filter_template`, `protection_group` default `subtype`, `tls_server_name`, `docs/validation`
+in `build_ignore`. Still open: document the user password policy.
+
+## Was to fix (0.4.1)
 
 1. PATCH body must carry the object `id` (all `ensure` PATCH paths: resource group, rule, protection group, restore plan).
 2. `protection_rule`: add `filter_template`; make `priority` and `filters` optional per action; update docs.
