@@ -33,3 +33,5 @@ action_groups:
     - alert_info
     - activity_action
     - alert_acknowledge
+    - smtp
+    - smtp_info

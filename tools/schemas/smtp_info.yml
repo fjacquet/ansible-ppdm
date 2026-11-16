@@ -1,0 +1,35 @@
+module: smtp_info
+resource: smtp
+kind: info
+short_description: Get the SMTP configuration from PowerProtect Data Manager
+description:
+  - Read-only query of the SMTP configuration. Never changes anything.
+  - The C(password) field is dropped from the result, not masked.
+version_added: 0.4.0
+attributes:
+  check_mode:
+    support: full
+    details: Read-only, behaves the same in check mode.
+  diff_mode:
+    support: none
+notes:
+  - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
+  - The password field is never returned.
+seealso:
+  - module: fjacquet.ppdm.smtp
+    description: Manage the SMTP configuration.
+options: {}
+examples: |
+  - name: Read the SMTP configuration
+    fjacquet.ppdm.smtp_info:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+    register: result
+return: |
+  smtp:
+    description: The SMTP configuration, a list of at most one item, empty when none is set.
+    returned: always
+    type: list
+    elements: dict
+    sample: [{"id": "s1", "mailServer": "smtp.example.com", "port": 587}]
