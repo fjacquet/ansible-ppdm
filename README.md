@@ -114,7 +114,7 @@ Run `ansible-doc fjacquet.ppdm.<module>` for the options and examples.
 
 ## Playbooks
 
-63 playbooks grouped by use case (bootstrap, sources, protection, assets, agents, kubernetes, clouddr, maintenance) ship with
+66 playbooks grouped by use case (bootstrap, sources, protection, assets, agents, kubernetes, clouddr, maintenance) ship with
 the collection and run by name, for example:
 
 ```

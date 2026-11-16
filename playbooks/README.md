@@ -68,6 +68,8 @@ Besides the disclaimer above, these points are known guesses:
 - `protection.create_rule`, `kubernetes.add_policy_and_rule`: the `fieldName` values (`tags` for VMs, `userTags` for Kubernetes labels, the latter from the Lot 1 playbook) and the `fieldData` shape (`type: STRING`, `values`) of the v3 filter conditions are plausible picks, not verified against a live PPDM; the module only checks the operators and enums.
 - `protection.run_policy`: `protection_policy_run` requires `asset_ids` or `protection_group_ids` and cannot set `operation.backupLevel`; `Source` has no required field in the spec. `protection.run_rule` preview POSTs even in check mode (documented read-only).
 - `kubernetes.trust_root_certificate`: `POST /api/v2/certificates` is used as in the original workflow; it is not idempotent.
+- `protection.create_protection_group`: the protection group body per type (`type`, `subtype`, `memberAssetType`, `naturalIds`) is not verified against a live PPDM; the module checks only the enums.
+- `protection.create_resource_group`: the `fieldName` (`tags`) and `fieldData` shape of the rule filter are the same plausible picks as in `protection.create_rule`.
 - `agents.approve_agent_ips`, `agents.approve_agents_by_hostname`: the whitelist `expiresAt` value is built from the controller clock.
 
 ## Kubernetes cluster side
@@ -129,6 +131,8 @@ Every original file is listed in exactly one of the two tables below. Playbooks 
 | [fjacquet.ppdm.protection.run_discovery](protection/run_discovery.yml) | Start a discovery on an inventory source and wait for it; refuses to run unless discovery_confirm is true. | `discovery` | - | - | new |
 | [fjacquet.ppdm.protection.create_rule](protection/create_rule.yml) | Ensure a v3 rule assigning the assets selected by the rule_filters variable (VMs with a tag) to a policy; the policy from create_vm_policy must exist first. | `protection_rule` | - | - | new |
 | [fjacquet.ppdm.protection.run_rule](protection/run_rule.yml) | Run a v3 protection rule now; refuses to run unless rule_run_confirm is true. | `protection_rule_run` | - | - | new |
+| [fjacquet.ppdm.protection.create_resource_group](protection/create_resource_group.yml) | Ensure a resource group and a v3 rule assigning the assets selected by the resource_group_rule_filters variable (VMs with a tag) to it. | `resource_group`, `protection_rule` | - | - | new |
+| [fjacquet.ppdm.protection.create_protection_group](protection/create_protection_group.yml) | Ensure one protection group (storage-direct by default; 20.3.0 knows only storage-direct and Oracle Data Guard), with an optional protection policy. | `protection_group` | - | - | new |
 
 ### Kubernetes
 
@@ -174,6 +178,7 @@ Every original file is listed in exactly one of the two tables below. Playbooks 
 | [fjacquet.ppdm.assets.get_vm_asset_copies](assets/get_vm_asset_copies.yml) | Find a protected VM asset by name and list its copies (read-only). | `api` | 31 | 30.1-playbook_get_vm_asset_copies.yml, 30.1-playbook_search_vm_asset_by_name.yml | converted |
 | [fjacquet.ppdm.assets.get_activities](assets/get_activities.yml) | List activities, optionally filtered with a PPDM filter string (read-only). | `api` | 32 | 31.1-playbook_get_activities.yml | converted |
 | [fjacquet.ppdm.assets.restore_vm_copy](assets/restore_vm_copy.yml) | Restore the latest copy of a VM to its original location; refuses to run unless restore_confirm is true. | `api` | 40 | 40.1-playbook_restore_vm_asset_copies.yml | converted |
+| [fjacquet.ppdm.assets.find_assets](assets/find_assets.yml) | Find assets by name and type and hosts by name, and show name, id and type (read-only). | `asset_info`, `host_info` | - | - | new |
 
 ### Maintenance: update packages
 

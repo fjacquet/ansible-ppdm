@@ -1,0 +1,40 @@
+---
+# Find assets by name and type, and hosts by name (read-only). Leave find_asset_name and find_asset_type unset to list all.
+# Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
+- name: Find assets and hosts
+  hosts: "{{ target | default('localhost') }}"
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../vars/example.yml
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      hostname: "{{ lookup('ansible.builtin.env', 'PPDM_HOSTNAME') }}"
+      username: "{{ lookup('ansible.builtin.env', 'PPDM_USERNAME') }}"
+      password: "{{ lookup('ansible.builtin.env', 'PPDM_PASSWORD') }}"
+      port: "{{ lookup('ansible.builtin.env', 'PPDM_PORT') | default(8443, true) | int }}"
+  tasks:
+    - name: Find the assets
+      fjacquet.ppdm.asset_info:
+        name: "{{ find_asset_name | default(omit) }}"
+        asset_type: "{{ find_asset_type | default(omit) }}"
+      register: ppdm_assets
+
+    - name: Find the hosts
+      fjacquet.ppdm.host_info:
+        name: "{{ find_host_name }}"
+      register: ppdm_hosts
+
+    - name: Show the assets
+      ansible.builtin.debug:
+        msg: "{{ item.name }} {{ item.id }} {{ item.type | default('-') }}"
+      loop: "{{ ppdm_assets.assets }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Show the hosts
+      ansible.builtin.debug:
+        msg: "{{ item.name }} {{ item.id }} {{ item.type | default('-') }}"
+      loop: "{{ ppdm_hosts.hosts }}"
+      loop_control:
+        label: "{{ item.name }}"
