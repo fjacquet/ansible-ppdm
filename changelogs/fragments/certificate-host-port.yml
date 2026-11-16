@@ -1,9 +1,0 @@
-breaking_changes:
-  - >-
-    certificate - the option ``port`` (TLS port of the host) is renamed ``host_port``.
-    ``port`` now means the PPDM connection port, as in every other module;
-    use ``host_port`` for the TLS port of the host presenting the certificate.
-bugfixes:
-  - >-
-    certificate - the ``port`` option shadowed the PPDM connection port, so the module connected
-    to PPDM on the TLS port of the host; this is fixed by the ``host_port`` rename.

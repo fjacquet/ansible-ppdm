@@ -25,7 +25,18 @@ Lab checklist before 1.0.0:
 - `protection_policy` update uses PATCH: confirm that whole-list `objectives` and `overrides` replace the existing lists and that stripping the read-only fields is enough for PPDM to accept the body.
 - Protection policy names are not enforced unique by the API: confirm the behaviour on a duplicate name (the module fails and lists the ids).
 - `protection_policy_assets` idempotence reads `GET /api/v2/protection-policies/<id>/asset-assignments`: confirm it returns Asset objects with an `id`, as the module assumes.
-- Activity results: confirm the `result.status` values (`OK`, `OK_WITH_ERRORS`, `FAILED`) and that the 202 bodies of `/api/v3/protections` and `/api/v2/discoveries` are not activities (`activityId` and `taskId` are polled).
+- Activity results: confirm that `GET /api/v3/activities/{id}` reports `result.status` `SUCCESS`, `COMPLETED_WITH_EXCEPTIONS` or `FAILED` (v3), whether any path still returns the v2 values `OK`, `OK_WITH_ERRORS`, and that the 202 bodies of `/api/v3/protections` and `/api/v2/discoveries` are not activities (`activityId` and `taskId` are polled).
+- `activity_info`: confirm how deep v3 paging goes on `/api/v3/activities`.
+- `activity_action`: confirm that cancel and retry accept an empty body `{}`, that retry answers a new `activityId`, that a cancelled activity ends `COMPLETED` with `result.status` `CANCELED`, and what the 202 bodies of retry and cancel contain.
+- `alert_acknowledge`: confirm the 207 `bulkResults` shape, that `errorResponseObject` is set only on failed items (only failures are reported) and the `acknowledgementCount` value.
+- `copy_info`: confirm that `/api/v2/latest-copies` rejects `page`/`pageSize` under strict validation, the `assetId in (...)` filter syntax, and that `/api/v3/copies/{id}` answers 404 for an unknown id (the module treats it as not found).
+- `smtp`: confirm that POST answers 201 with an empty body or 200 with the object. A PUT without `password` may clear the relay password (the same unverified point as in the first item), and the `update_password` semantics differ from `user`. Confirm that `smtp/test` takes the body field `recipient` (the endpoint text says `mailRecipient`).
+- `user` and `user_info` use `/api/v2/users`, which 20.3.0 deprecates in favour of `/api/v3/identity-access-provisions`. Confirm that PUT without `password` keeps it and that the role is matched by `name` (not `displayName`).
+- `restore_plan`: confirm that PATCH replaces `restoreGroups` as a whole list and keeps their order, and confirm the read-only set. `restoreGroups[].extendedData` is free-form and may carry credentials; it is not masked (credentials are normally referenced by id), so use `no_log: true` if you put secrets there.
+- `restore_plan_run`: confirm the 201/202 `activities` list, that one activity is started per restore group, and how `wait` behaves with an empty response body.
+- `upgrade_package_action`: service-affecting, untested on a live appliance. Confirm that the PUT needs the GET body including `upgradeToken`, that 202 is the only success (the spec gives 200 an `ErrorMessage`), the `forceUpgrade` semantics, when `lockboxPassphrase` is required, and that revert applies only to `HOTFIX` packages with `revertSupported`. The precheck `wait` polls `resp.activityId`, which the spec ties to hotfix and revert: it may be missing after a precheck. The default revert id picks the `ACTIVE` package. Confirm how the `INSTALLED_CORE` and `WITH_ERRORS` states are handled.
+- `restore_plan_run` and `upgrade_package_action` are service-affecting and have not been run on a live appliance.
+- `protection.create_protection_group`: confirm the minimal body for `STORAGE_DIRECT_APPLICATION` and `ORACLE_DATA_GUARD`.
 - `protection_policy` `overrides`: confirm whether GET returns an empty `overrides` list or omits it, since an empty list removes all overrides.
 - `protection_policy` compares reordered `objectives` by index: confirm PPDM keeps the order of the objectives it stores.
 - `protection.add_file_system_policy` and `protection.add_mssql_policy` compare the policy with `startTime`/`duration`: confirm GET returns them exactly as sent (else the fs/mssql policy playbooks PATCH on every run).
@@ -104,6 +115,21 @@ To share explicit values across tasks, use the `ppdm` action group:
 | `fjacquet.ppdm.host_info` | Get hosts |
 | `fjacquet.ppdm.storage_system_info` | Get storage systems |
 | `fjacquet.ppdm.storage_system` | Update a storage system |
+| `fjacquet.ppdm.activity_info` | Get activities |
+| `fjacquet.ppdm.activity_action` | Cancel or retry an activity |
+| `fjacquet.ppdm.alert_info` | Get alerts |
+| `fjacquet.ppdm.alert_acknowledge` | Acknowledge or unacknowledge alerts |
+| `fjacquet.ppdm.copy_info` | Get copies (backups) |
+| `fjacquet.ppdm.smtp_info` | Get the SMTP configuration |
+| `fjacquet.ppdm.smtp` | Create, update or delete the SMTP configuration |
+| `fjacquet.ppdm.user_info` | Get users |
+| `fjacquet.ppdm.user` | Create, update or delete local users |
+| `fjacquet.ppdm.role_info` | Get roles |
+| `fjacquet.ppdm.restore_plan_info` | Get restore plans |
+| `fjacquet.ppdm.restore_plan` | Create, update or delete restore plans |
+| `fjacquet.ppdm.restore_plan_run` | Execute a restore plan |
+| `fjacquet.ppdm.upgrade_package_info` | Get upgrade packages |
+| `fjacquet.ppdm.upgrade_package_action` | Precheck, install or revert an upgrade package |
 
 Run `ansible-doc fjacquet.ppdm.<module>` for the options and examples.
 

@@ -4,6 +4,57 @@ fjacquet.ppdm Release Notes
 
 .. contents:: Topics
 
+v0.4.0
+======
+
+Release Summary
+---------------
+
+Adds monitoring and operations modules (activities, alerts, copies, SMTP, users and roles, restore plans, upgrade packages) and three playbooks (66 in total), and fixes waited activities on the v3 statuses. The upgrade and restore modules are service-affecting and untested on a live appliance.
+
+Minor Changes
+-------------
+
+- Adds the modules activity_info, activity_action, alert_info, alert_acknowledge, copy_info, smtp_info, smtp, user_info, user, role_info, restore_plan_info, restore_plan, restore_plan_run, upgrade_package_info and upgrade_package_action.
+- Adds the playbooks assets.find_assets, protection.create_resource_group and protection.create_protection_group.
+- The shared ``ensure`` and ``remove`` helpers handle singleton objects (for example the SMTP configuration) with ``key=None``.
+- The shared info helper gains a ``name_key`` argument (the object field the ``name`` option is matched against).
+
+Breaking Changes / Porting Guide
+--------------------------------
+
+- certificate - the option ``port`` (TLS port of the host) is renamed ``host_port``. ``port`` now means the PPDM connection port, as in every other module; use ``host_port`` for the TLS port of the host presenting the certificate.
+
+Bugfixes
+--------
+
+- certificate - the ``port`` option shadowed the PPDM connection port, so the module connected to PPDM on the TLS port of the host; this is fixed by the ``host_port`` rename.
+- discovery, protection_policy_run and protection_rule_run - with ``wait=true`` a finished activity was reported as failed because the v3 statuses ``SUCCESS`` and ``COMPLETED_WITH_EXCEPTIONS`` were not recognised (only the v2 ``OK`` and ``OK_WITH_ERRORS``). Both sets are now accepted.
+
+Known Issues
+------------
+
+- user and user_info use the v2 users API (``/api/v2/users``), which PPDM 20.3.0 marks deprecated in favour of ``/api/v3/identity-access-provisions``.
+
+New Modules
+-----------
+
+- activity_action - Cancel or retry an activity on PowerProtect Data Manager
+- activity_info - Get activities from PowerProtect Data Manager
+- alert_acknowledge - Acknowledge or unacknowledge alerts on PowerProtect Data Manager
+- alert_info - Get alerts from PowerProtect Data Manager
+- copy_info - Get copies (backups) from PowerProtect Data Manager
+- restore_plan - Manage restore plans on PowerProtect Data Manager
+- restore_plan_info - Get restore plans from PowerProtect Data Manager
+- restore_plan_run - Execute a restore plan on PowerProtect Data Manager
+- role_info - Get roles from PowerProtect Data Manager
+- smtp - Manage the SMTP configuration of PowerProtect Data Manager
+- smtp_info - Get the SMTP configuration from PowerProtect Data Manager
+- upgrade_package_action - Precheck, install or revert an upgrade package on PowerProtect Data Manager
+- upgrade_package_info - Get upgrade packages from PowerProtect Data Manager
+- user - Manage local users of PowerProtect Data Manager
+- user_info - Get users from PowerProtect Data Manager
+
 v0.3.0
 ======
 
