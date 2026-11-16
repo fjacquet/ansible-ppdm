@@ -10,6 +10,27 @@ from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import PpdmClie
 BODY = b'{"access_token": "tok"}'
 
 
+def read_request(tls):
+    """Read the whole request (headers, then Content-Length bytes): the client may send them in separate TLS records."""
+    data = b""
+    while b"\r\n\r\n" not in data:
+        chunk = tls.recv(65536)
+        if not chunk:
+            return
+        data += chunk
+    head, _sep, body = data.partition(b"\r\n\r\n")
+    length = 0
+    for line in head.split(b"\r\n")[1:]:
+        name, _colon, value = line.partition(b":")
+        if name.strip().lower() == b"content-length":
+            length = int(value)
+    while len(body) < length:
+        chunk = tls.recv(65536)
+        if not chunk:
+            return
+        body += chunk
+
+
 @pytest.fixture
 def tls_server(tmp_path, monkeypatch):
     """Local TLS server whose certificate is issued for ppdm-core only (not for 127.0.0.1)."""
@@ -39,7 +60,7 @@ def tls_server(tmp_path, monkeypatch):
                 return
             try:
                 with ctx.wrap_socket(conn, server_side=True) as tls:
-                    tls.recv(65536)
+                    read_request(tls)
                     tls.sendall(
                         b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n"
                         b"Connection: close\r\n\r\n%s" % (len(BODY), BODY)
