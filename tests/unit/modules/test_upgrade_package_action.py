@@ -41,15 +41,11 @@ def run(monkeypatch, op, **kw):
 
 
 def test_without_confirm_never_connects(monkeypatch):
-    def boom(module):
-        raise AssertionError("client_from_module called")
-
-    monkeypatch.setattr(upgrade_package_action, "client_from_module", boom)
     for action in ("precheck", "upgrade", "revert"):
         for check in (False, True):
             op = FakeOpener()
             out = run(monkeypatch, op, action=action, confirm=False, check_mode=check)
-            assert out["failed"] and "confirm" in out["msg"] and op.calls == []
+            assert out["failed"] and "confirm" in out["msg"] and op.calls == [] and op.connects == 0
 
 
 def test_default_id_from_single_active(monkeypatch):
@@ -92,7 +88,7 @@ def test_upgrade_without_passphrase_drops_it_and_force_true(monkeypatch):
 
 
 def test_upgrade_installed_is_noop(monkeypatch):
-    op = FakeOpener(pkg("INSTALLED_OK"))
+    op = FakeOpener(pkg("INSTALLED"))
     out = run(monkeypatch, op)
     assert not out["failed"] and not out["changed"] and methods(op) == ["GET"]
 
@@ -115,6 +111,34 @@ def test_upgrade_check_mode_sends_nothing(monkeypatch):
     assert out["changed"] and methods(op) == ["GET"]
 
 
+def test_partly_installed_upgrade_fails(monkeypatch):
+    for state in ("INSTALLED_CORE", "INSTALLED_WITH_ERRORS", "INSTALLED_WITH_SKIPPED"):
+        op = FakeOpener(pkg(state))
+        out = run(monkeypatch, op)
+        assert out["failed"] and state in out["msg"] and methods(op) == ["GET"]
+
+
+def test_active_package_without_id_fails(monkeypatch):
+    op = FakeOpener(listing({"category": "ACTIVE"}))
+    out = run(monkeypatch, op, id=None)
+    assert out["failed"] and methods(op) == ["GET"]
+
+
+def test_error_cut_does_not_leave_secret_prefix(monkeypatch):
+    for secret in ("newpass-9", TOK, PP):
+        for filler in range(930, 960, 3):  # the message length (with its prefix) crosses the 1000 character cut
+            op = FakeOpener(pkg(), http_error(400, {"message": "x" * filler + secret}))
+            out = run(monkeypatch, op, lockbox_passphrase="newpass-9")
+            assert out["failed"] and secret[:4] not in out["msg"]
+
+
+def test_error_non_string_message_hides_escaped_passphrase(monkeypatch):
+    weird = "pa\\ss'w\"d"
+    op = FakeOpener(pkg(), http_error(400, {"message": {"m": "bad " + weird}}))
+    out = run(monkeypatch, op, lockbox_passphrase=weird)
+    assert out["failed"] and repr(weird)[1:-1] not in out["msg"] and weird not in out["msg"]
+
+
 def test_http_error_message_hides_passphrase(monkeypatch):
     op = FakeOpener(pkg(), http_error(400, {"message": "bad passphrase newpass-9"}))
     out = run(monkeypatch, op, lockbox_passphrase="newpass-9")
@@ -123,15 +147,13 @@ def test_http_error_message_hides_passphrase(monkeypatch):
 
 def test_revert_refused_when_not_revertable(monkeypatch):
     for extra in ({"type": "HOTFIX"}, {"revertSupported": True}):
-        op = FakeOpener(pkg("INSTALLED_OK", **extra))
+        op = FakeOpener(pkg("INSTALLED", **extra))
         out = run(monkeypatch, op, action="revert")
         assert out["failed"] and methods(op) == ["GET"]
 
 
 def test_revert_posts_and_reverted_is_noop(monkeypatch):
-    op = FakeOpener(
-        pkg("INSTALLED_OK", type="HOTFIX", revertSupported=True), Resp({"activityId": "a1", "id": "u1"}, 202)
-    )
+    op = FakeOpener(pkg("INSTALLED", type="HOTFIX", revertSupported=True), Resp({"activityId": "a1", "id": "u1"}, 202))
     out = run(monkeypatch, op, action="revert")
     assert out["changed"] and out["response"] == {"activityId": "a1", "id": "u1"}
     assert urlsplit(op.calls[1][0]).path == "/api/v2/upgrade-packages/u1/revert"
@@ -150,7 +172,7 @@ def test_precheck_wait_polls_activity(monkeypatch):
 
 
 def test_precheck_on_installed_refused(monkeypatch):
-    out = run(monkeypatch, FakeOpener(pkg("INSTALLED_OK")), action="precheck")
+    out = run(monkeypatch, FakeOpener(pkg("INSTALLED")), action="precheck")
     assert out["failed"]
 
 
@@ -158,7 +180,7 @@ def test_wait_with_upgrade_or_revert_fails_before_login(monkeypatch):
     for action in ("upgrade", "revert"):
         op = FakeOpener()
         out = run(monkeypatch, op, action=action, wait=True)
-        assert out["failed"] and "wait" in out["msg"] and op.calls == []
+        assert out["failed"] and "wait" in out["msg"] and op.calls == [] and op.connects == 0
 
 
 def test_secrets_never_in_output(monkeypatch):

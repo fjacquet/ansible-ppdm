@@ -5,7 +5,7 @@ kind: action
 short_description: Precheck, install or revert an upgrade package on PowerProtect Data Manager
 description:
   - Run the precheck, the upgrade or the revert of an upgrade package, through C(POST .../precheck), C(PUT .../{id}) and C(POST .../revert) under C(/api/v2/upgrade-packages).
-  - Reports C(changed=false) without any request when the package is already installed (upgrade) or reverted (revert). In check mode nothing is sent and C(changed=true) is reported otherwise.
+  - Reports C(changed=false) without any request when the package is already C(INSTALLED) (upgrade) or reverted (revert). In check mode nothing is sent and C(changed=true) is reported otherwise.
 version_added: 0.4.0
 author:
   - Frederic Jacquet (@fjacquet)
@@ -20,7 +20,7 @@ attributes:
 notes:
   - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
   - The upgrade and the revert are service-affecting, the appliance restarts. The module fails before any request or login unless I(confirm=true), for every I(action) and also in check mode.
-  - The package is read first. A precheck is refused on an installed package, an upgrade needs the state C(AVAILABLE) or C(FAILED), a revert needs C(revertSupported=true) and a C(HOTFIX) package.
+  - The package is read first. A precheck is refused on an installed package, an upgrade needs the state C(AVAILABLE) or C(FAILED), and fails on a partly installed package (C(INSTALLED_CORE), C(INSTALLED_WITH_ERRORS), C(INSTALLED_WITH_SKIPPED)) instead of reporting it done, a revert needs C(revertSupported=true) and a C(HOTFIX) package.
   - Only the answer 202 counts as success for the upgrade. The 200 answer of the API schema is an error message, so the module fails with it.
   - The upgrade request always carries C(forceUpgrade) explicitly, because the API default is C(true).
   - I(wait) works with the precheck only. The appliance restarts during an upgrade or a revert, so the module cannot poll them and fails when I(wait=true). Poll with M(fjacquet.ppdm.upgrade_package_info) once the API is back, see the C(bootstrap.wait_for_api) playbook.

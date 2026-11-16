@@ -41,7 +41,13 @@ def run_module(monkeypatch, mod, opener, check_mode=False, **args):
     from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import PpdmClient
 
     client = PpdmClient("h", "u", "s3cret", opener=opener, sleep=lambda s: None)
-    monkeypatch.setattr(mod, "client_from_module", lambda module: client)
+    opener.connects = 0  # how many times the module asked for a client (login)
+
+    def connect(module):
+        opener.connects += 1
+        return client
+
+    monkeypatch.setattr(mod, "client_from_module", connect)
 
     def exit_json(self, **kw):
         raise Exit(dict(kw, failed=False))

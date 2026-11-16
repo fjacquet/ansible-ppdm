@@ -189,7 +189,7 @@ def main():
                     else:
                         activities.append(done["activity"])
                         warnings += done.get("warnings", [])
-            if not entries and not p["wait"]:
+            if not entries and not p["wait"] and not scheduled:  # a scheduled run starts no activity yet
                 warnings.append("PPDM answered no activities")
         if p["wait"] and resp is not None:
             out["activities"] = activities

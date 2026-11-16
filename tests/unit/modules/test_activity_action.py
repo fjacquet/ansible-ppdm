@@ -30,7 +30,7 @@ def test_cancel_without_confirm_sends_nothing(monkeypatch):
     for check in (False, True):
         op = FakeOpener()
         out = run(monkeypatch, op, confirm=False, check_mode=check)
-        assert out["failed"] and "confirm" in out["msg"] and op.calls == []
+        assert out["failed"] and "confirm" in out["msg"] and op.calls == [] and op.connects == 0
 
 
 def test_cancel_path_and_body(monkeypatch):

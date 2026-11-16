@@ -34,14 +34,16 @@ def run(monkeypatch, op, **kw):
 
 
 def test_without_confirm_never_connects(monkeypatch):
-    def boom(module):
-        raise AssertionError("client_from_module called")
-
-    monkeypatch.setattr(restore_plan_run, "client_from_module", boom)
     for check in (False, True):
         op = FakeOpener()
         out = run(monkeypatch, op, confirm=False, check_mode=check)
-        assert out["failed"] and "confirm" in out["msg"] and op.calls == []
+        assert out["failed"] and "confirm" in out["msg"] and op.calls == [] and op.connects == 0
+
+
+def test_scheduled_run_without_activities_does_not_warn(monkeypatch):
+    op = FakeOpener(listing(PLAN), Resp({"executionType": "SCHEDULE"}, 202))
+    out = run(monkeypatch, op, execution_type="SCHEDULE", schedule_time="2026-12-01T22:00:00Z")
+    assert out["changed"] and "warnings" not in out
 
 
 def test_run_by_name(monkeypatch):
@@ -68,8 +70,9 @@ def test_schedule_without_time_fails(monkeypatch):
 
 
 def test_immediately_with_time_fails(monkeypatch):
-    out = run(monkeypatch, FakeOpener(), schedule_time="2026-12-01T22:00:00Z")
-    assert out["failed"] and "schedule_time" in out["msg"]
+    op = FakeOpener()
+    out = run(monkeypatch, op, schedule_time="2026-12-01T22:00:00Z")
+    assert out["failed"] and "schedule_time" in out["msg"] and op.calls == [] and op.connects == 0
 
 
 def test_wait_with_schedule_fails(monkeypatch):

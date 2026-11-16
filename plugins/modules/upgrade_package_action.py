@@ -11,7 +11,7 @@ short_description: Precheck, install or revert an upgrade package on PowerProtec
 description:
 - Run the precheck, the upgrade or the revert of an upgrade package, through C(POST .../precheck), C(PUT
   .../{id}) and C(POST .../revert) under C(/api/v2/upgrade-packages).
-- Reports C(changed=false) without any request when the package is already installed (upgrade) or reverted
+- Reports C(changed=false) without any request when the package is already C(INSTALLED) (upgrade) or reverted
   (revert). In check mode nothing is sent and C(changed=true) is reported otherwise.
 version_added: 0.4.0
 author:
@@ -25,7 +25,9 @@ notes:
 - The upgrade and the revert are service-affecting, the appliance restarts. The module fails before any
   request or login unless I(confirm=true), for every I(action) and also in check mode.
 - The package is read first. A precheck is refused on an installed package, an upgrade needs the state
-  C(AVAILABLE) or C(FAILED), a revert needs C(revertSupported=true) and a C(HOTFIX) package.
+  C(AVAILABLE) or C(FAILED), and fails on a partly installed package (C(INSTALLED_CORE), C(INSTALLED_WITH_ERRORS),
+  C(INSTALLED_WITH_SKIPPED)) instead of reporting it done, a revert needs C(revertSupported=true) and
+  a C(HOTFIX) package.
 - Only the answer 202 counts as success for the upgrade. The 200 answer of the API schema is an error
   message, so the module fails with it.
 - The upgrade request always carries C(forceUpgrade) explicitly, because the API default is C(true).
@@ -172,16 +174,11 @@ def main():
     if p["wait"] and p["action"] != "precheck":
         module.fail_json(msg="wait only works with action=precheck, the appliance restarts during %s" % p["action"])
     client = client_from_module(module)
-    secrets = [p["lockbox_passphrase"]] if p["lockbox_passphrase"] else []
-
-    def redact(text):
-        text = client.scrub_text(text, 1000)
-        for secret in secrets:
-            text = text.replace(secret, "********")
-        return text
+    client.add_secret(p["lockbox_passphrase"])
+    module.no_log_values.add(p["lockbox_passphrase"] or "")
 
     def fail(msg, **kw):
-        module.fail_json(msg=redact(msg), **kw)
+        module.fail_json(msg=client.scrub_text(msg, 1000), **kw)
 
     out = {}
     try:
@@ -192,19 +189,28 @@ def main():
             if len(active) != 1:
                 raise PpdmError("expected exactly one ACTIVE upgrade package, found %d" % len(active))
             pkg_id = active[0].get("id")
+            if not pkg_id:
+                raise PpdmError("the ACTIVE upgrade package has no id")
         path = "/api/v2/upgrade-packages/" + quote_id(pkg_id)
         pkg = client.request("GET", path)
         if not isinstance(pkg, dict):
             raise PpdmError("GET %s failed: unexpected response" % path)
-        secrets += [v for v in (pkg.get(k) for k in SECRET_KEYS) if isinstance(v, str) and v]
+        for key in SECRET_KEYS:
+            if isinstance(pkg.get(key), str) and pkg[key]:
+                client.add_secret(pkg[key])
+                module.no_log_values.add(pkg[key])
         out["upgrade_package"] = _mask(pkg, SECRET_KEYS)
         state = str(pkg.get("state"))
         action = p["action"]
         if action == "precheck" and state.startswith("INSTALLED"):
             raise PpdmError("upgrade package %s is already installed, a precheck is refused" % pkg_id)
         if action == "upgrade":
-            if state.startswith("INSTALLED"):
+            if state == "INSTALLED":
                 module.exit_json(changed=False, **out)
+            if state.startswith("INSTALLED"):  # INSTALLED_CORE, INSTALLED_WITH_ERRORS, INSTALLED_WITH_SKIPPED
+                raise PpdmError(
+                    "upgrade package %s is only partly installed (state %s), not reported as done" % (pkg_id, state)
+                )
             if state not in ("AVAILABLE", "FAILED"):
                 raise PpdmError(
                     "upgrade package %s is in state %s, an upgrade needs AVAILABLE or FAILED" % (pkg_id, state)

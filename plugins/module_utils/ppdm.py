@@ -153,11 +153,17 @@ class PpdmClient:
         self.sleep = sleep
         self.token = None
         self.last_status = None
+        self.extra_secrets = []
+
+    def add_secret(self, value):
+        """Also mask value (a passphrase, a package token) wherever scrub is applied, escaped forms included."""
+        if isinstance(value, str) and value:
+            self.extra_secrets.append(value)
 
     def _secret_strings(self):
         """The password and the token plus their JSON (lower and upper case \\uXXXX) and repr escaped forms."""
         out = set()
-        for x in (self.password, self.token):
+        for x in (self.password, self.token, *self.extra_secrets):
             if isinstance(x, str) and x:
                 ascii_form = json.dumps(x)[1:-1]
                 upper = re.sub(r"\\u([0-9a-f]{4})", lambda m: "\\u" + m.group(1).upper(), ascii_form)  # Jackson
