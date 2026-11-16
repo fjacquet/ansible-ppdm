@@ -89,7 +89,7 @@ def test_update_patches_only_on_diff(monkeypatch):
     assert urlsplit(op.calls[1][0]).path == "/api/v2/protection-groups/g1"
     b = body(op, 1)
     ro = {"id", "createdAt", "updatedAt", "lastAvailableCopyTime", "lastDiscoveryStatus", "protectionStatus"}
-    assert b["description"] == "new" and not ro & set(b)
+    assert b["description"] == "new" and b["id"] == "g1" and not (ro - {"id"}) & set(b)
     assert not {"operatingSystems", "supportedProtectionProtocols"} & set(b)
 
 
@@ -146,4 +146,4 @@ def test_config_collision_fails_before_request(monkeypatch):
 def test_config_passes_extra_keys(monkeypatch):
     op = FakeOpener(listing(), Resp({"id": "g1"}, 200))
     run(monkeypatch, op, config={"dataBackupRole": {"x": 1}})
-    assert body(op, 1) == {"name": "ora-dg", "dataBackupRole": {"x": 1}}
+    assert body(op, 1) == {"name": "ora-dg", "subtype": "GENERIC", "dataBackupRole": {"x": 1}}

@@ -1,0 +1,132 @@
+---
+# Live-lab validation, phase 2: create / re-run / update / delete on throwaway zz-validate-* objects.
+# Expected: 1st run changed, 2nd run NOT changed (idempotence), update changed, absent changed, absent again NOT changed.
+# Failures are recorded, not raised, so every step runs. Raw results: .ansible/lab-results/phase2.json (git-ignored).
+- name: Phase 2 idempotence validation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      ca_path: "{{ lookup('ansible.builtin.env', 'LAB_CA_PATH') }}"
+      tls_server_name: "{{ lookup('ansible.builtin.env', 'LAB_TLS_SERVER_NAME') }}"
+  vars:
+    results_dir: "{{ playbook_dir }}/../../.ansible/lab-results"
+    lab_user_password: "{{ lookup('ansible.builtin.password', '/dev/null length=24 chars=ascii_letters,digits') }}"
+  tasks:
+    - name: Resource group, create
+      fjacquet.ppdm.resource_group: {name: zz-validate-rg, description: lab validation}
+      register: rg1
+      failed_when: false
+    - name: Resource group, re-run
+      fjacquet.ppdm.resource_group: {name: zz-validate-rg, description: lab validation}
+      register: rg2
+      failed_when: false
+    - name: Resource group, update
+      fjacquet.ppdm.resource_group: {name: zz-validate-rg, description: lab validation updated}
+      register: rg3
+      failed_when: false
+
+    - name: Rule, create (assigns to the resource group, POWERSTORE_BLOCK template)
+      fjacquet.ppdm.protection_rule: &rule
+        name: zz-validate-rule
+        action: ASSIGN_RESOURCE_GROUP
+        resource_group: zz-validate-rg
+        description: lab validation
+        filter_template:
+          name: ALL_ASSETS_BY_TYPE
+          objectSubtype: POWERSTORE_BLOCK
+          args: [{name: ASSET_TYPE, values: [POWERSTORE_BLOCK]}]
+      register: rule1
+      failed_when: false
+    - name: Rule, re-run
+      fjacquet.ppdm.protection_rule: *rule
+      register: rule2
+      failed_when: false
+    - name: Rule, update description (PATCH)
+      fjacquet.ppdm.protection_rule:
+        name: zz-validate-rule
+        action: ASSIGN_RESOURCE_GROUP
+        resource_group: zz-validate-rg
+        description: lab validation updated
+        filter_template:
+          name: ALL_ASSETS_BY_TYPE
+          objectSubtype: POWERSTORE_BLOCK
+          args: [{name: ASSET_TYPE, values: [POWERSTORE_BLOCK]}]
+      register: rule3
+      failed_when: false
+
+    - name: SMTP, create
+      fjacquet.ppdm.smtp: &smtp
+        mail_server: smtp.lab.example.com
+        mail_from: ppdm@lab.example.com
+        smtp_port: 25
+      register: smtp1
+      failed_when: false
+    - name: SMTP, re-run
+      fjacquet.ppdm.smtp: *smtp
+      register: smtp2
+      failed_when: false
+
+    - name: User, create (random password, never printed)
+      fjacquet.ppdm.user: &user
+        name: zz-validate-user
+        first_name: Lab
+        last_name: Validate
+        email: zz-validate@invalid.example
+        user_password: "{{ lab_user_password }}"
+        role: readonly
+      register: user1
+      failed_when: false
+      no_log: true
+    - name: User, re-run
+      fjacquet.ppdm.user: *user
+      register: user2
+      failed_when: false
+      no_log: true
+
+    - name: Protection group, create (storage direct body is a guess)
+      fjacquet.ppdm.protection_group:
+        name: zz-validate-pg
+        type: STORAGE_DIRECT_APPLICATION
+        member_asset_type: POWERSTORE_BLOCK
+      register: pg1
+      failed_when: false
+
+    - name: Cleanup, protection group
+      fjacquet.ppdm.protection_group: {name: zz-validate-pg, state: absent}
+      register: pg_del
+      failed_when: false
+    - name: Cleanup, user
+      fjacquet.ppdm.user: {name: zz-validate-user, state: absent}
+      register: user_del
+      failed_when: false
+      no_log: true
+    - name: Cleanup, SMTP
+      fjacquet.ppdm.smtp: {state: absent}
+      register: smtp_del
+      failed_when: false
+    - name: Cleanup, rule
+      fjacquet.ppdm.protection_rule: {name: zz-validate-rule, state: absent}
+      register: rule_del
+      failed_when: false
+    - name: Cleanup, rule again (must be unchanged)
+      fjacquet.ppdm.protection_rule: {name: zz-validate-rule, state: absent}
+      register: rule_del2
+      failed_when: false
+    - name: Cleanup, resource group
+      fjacquet.ppdm.resource_group: {name: zz-validate-rg, state: absent}
+      register: rg_del
+      failed_when: false
+
+    - name: Save the results (user results carry no secrets, no_log kept on them)
+      ansible.builtin.copy:
+        content: >-
+          {{ {'rg1': rg1, 'rg2': rg2, 'rg3': rg3, 'rule1': rule1, 'rule2': rule2, 'rule3': rule3,
+          'smtp1': smtp1, 'smtp2': smtp2, 'pg1': pg1, 'pg_del': pg_del, 'smtp_del': smtp_del,
+          'rule_del': rule_del, 'rule_del2': rule_del2, 'rg_del': rg_del,
+          'user_flags': {'user1_changed': user1.changed | default(none), 'user1_failed': user1.failed | default(none),
+          'user2_changed': user2.changed | default(none), 'user_del_changed': user_del.changed | default(none),
+          'user_del_failed': user_del.failed | default(none)}} | to_nice_json }}
+        dest: "{{ results_dir }}/phase2.json"
+        mode: "0600"

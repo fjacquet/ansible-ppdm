@@ -10,7 +10,7 @@ from ansible_collections.fjacquet.ppdm.tests.unit.helpers import (
     run_module,
 )
 
-RULE = {"id": "r1", "name": "gold-vms", "action": {"name": "ASSIGN_PROTECTION_POLICY"}, "filters": []}
+RULE = {"id": "r1", "name": "gold-vms", "action": {"name": "ASSIGN_RESOURCE_GROUP"}, "filters": []}
 STARTED = Resp({"activityId": "a1"}, 202)
 
 
@@ -33,7 +33,7 @@ def test_run_by_name_exact_body(monkeypatch):
     out = run(monkeypatch, op)
     assert out["changed"] and methods(op) == ["GET", "POST"]
     assert urlsplit(op.calls[1][0]).path == "/api/v3/rule-execution"
-    assert post_body(op, 1) == {"ruleId": "r1", "actionName": "ASSIGN_PROTECTION_POLICY", "objectType": "ASSET"}
+    assert post_body(op, 1) == {"ruleId": "r1", "actionName": "ASSIGN_RESOURCE_GROUP", "objectType": "ASSET"}
     assert out["response"] == {"activityId": "a1"}
 
 
@@ -131,3 +131,19 @@ def test_v2_options_rejected_by_argument_spec(monkeypatch):
     for kw in ({"rules": ["x"]}, {"inventory_source_type": "KUBERNETES"}, {"preview_action": "EDIT"}):
         op = FakeOpener()
         assert run(monkeypatch, op, **kw)["failed"] and op.calls == []
+
+
+def test_policy_rule_refused_without_all_rules_of_action(monkeypatch):
+    op = FakeOpener(listing(dict(RULE, action={"name": "ASSIGN_PROTECTION_POLICY"})))
+    out = run(monkeypatch, op)
+    assert out["failed"] and "all_rules_of_action" in out["msg"] and methods(op) == ["GET"]
+
+
+def test_policy_rule_runs_every_rule_of_the_action_without_rule_id(monkeypatch):
+    op = FakeOpener(listing(dict(RULE, action={"name": "ASSIGN_PROTECTION_POLICY"})), STARTED)
+    out = run(monkeypatch, op, all_rules_of_action=True, object_subtypes=["POWERSTORE_BLOCK"])
+    assert out["changed"] and post_body(op, 1) == {
+        "actionName": "ASSIGN_PROTECTION_POLICY",
+        "objectType": "ASSET",
+        "objectSubtypes": ["POWERSTORE_BLOCK"],
+    }

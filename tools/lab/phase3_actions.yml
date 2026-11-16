@@ -1,0 +1,108 @@
+---
+# Live-lab phase 3: actions. Alerts (ack, idempotence, restore), a throwaway rule (preview, run with wait),
+# activity actions (cancel guard, cancel on a finished activity). Raw results: .ansible/lab-results/phase3.json.
+- name: Phase 3
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      ca_path: "{{ lookup('ansible.builtin.env', 'LAB_CA_PATH') }}"
+      tls_server_name: "{{ lookup('ansible.builtin.env', 'LAB_TLS_SERVER_NAME') }}"
+  vars:
+    results_dir: "{{ playbook_dir }}/../../.ansible/lab-results"
+  tasks:
+    - name: Alerts before
+      fjacquet.ppdm.alert_info:
+      register: alerts0
+    - name: Pick one unacknowledged alert
+      ansible.builtin.set_fact:
+        alert_id: "{{ (alerts0.alerts | selectattr('acknowledgement.acknowledgeState', 'equalto', 'UNACKNOWLEDGED') | first).id }}"
+
+    - name: Ack in check mode (must not write)
+      fjacquet.ppdm.alert_acknowledge: {ids: ["{{ alert_id }}"]}
+      check_mode: true
+      register: ack_check
+      failed_when: false
+    - name: Alert after check mode
+      fjacquet.ppdm.alert_info: {id: "{{ alert_id }}"}
+      register: alert_after_check
+    - name: Ack
+      fjacquet.ppdm.alert_acknowledge: {ids: ["{{ alert_id }}"]}
+      register: ack1
+      failed_when: false
+    - name: Ack again (idempotence)
+      fjacquet.ppdm.alert_acknowledge: {ids: ["{{ alert_id }}"]}
+      register: ack2
+      failed_when: false
+    - name: Alert after ack
+      fjacquet.ppdm.alert_info: {id: "{{ alert_id }}"}
+      register: alert_after_ack
+    - name: Unacknowledge (restore)
+      fjacquet.ppdm.alert_acknowledge: {ids: ["{{ alert_id }}"], acknowledge_state: UNACKNOWLEDGED}
+      register: unack
+      failed_when: false
+    - name: Alert after restore
+      fjacquet.ppdm.alert_info: {id: "{{ alert_id }}"}
+      register: alert_restored
+
+    - name: Resource group
+      fjacquet.ppdm.resource_group: {name: zz-p3-rg}
+    - name: Rule
+      fjacquet.ppdm.protection_rule:
+        name: zz-p3-rule
+        action: ASSIGN_RESOURCE_GROUP
+        resource_group: zz-p3-rg
+        filter_template:
+          name: ALL_ASSETS_BY_TYPE
+          objectSubtype: POWERSTORE_BLOCK
+          args: [{name: ASSET_TYPE, values: [POWERSTORE_BLOCK]}]
+    - name: Rule run preview
+      fjacquet.ppdm.protection_rule_run: {rule: zz-p3-rule, preview: true}
+      register: run_preview
+      failed_when: false
+    - name: Rule run with wait (v3 activity status)
+      fjacquet.ppdm.protection_rule_run: {rule: zz-p3-rule, wait: true, wait_timeout: 300}
+      register: run_wait
+      failed_when: false
+    - name: Rule run without wait
+      fjacquet.ppdm.protection_rule_run: {rule: zz-p3-rule}
+      register: run_nowait
+      failed_when: false
+
+    - name: Activities now
+      fjacquet.ppdm.activity_info:
+      register: activities
+      failed_when: false
+    - name: Pick a finished activity
+      ansible.builtin.set_fact:
+        activity_id: "{{ (activities.activities | default([]) | first | default({})).id | default('') }}"
+    - name: Cancel without confirm (module guard, no request)
+      fjacquet.ppdm.activity_action: {id: "{{ activity_id }}", action: cancel}
+      register: cancel_guard
+      failed_when: false
+      when: activity_id != ''
+    - name: Cancel a finished activity with confirm (server answer is the data point)
+      fjacquet.ppdm.activity_action: {id: "{{ activity_id }}", action: cancel, confirm: true}
+      register: cancel_done
+      failed_when: false
+      when: activity_id != ''
+
+    - name: Cleanup rule
+      fjacquet.ppdm.protection_rule: {name: zz-p3-rule, state: absent}
+      failed_when: false
+    - name: Cleanup group
+      fjacquet.ppdm.resource_group: {name: zz-p3-rg, state: absent}
+      failed_when: false
+
+    - name: Save
+      ansible.builtin.copy:
+        content: >-
+          {{ {'ack_check': ack_check, 'alert_after_check': alert_after_check.alerts | map(attribute='acknowledgement') | list,
+          'ack1': ack1, 'ack2': ack2, 'alert_after_ack': alert_after_ack.alerts | map(attribute='acknowledgement') | list,
+          'unack': unack, 'alert_restored': alert_restored.alerts | map(attribute='acknowledgement') | list,
+          'run_preview': run_preview, 'run_wait': run_wait, 'run_nowait': run_nowait,
+          'activities': activities, 'cancel_guard': cancel_guard | default({}), 'cancel_done': cancel_done | default({})}
+          | to_nice_json }}
+        dest: "{{ results_dir }}/phase3.json"
+        mode: "0600"

@@ -44,7 +44,7 @@ options:
   user_password:
     type: str
     no_log: true
-    description: Password of the user. This is not the PPDM login, which is the connection option C(password).
+    description: Password of the user. This is not the PPDM login, which is the connection option C(password). PPDM 20.3 requires 9 to 100 characters with a lower case letter, an upper case letter, a digit and a special character (verified on a live lab).
   update_password:
     type: str
     choices: [on_create, always]

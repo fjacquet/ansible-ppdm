@@ -13,14 +13,16 @@ import heapq
 import ipaddress
 import json
 import re
+import ssl
 import time
+from datetime import datetime
 from http.client import HTTPException
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback
-from ansible.module_utils.urls import open_url
+from ansible.module_utils.urls import Request, open_url
 from ansible_collections.fjacquet.ppdm.plugins.module_utils._routes import ROUTES
 
 PAGE_SIZE = 100
@@ -70,7 +72,19 @@ def is_subset(want: Any, have: Any) -> bool:
         return isinstance(have, dict) and all(k in have and is_subset(v, have[k]) for k, v in want.items())
     if isinstance(want, list):
         return isinstance(have, list) and len(want) == len(have) and all(map(is_subset, want, have))
-    return want == have
+    if want == have:
+        return True
+    return isinstance(want, str) and isinstance(have, str) and _same_instant(want, have)
+
+
+def _same_instant(a: str, b: str) -> bool:
+    """True when both strings are the same ISO 8601 instant (PPDM drops the zero milliseconds it was sent)."""
+    if "T" not in a or "T" not in b:
+        return False
+    try:
+        return datetime.fromisoformat(a) == datetime.fromisoformat(b)
+    except (ValueError, TypeError):  # not timestamps, or a naive one against an aware one
+        return False
 
 
 def merge_config(named: dict, config: dict | None) -> dict:
@@ -132,6 +146,33 @@ class PpdmError(Exception):
         self.body = body
 
 
+class _NamedContext(ssl.SSLContext):
+    """Verifying client context that sends and checks tls_server_name instead of the connect host."""
+
+    tls_server_name = ""
+
+    def wrap_socket(self, sock, *args, **kwargs):
+        kwargs["server_hostname"] = self.tls_server_name
+        return super().wrap_socket(sock, *args, **kwargs)
+
+
+def _named_opener(tls_server_name: str) -> Callable:
+    """open_url equivalent verifying the certificate against tls_server_name (SNI too), chain checks stay on."""
+
+    def opener(url, method=None, validate_certs=True, ca_path=None, **kwargs):
+        if not validate_certs:  # nothing to verify: plain behavior
+            return open_url(url, method=method, validate_certs=False, ca_path=ca_path, **kwargs)
+        ctx = _NamedContext(ssl.PROTOCOL_TLS_CLIENT)
+        ctx.tls_server_name = tls_server_name
+        if ca_path:
+            ctx.load_verify_locations(cafile=ca_path)
+        else:
+            ctx.load_default_certs()
+        return Request().open(method, url, context=ctx, **kwargs)
+
+    return opener
+
+
 class PpdmClient:
     """Session with one PPDM server: login once, then JSON requests, paging and ensure/remove helpers."""
 
@@ -144,6 +185,7 @@ class PpdmClient:
         validate_certs: bool = True,
         ca_path: str | None = None,
         timeout: int = 30,
+        tls_server_name: str | None = None,
         opener: Callable = open_url,
         sleep: Callable[[float], None] = time.sleep,
     ):
@@ -154,6 +196,8 @@ class PpdmClient:
         self.ca_path = ca_path
         self.timeout = timeout
         self.opener = opener
+        if tls_server_name and opener is open_url:
+            self.opener = _named_opener(tls_server_name)
         self.sleep = sleep
         self.token = None
         self.last_status = None
@@ -358,9 +402,11 @@ class PpdmClient:
                     % (path, self.scrub_text(total, 40), MAX_PAGES)
                 )
             if total is None:
-                if content:
-                    raise PpdmError("GET %s failed: paginated response has no 'page.totalPages'" % path)
-                return items, True
+                # server-disaster-recovery-configurations sends no totalPages on 20.3 (live lab): a short page is the
+                # last one, a full page is ambiguous and fails rather than guessing
+                if len(content) < PAGE_SIZE:
+                    return items, True
+                raise PpdmError("GET %s failed: paginated response has no 'page.totalPages'" % path)
             if page >= total:
                 return items, True
             page += 1
@@ -484,9 +530,12 @@ class PpdmClient:
                 },
             }
         verb = update_verb or ("PUT" if "PUT" in ROUTES[resource]["methods"] else "PATCH")
-        path = self._route(resource, verb, self._item_id(resource, existing))
+        item_id = self._item_id(resource, existing)
+        path = self._route(resource, verb, item_id)
         drop = (WRITE_ONLY_KEYS | secret_keys) - set(want)
         body = {k: v for k, v in shown.items() if k not in drop}
+        if verb == "PATCH" and item_id:
+            body["id"] = item_id  # PPDM 20.3 answers HTTP 400 to a PATCH without the id (live lab)
         obj = shown if check_mode else (self.request(verb, path, body=body) or shown)
         return {
             "changed": True,
@@ -582,6 +631,7 @@ def connection_argument_spec() -> dict:
         port=dict(type="int", default=8443, fallback=(env_fallback, ["PPDM_PORT"])),
         validate_certs=dict(type="bool", default=True),
         ca_path=dict(type="path"),
+        tls_server_name=dict(type="str", fallback=(env_fallback, ["PPDM_TLS_SERVER_NAME"])),
         timeout=dict(type="int", default=30),
     )
 
@@ -602,6 +652,7 @@ def client_from_module(module: AnsibleModule) -> PpdmClient:
             port=p["port"],
             validate_certs=p["validate_certs"],
             ca_path=p["ca_path"],
+            tls_server_name=p["tls_server_name"],
             timeout=p["timeout"],
         )
         client.login()

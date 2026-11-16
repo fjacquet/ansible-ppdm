@@ -12,6 +12,7 @@ Brings a freshly deployed PowerProtect Data Manager 20.3.0 to a configured state
 | `bootstrap_port` | `8443` | REST port. |
 | `bootstrap_validate_certs` | `true` | Validate the TLS certificate. |
 | `bootstrap_ca_path` | unset | CA bundle. |
+| `bootstrap_tls_server_name` | unset | Name the certificate is verified against. |
 | `bootstrap_wait_timeout` | `3000` | Seconds to wait for the API, and again for the configuration. |
 | `bootstrap_wait_delay` | `30` | Seconds between attempts. |
 | `bootstrap_eula_accept` | `false` | Accept the PPDM EULA (must be explicit). |

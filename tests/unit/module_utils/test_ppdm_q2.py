@@ -163,7 +163,14 @@ def test_hostname_rejected(host):
 def test_client_from_module_fails_cleanly_on_bad_hostname():
     class M:
         params = dict(
-            hostname="user@host", username="u", password="p", port=8443, validate_certs=True, ca_path=None, timeout=5
+            hostname="user@host",
+            username="u",
+            password="p",
+            port=8443,
+            validate_certs=True,
+            ca_path=None,
+            timeout=5,
+            tls_server_name=None,
         )
 
         def fail_json(self, **kw):

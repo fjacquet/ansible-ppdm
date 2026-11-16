@@ -17,6 +17,7 @@
       password: "{{ bootstrap_password }}"
       validate_certs: "{{ bootstrap_validate_certs }}"
       ca_path: "{{ bootstrap_ca_path | default(omit) }}"
+      tls_server_name: "{{ bootstrap_tls_server_name | default(omit) }}"
   vars:
     __bootstrap_retries: "{{ [(bootstrap_wait_timeout | int / bootstrap_wait_delay | int) | round(0, 'ceil') | int, 1] | max }}"
   block:

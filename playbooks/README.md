@@ -4,7 +4,7 @@ These collection playbooks show, workflow by workflow, how to do with the `fjacq
 [bottkars/ansible_ppdm](https://github.com/bottkars/ansible_ppdm) does with `uri`-based roles. Each workflow is
 rewritten, no YAML is copied, and the original file is credited in a comment at the top of each playbook.
 
-These playbooks target PPDM 20.3.0 only. Read a playbook before you run it. The pre-release status of the collection is described in the [main README](../README.md).
+These playbooks target PPDM 20.3.0 only. Read a playbook before you run it. The validation status of the collection is described in the [main README](../README.md#validation-status).
 
 ## Running a playbook
 

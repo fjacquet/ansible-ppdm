@@ -72,15 +72,29 @@ options:
     - SAP_HANA_DATABASE
     - VMWARE_VIRTUAL_MACHINE
     elements: str
+  all_rules_of_action:
+    description:
+    - PPDM 20.3 cannot run a single C(ASSIGN_PROTECTION_POLICY) rule, it answers HTTP 400 to a request
+      with a C(ruleId) (verified on a live lab). It only runs every rule of that action.
+    - Set to C(true) to run every C(ASSIGN_PROTECTION_POLICY) rule (limited by I(object_subtypes) when
+      set). Without it the module fails for such a rule before any request.
+    - Not used for C(ASSIGN_RESOURCE_GROUP) rules, which run by their own C(ruleId).
+    type: bool
+    version_added: 0.4.1
+    default: false
   preview:
     description:
     - Preview the conflicts of the existing I(rule) instead of running it.
+    - PPDM 20.3 supports the preview only for C(ASSIGN_PROTECTION_POLICY) rules (HTTP 400 for C(ASSIGN_RESOURCE_GROUP)),
+      and answered HTTP 500 for a C(POWERSTORE_BLOCK) template rule on the lab.
     - Cannot be combined with I(wait).
     type: bool
     default: false
   wait:
     description:
     - Wait for the activity of the run to complete.
+    - PPDM 20.3 answers the run with a 202 that echoes the request and has no C(activityId) (verified
+      on a live lab), so the module fails with a clear message when this is set.
     - Fails unless the activity status is C(OK) or C(SUCCESS); C(OK_WITH_ERRORS) or C(COMPLETED_WITH_EXCEPTIONS)
       warns, and fails when the answer has no C(activityId).
     type: bool
@@ -174,6 +188,7 @@ ARGUMENT_SPEC = dict(
         ],
         elements='str',
     ),
+    all_rules_of_action=dict(type='bool', default=False),
     preview=dict(type='bool', default=False),
     wait=dict(type='bool', default=False),
     wait_timeout=dict(type='int', default=600),
@@ -221,7 +236,16 @@ def main():
         action = p["action_name"] or (rule.get("action") or {}).get("name")
         if action not in ENUMS["rule_run.action_name"]:
             raise PpdmError(client.scrub_text("rule action %s cannot be executed, set action_name" % action, 200))
-        body = {"ruleId": rule["id"], "actionName": action, "objectType": "ASSET"}
+        if action == "ASSIGN_PROTECTION_POLICY":
+            # PPDM 20.3 refuses ruleId for this action (HTTP 400): it only runs every rule of the action
+            if not p["all_rules_of_action"]:
+                raise PpdmError(
+                    "PPDM 20.3 cannot run a single ASSIGN_PROTECTION_POLICY rule, it runs every rule of the action; "
+                    "set all_rules_of_action=true to do that"
+                )
+            body = {"actionName": action, "objectType": "ASSET"}
+        else:
+            body = {"ruleId": rule["id"], "actionName": action, "objectType": "ASSET"}
         if p["object_subtypes"]:
             body["objectSubtypes"] = p["object_subtypes"]
         res = client.start_action("/api/v3/rule-execution", body, module.check_mode)

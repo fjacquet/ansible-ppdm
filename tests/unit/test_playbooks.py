@@ -20,7 +20,7 @@ def _short(path):
     return f"{path.parent.name}.{path.stem}"
 
 
-DISCLAIMER = "Not yet validated against a live PPDM"
+DISCLAIMER = "Not validated on a live appliance"
 TASK_KEYWORDS = {
     "name", "when", "register", "loop", "loop_control", "no_log", "vars", "block", "rescue", "always",
     "changed_when", "failed_when", "until", "retries", "delay", "tags", "check_mode", "module_defaults",

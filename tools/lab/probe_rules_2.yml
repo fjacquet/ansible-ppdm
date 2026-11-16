@@ -1,0 +1,95 @@
+---
+# Live-lab probe 2: rule with filterTemplate only (no priority, no filters), user error reason, policy-rule variant,
+# then cleanup of every zz-probe-* object. Raw results: .ansible/lab-results/probe2.json (git-ignored).
+- name: Probe 2
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      ca_path: "{{ lookup('ansible.builtin.env', 'LAB_CA_PATH') }}"
+      tls_server_name: "{{ lookup('ansible.builtin.env', 'LAB_TLS_SERVER_NAME') }}"
+  vars:
+    results_dir: "{{ playbook_dir }}/../../.ansible/lab-results"
+    lab_user_password: "{{ lookup('ansible.builtin.password', '/dev/null length=24 chars=ascii_letters,digits') }}"
+  tasks:
+    - name: Resource group
+      fjacquet.ppdm.resource_group: {name: zz-probe-rg}
+      register: rg
+
+    - name: B3. Rule POST, filterTemplate only, no priority
+      fjacquet.ppdm.api:
+        method: POST
+        path: /api/v3/rules
+        body:
+          name: zz-probe-rule-3
+          action:
+            name: ASSIGN_RESOURCE_GROUP
+            args: [{name: RESOURCE_GROUP_ID, values: ["{{ rg.resource_group.id }}"]}]
+          filterTemplate:
+            name: ALL_ASSETS_BY_TYPE
+            objectSubtype: VMWARE_VIRTUAL_MACHINE
+            args: [{name: ASSET_TYPE, values: [VMWARE_VIRTUAL_MACHINE]}]
+      register: b3
+      failed_when: false
+
+    - name: Rules back (what the server stored and generated)
+      fjacquet.ppdm.protection_rule_info: {name: zz-probe-rule-3}
+      register: rules_back
+      failed_when: false
+
+    - name: C. PATCH the rule without id in the body
+      fjacquet.ppdm.api:
+        method: PATCH
+        path: "/api/v3/rules/{{ rules_back.protection_rules[0].id }}"
+        body: {description: patched without id}
+      register: c_noid
+      failed_when: false
+      when: rules_back.protection_rules | default([]) | length > 0
+
+    - name: F. User create, capture the reason only
+      fjacquet.ppdm.user:
+        name: zz-probe-user
+        first_name: Lab
+        last_name: Probe
+        email: zz-probe@lab.example.com
+        user_password: "{{ lab_user_password }}"
+        role: readonly
+      register: f_user
+      failed_when: false
+      no_log: true
+
+    - name: SMTP idempotence re-run
+      fjacquet.ppdm.smtp:
+        mail_server: smtp.lab.example.com
+        mail_from: ppdm@lab.example.com
+        smtp_port: 25
+      register: d_smtp2
+      failed_when: false
+
+    - name: Cleanup rule
+      fjacquet.ppdm.protection_rule: {name: zz-probe-rule-3, state: absent}
+      failed_when: false
+    - name: Cleanup user
+      fjacquet.ppdm.user: {name: zz-probe-user, state: absent}
+      failed_when: false
+      no_log: true
+    - name: Cleanup SMTP
+      fjacquet.ppdm.smtp: {state: absent}
+      failed_when: false
+    - name: Cleanup protection group
+      fjacquet.ppdm.protection_group: {name: zz-probe-pg, state: absent}
+      failed_when: false
+    - name: Cleanup resource group
+      fjacquet.ppdm.resource_group: {name: zz-probe-rg, state: absent}
+      failed_when: false
+
+    - name: Save the probe results
+      ansible.builtin.copy:
+        content: >-
+          {{ {'b3': b3, 'rules_back': rules_back, 'c_noid': c_noid | default({}), 'd_smtp2': d_smtp2,
+          'f_user': {'changed': f_user.changed | default(none), 'status': f_user.status | default(none),
+          'msg': f_user.msg | default(none), 'reason': (f_user.body | default({})).reason | default(none),
+          'remediation': (f_user.body | default({})).remediation | default(none)}} | to_nice_json }}
+        dest: "{{ results_dir }}/probe2.json"
+        mode: "0600"

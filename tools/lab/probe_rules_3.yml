@@ -1,0 +1,92 @@
+---
+# Live-lab probe 3: which asset types accept a rule filterTemplate in this lab, user with a policy-compliant password,
+# then cleanup. Raw results: .ansible/lab-results/probe3.json (git-ignored).
+- name: Probe 3
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      ca_path: "{{ lookup('ansible.builtin.env', 'LAB_CA_PATH') }}"
+      tls_server_name: "{{ lookup('ansible.builtin.env', 'LAB_TLS_SERVER_NAME') }}"
+  vars:
+    results_dir: "{{ playbook_dir }}/../../.ansible/lab-results"
+    lab_user_password: "Zz-{{ lookup('ansible.builtin.password', '/dev/null length=16 chars=ascii_letters,digits') }}-9!"
+    subtypes: [VMWARE_VIRTUAL_MACHINE, ORACLE_DATABASE, MICROSOFT_SQL_DATABASE, FILE_SYSTEM, SAP_HANA_DATABASE,
+               KUBERNETES, NAS_SHARE, MICROSOFT_EXCHANGE_DATABASE, CLOUD_NATIVE_ENTITY, POWERSTORE_BLOCK,
+               CLOUD_DIRECTOR_VAPP, POWER_MAX_BLOCK, HYPERV_VIRTUAL_MACHINE, NUTANIX_VIRTUAL_MACHINE,
+               NATIVEEDGE_VIRTUAL_MACHINE, GENERIC_APPLICATION_ASSET]
+  tasks:
+    - name: Resource group
+      fjacquet.ppdm.resource_group: {name: zz-probe-rg}
+      register: rg
+
+    - name: Rule POST per asset type (filterTemplate only)
+      fjacquet.ppdm.api:
+        method: POST
+        path: /api/v3/rules
+        body:
+          name: "zz-probe-{{ item | lower | replace('_', '-') }}"
+          action:
+            name: ASSIGN_RESOURCE_GROUP
+            args: [{name: RESOURCE_GROUP_ID, values: ["{{ rg.resource_group.id }}"]}]
+          filterTemplate:
+            name: ALL_ASSETS_BY_TYPE
+            objectSubtype: "{{ item }}"
+            args: [{name: ASSET_TYPE, values: ["{{ item }}"]}]
+      loop: "{{ subtypes }}"
+      register: per_type
+      failed_when: false
+
+    - name: Rules back
+      fjacquet.ppdm.protection_rule_info:
+      register: rules_back
+      failed_when: false
+
+    - name: User create with a compliant password
+      fjacquet.ppdm.user:
+        name: zz-probe-user
+        first_name: Lab
+        last_name: Probe
+        email: zz-probe@lab.example.com
+        user_password: "{{ lab_user_password }}"
+        role: readonly
+      register: user1
+      failed_when: false
+      no_log: true
+    - name: User re-run (idempotence, on_create)
+      fjacquet.ppdm.user:
+        name: zz-probe-user
+        first_name: Lab
+        last_name: Probe
+        email: zz-probe@lab.example.com
+        user_password: "{{ lab_user_password }}"
+        role: readonly
+      register: user2
+      failed_when: false
+      no_log: true
+
+    - name: Cleanup rules
+      fjacquet.ppdm.protection_rule: {name: "{{ item.name }}", state: absent}
+      loop: "{{ rules_back.protection_rules | default([]) | selectattr('name', 'match', '^zz-probe-') | list }}"
+      loop_control: {label: "{{ item.name }}"}
+      failed_when: false
+    - name: Cleanup user
+      fjacquet.ppdm.user: {name: zz-probe-user, state: absent}
+      failed_when: false
+      no_log: true
+    - name: Cleanup resource group
+      fjacquet.ppdm.resource_group: {name: zz-probe-rg, state: absent}
+      failed_when: false
+
+    - name: Save the probe results
+      ansible.builtin.copy:
+        content: >-
+          {{ {'per_type': per_type.results | map(attribute='item') | zip(per_type.results | map(attribute='status', default=none) | list,
+          per_type.results | map(attribute='body', default={}) | list) | list,
+          'rules_back': rules_back,
+          'user': {'u1_changed': user1.changed | default(none), 'u1_status': user1.status | default(none),
+          'u1_reason': (user1.body | default({})).reason | default(none), 'u2_changed': user2.changed | default(none),
+          'u2_status': user2.status | default(none)}} | to_nice_json }}
+        dest: "{{ results_dir }}/probe3.json"
+        mode: "0600"

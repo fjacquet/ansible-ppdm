@@ -12,7 +12,9 @@ description:
 - Create, update or remove a protection rule, identified by its name, through the v3 rules API.
 - A rule selects assets with I(filters) and applies its I(action), for example assigning them to a protection
   policy (I(action=ASSIGN_PROTECTION_POLICY)) or to a resource group (I(action=ASSIGN_RESOURCE_GROUP)).
-- Updates use PATCH.
+- Updates use PATCH, with the object C(id) in the body as PPDM requires.
+- Select the assets with I(filter_template) or I(filters). PPDM 20.3 builds the filters from a template
+  and requires I(priority) and I(filters) to stay unset for an C(ASSIGN_RESOURCE_GROUP) rule.
 - Rule names are assumed to be unique (the rule is found by exact name); if two rules share the name the
   module fails and lists the IDs.
 version_added: 0.2.0
@@ -142,12 +144,27 @@ options:
     type: list
     version_added: 0.3.0
     elements: dict
+  filter_template:
+    description:
+    - Template PPDM expands into the rule filters (the C(filterTemplate) field), for example all assets
+      of one type.
+    - A dict with C(name), C(objectSubtype) and C(args), a list of C(name) and C(values) pairs. PPDM 20.3
+      accepts the template names C(ALL_ASSETS_BY_TYPE), C(ALL_ASSETS_IN_A_POLICY), C(NATIVE_ASSET_VIEW)
+      and C(MSSQL_NATIVE_ASSET_VIEW), and the argument names C(ASSET_TYPE), C(INFRASTRUCTURE_NODE_ID),
+      C(PROTECTION_POLICY_ID) and C(EXCLUDE_AAG_INFRASTRUCTURE_NODE_ID) (verified on a live lab).
+    - PPDM generates the C(filters) from the template. When this option is set and I(filters) is not,
+      PPDM owns C(filter) and C(filters) (never sent, ignored by the idempotence check), and I(priority)
+      must stay unset for C(ASSIGN_RESOURCE_GROUP) rules.
+    - The template is compared as a subset of the existing one, so fields PPDM adds do not cause a change.
+    type: dict
+    version_added: 0.4.1
   config:
     description:
     - Extra request body fields passed through as is, for example C(filter).
     - The module fails when C(config) contains C(id) or C(_links), the server owns them.
     - The module fails when C(config) contains a key that a named option sets (C(name), C(description),
-      C(priority), C(action), C(variant), C(scopes), C(categories) and C(filters)), use the option instead.
+      C(priority), C(action), C(variant), C(scopes), C(categories), C(filters) and C(filterTemplate)),
+      use the option instead.
     - Each top-level key replaces the whole value of that field, the merge with the existing object is
       shallow (top-level keys only).
     - Do not put secrets here, values are not masked in diff or return values.
@@ -241,6 +258,7 @@ ARGUMENT_SPEC = dict(
     scopes=dict(type='list', choices=['ASSET', 'GENERAL', 'POLICY'], elements='str'),
     categories=dict(type='list', choices=['LIST_VIEW', 'TREE_VIEW'], elements='str'),
     filters=dict(type='list', elements='dict'),
+    filter_template=dict(type='dict'),
     config=dict(type='dict'),
 )
 # fmt: on
@@ -311,6 +329,7 @@ def main():
                 "scopes": p["scopes"],
                 "categories": p["categories"],
                 "filters": p["filters"],
+                "filterTemplate": p["filter_template"],
                 "action": None,
             }
             desired = merge_config(named, p["config"])  # before any request: bad input sends nothing
@@ -320,12 +339,15 @@ def main():
             action_body = build_action(client, p)
             if action_body is not None:
                 desired["action"] = action_body
+            readonly = READONLY
+            if p["filter_template"] is not None and p["filters"] is None:
+                readonly = READONLY + ("filter", "filters")  # PPDM generates them from the template
             res = client.ensure(
                 "rules",
                 desired,
                 check_mode=module.check_mode,
-                readonly=READONLY,
-                subset_keys=("action", "filters"),
+                readonly=readonly,
+                subset_keys=("action", "filters", "filterTemplate"),
             )
     except PpdmError as err:
         fail_from(module, err)

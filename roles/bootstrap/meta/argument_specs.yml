@@ -30,6 +30,9 @@ argument_specs:
       bootstrap_ca_path:
         type: path
         description: CA bundle used to validate the PPDM certificate.
+      bootstrap_tls_server_name:
+        type: str
+        description: Name the PPDM certificate is verified against (and sent as SNI) instead of the host.
       bootstrap_wait_timeout:
         type: int
         default: 3000

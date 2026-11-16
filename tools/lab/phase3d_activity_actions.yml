@@ -1,0 +1,45 @@
+---
+# Live-lab phase 3d: activity_info (list, one with steps) and activity_action (cancel guard, cancel, retry with wait) on the
+# discovery activities a registered agent host produces. Raw results: .ansible/lab-results/phase3d.json.
+- name: Phase 3d
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      ca_path: "{{ lookup('ansible.builtin.env', 'LAB_CA_PATH') }}"
+      tls_server_name: "{{ lookup('ansible.builtin.env', 'LAB_TLS_SERVER_NAME') }}"
+  vars:
+    results_dir: "{{ playbook_dir }}/../../.ansible/lab-results"
+  tasks:
+    - name: Activities
+      fjacquet.ppdm.activity_info:
+      register: acts
+    - name: Pick the newest activity
+      ansible.builtin.set_fact:
+        act_id: "{{ acts.activities[0].id }}"
+    - name: One activity by id with its steps
+      fjacquet.ppdm.activity_info: {id: "{{ act_id }}", steps: true}
+      register: act_steps
+      failed_when: false
+    - name: Cancel without confirm (guard, no request)
+      fjacquet.ppdm.activity_action: {id: "{{ act_id }}", action: cancel}
+      register: cancel_guard
+      failed_when: false
+    - name: Cancel with confirm on a finished activity (the server answer is the data point)
+      fjacquet.ppdm.activity_action: {id: "{{ act_id }}", action: cancel, confirm: true}
+      register: cancel_done
+      failed_when: false
+    - name: Retry with wait
+      fjacquet.ppdm.activity_action: {id: "{{ act_id }}", action: retry, wait: true, wait_timeout: 300}
+      register: retry1
+      failed_when: false
+    - name: Save
+      ansible.builtin.copy:
+        content: >-
+          {{ {'count': acts.activities | length,
+          'states': acts.activities | map(attribute='state', default='') | list,
+          'results': acts.activities | map(attribute='result', default='') | list,
+          'act_steps': act_steps, 'cancel_guard': cancel_guard, 'cancel_done': cancel_done, 'retry1': retry1} | to_nice_json }}
+        dest: "{{ results_dir }}/phase3d.json"
+        mode: "0600"

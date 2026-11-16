@@ -55,7 +55,8 @@ options:
     description:
       - Objectives of the policy, passed to PPDM as is after validation.
       - Each item must be a dict with C(type) one of C(ARCHIVE), C(BACKUP), C(CLOUD_DR), C(CLOUD_TIER), C(OBJECT_STORAGE_BACKUP), C(REPLICATION), C(SNAPSHOT) or C(VAULT).
-      - Add C(id) only to reference an existing objective in an update.
+      - PPDM 20.3 requires a UUID C(id) on each new objective, operation and retention (verified on a live lab, HTTP 400 otherwise), generate them yourself. A C(SNAPSHOT) operation must not set C(backupLevel).
+      - Timestamps such as C(window.startTime) are compared as instants, so C(...00.000Z) and C(...00Z) are the same.
       - The whole list replaces the existing one, nested values are not merged. Copy existing objectives with their ids from M(fjacquet.ppdm.protection_policy_info) to update them.
       - A run is unchanged when each desired objective is a subset of the existing one at the same index (same list length).
   overrides:
