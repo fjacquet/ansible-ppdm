@@ -1,0 +1,206 @@
+---
+# Live-lab validation, phase 1: every *_info module, read-only.
+# Run from the repo root (see tools/lab/README.md). Raw results go to .ansible/lab-results/ (git-ignored).
+- name: Phase 1 read-only validation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      ca_path: "{{ lookup('ansible.builtin.env', 'LAB_CA_PATH') }}"
+      tls_server_name: "{{ lookup('ansible.builtin.env', 'LAB_TLS_SERVER_NAME') }}"
+  vars:
+    results_dir: "{{ playbook_dir }}/../../.ansible/lab-results"
+  tasks:
+    - name: Create the results directory
+      ansible.builtin.file:
+        path: "{{ results_dir }}"
+        state: directory
+        mode: "0700"
+
+    - name: Call activity_info
+      fjacquet.ppdm.activity_info:
+      register: r_activity_info
+      failed_when: false
+
+    - name: Save the raw activity_info result
+      ansible.builtin.copy:
+        content: "{{ r_activity_info | to_nice_json }}"
+        dest: "{{ results_dir }}/activity_info.json"
+        mode: "0600"
+
+    - name: Call alert_info
+      fjacquet.ppdm.alert_info:
+      register: r_alert_info
+      failed_when: false
+
+    - name: Save the raw alert_info result
+      ansible.builtin.copy:
+        content: "{{ r_alert_info | to_nice_json }}"
+        dest: "{{ results_dir }}/alert_info.json"
+        mode: "0600"
+
+    - name: Call asset_info
+      fjacquet.ppdm.asset_info:
+      register: r_asset_info
+      failed_when: false
+
+    - name: Save the raw asset_info result
+      ansible.builtin.copy:
+        content: "{{ r_asset_info | to_nice_json }}"
+        dest: "{{ results_dir }}/asset_info.json"
+        mode: "0600"
+
+    - name: Call certificate_info
+      fjacquet.ppdm.certificate_info:
+      register: r_certificate_info
+      failed_when: false
+
+    - name: Save the raw certificate_info result
+      ansible.builtin.copy:
+        content: "{{ r_certificate_info | to_nice_json }}"
+        dest: "{{ results_dir }}/certificate_info.json"
+        mode: "0600"
+
+    - name: Call credential_info
+      fjacquet.ppdm.credential_info:
+      register: r_credential_info
+      failed_when: false
+
+    - name: Save the raw credential_info result
+      ansible.builtin.copy:
+        content: "{{ r_credential_info | to_nice_json }}"
+        dest: "{{ results_dir }}/credential_info.json"
+        mode: "0600"
+
+    - name: Call host_info
+      fjacquet.ppdm.host_info:
+      register: r_host_info
+      failed_when: false
+
+    - name: Save the raw host_info result
+      ansible.builtin.copy:
+        content: "{{ r_host_info | to_nice_json }}"
+        dest: "{{ results_dir }}/host_info.json"
+        mode: "0600"
+
+    - name: Call inventory_source_info
+      fjacquet.ppdm.inventory_source_info:
+      register: r_inventory_source_info
+      failed_when: false
+
+    - name: Save the raw inventory_source_info result
+      ansible.builtin.copy:
+        content: "{{ r_inventory_source_info | to_nice_json }}"
+        dest: "{{ results_dir }}/inventory_source_info.json"
+        mode: "0600"
+
+    - name: Call protection_group_info
+      fjacquet.ppdm.protection_group_info:
+      register: r_protection_group_info
+      failed_when: false
+
+    - name: Save the raw protection_group_info result
+      ansible.builtin.copy:
+        content: "{{ r_protection_group_info | to_nice_json }}"
+        dest: "{{ results_dir }}/protection_group_info.json"
+        mode: "0600"
+
+    - name: Call protection_policy_info
+      fjacquet.ppdm.protection_policy_info:
+      register: r_protection_policy_info
+      failed_when: false
+
+    - name: Save the raw protection_policy_info result
+      ansible.builtin.copy:
+        content: "{{ r_protection_policy_info | to_nice_json }}"
+        dest: "{{ results_dir }}/protection_policy_info.json"
+        mode: "0600"
+
+    - name: Call protection_rule_info
+      fjacquet.ppdm.protection_rule_info:
+      register: r_protection_rule_info
+      failed_when: false
+
+    - name: Save the raw protection_rule_info result
+      ansible.builtin.copy:
+        content: "{{ r_protection_rule_info | to_nice_json }}"
+        dest: "{{ results_dir }}/protection_rule_info.json"
+        mode: "0600"
+
+    - name: Call resource_group_info
+      fjacquet.ppdm.resource_group_info:
+      register: r_resource_group_info
+      failed_when: false
+
+    - name: Save the raw resource_group_info result
+      ansible.builtin.copy:
+        content: "{{ r_resource_group_info | to_nice_json }}"
+        dest: "{{ results_dir }}/resource_group_info.json"
+        mode: "0600"
+
+    - name: Call restore_plan_info
+      fjacquet.ppdm.restore_plan_info:
+      register: r_restore_plan_info
+      failed_when: false
+
+    - name: Save the raw restore_plan_info result
+      ansible.builtin.copy:
+        content: "{{ r_restore_plan_info | to_nice_json }}"
+        dest: "{{ results_dir }}/restore_plan_info.json"
+        mode: "0600"
+
+    - name: Call role_info
+      fjacquet.ppdm.role_info:
+      register: r_role_info
+      failed_when: false
+
+    - name: Save the raw role_info result
+      ansible.builtin.copy:
+        content: "{{ r_role_info | to_nice_json }}"
+        dest: "{{ results_dir }}/role_info.json"
+        mode: "0600"
+
+    - name: Call smtp_info
+      fjacquet.ppdm.smtp_info:
+      register: r_smtp_info
+      failed_when: false
+
+    - name: Save the raw smtp_info result
+      ansible.builtin.copy:
+        content: "{{ r_smtp_info | to_nice_json }}"
+        dest: "{{ results_dir }}/smtp_info.json"
+        mode: "0600"
+
+    - name: Call storage_system_info
+      fjacquet.ppdm.storage_system_info:
+      register: r_storage_system_info
+      failed_when: false
+
+    - name: Save the raw storage_system_info result
+      ansible.builtin.copy:
+        content: "{{ r_storage_system_info | to_nice_json }}"
+        dest: "{{ results_dir }}/storage_system_info.json"
+        mode: "0600"
+
+    - name: Call upgrade_package_info
+      fjacquet.ppdm.upgrade_package_info:
+      register: r_upgrade_package_info
+      failed_when: false
+
+    - name: Save the raw upgrade_package_info result
+      ansible.builtin.copy:
+        content: "{{ r_upgrade_package_info | to_nice_json }}"
+        dest: "{{ results_dir }}/upgrade_package_info.json"
+        mode: "0600"
+
+    - name: Call user_info
+      fjacquet.ppdm.user_info:
+      register: r_user_info
+      failed_when: false
+
+    - name: Save the raw user_info result
+      ansible.builtin.copy:
+        content: "{{ r_user_info | to_nice_json }}"
+        dest: "{{ results_dir }}/user_info.json"
+        mode: "0600"

@@ -7,6 +7,11 @@ __pycache__/
 .ansible/
 .ruff_cache/
 
+# local secrets (lab credentials): never commit, the template is .env.example
+.env
+.env.*
+!.env.example
+
 # local tooling
 bin/
 docs/*.pdf

@@ -1,0 +1,127 @@
+---
+# Live-lab probe: which request shapes does PPDM accept? Uses the generic api module on purpose.
+# Throwaway zz-probe-* objects, removed at the end. Raw results: .ansible/lab-results/probe.json (git-ignored).
+- name: Probe rule, PATCH, SMTP, protection group and user shapes
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      ca_path: "{{ lookup('ansible.builtin.env', 'LAB_CA_PATH') }}"
+      tls_server_name: "{{ lookup('ansible.builtin.env', 'LAB_TLS_SERVER_NAME') }}"
+  vars:
+    results_dir: "{{ playbook_dir }}/../../.ansible/lab-results"
+    lab_user_password: "{{ lookup('ansible.builtin.password', '/dev/null length=24 chars=ascii_letters,digits') }}"
+  tasks:
+    - name: Resource group for the probes
+      fjacquet.ppdm.resource_group: {name: zz-probe-rg}
+      register: rg
+
+    - name: A. PATCH resource group with the id in the body
+      fjacquet.ppdm.api:
+        method: PATCH
+        path: "/api/v2/resource-groups/{{ rg.resource_group.id }}"
+        body: {id: "{{ rg.resource_group.id }}", name: zz-probe-rg, description: with id}
+      register: a_patch
+      failed_when: false
+
+    - name: B1. Rule POST with filterTemplate only
+      fjacquet.ppdm.api:
+        method: POST
+        path: /api/v3/rules
+        body:
+          name: zz-probe-rule-1
+          priority: 98
+          action:
+            name: ASSIGN_RESOURCE_GROUP
+            args: [{name: RESOURCE_GROUP_ID, values: ["{{ rg.resource_group.id }}"]}]
+          filterTemplate:
+            name: ALL_ASSETS_BY_TYPE
+            objectSubtype: VMWARE_VIRTUAL_MACHINE
+            args: [{name: ASSET_TYPE, values: [VMWARE_VIRTUAL_MACHINE]}]
+      register: b1
+      failed_when: false
+
+    - name: B2. Rule POST with filterTemplate and our filters shape
+      fjacquet.ppdm.api:
+        method: POST
+        path: /api/v3/rules
+        body:
+          name: zz-probe-rule-2
+          priority: 97
+          action:
+            name: ASSIGN_RESOURCE_GROUP
+            args: [{name: RESOURCE_GROUP_ID, values: ["{{ rg.resource_group.id }}"]}]
+          filterTemplate:
+            name: ALL_ASSETS_BY_TYPE
+            objectSubtype: VMWARE_VIRTUAL_MACHINE
+            args: [{name: ASSET_TYPE, values: [VMWARE_VIRTUAL_MACHINE]}]
+          filters:
+            - objectType: ASSET
+              objectSubtype: VMWARE_VIRTUAL_MACHINE
+              type: INCLUDE
+              operator: AND
+              conditions:
+                - operator: AND
+                  conditions:
+                    - fieldName: name
+                      operator: CONTAINS
+                      fieldData: {type: STRING, values: [zz-probe]}
+      register: b2
+      failed_when: false
+
+    - name: Read the rules back (server-generated filters)
+      fjacquet.ppdm.protection_rule_info:
+      register: rules_back
+      failed_when: false
+
+    - name: C. Rule PATCH without id in the body
+      fjacquet.ppdm.api:
+        method: PATCH
+        path: "/api/v3/rules/{{ b1.json.id | default(b1.result.id | default('none')) }}"
+        body: {description: patched without id}
+      register: c_noid
+      failed_when: false
+      when: (b1.status | default(0)) in [200, 201]
+
+    - name: D. SMTP with a plain valid address
+      fjacquet.ppdm.smtp:
+        mail_server: smtp.lab.example.com
+        mail_from: ppdm@lab.example.com
+        smtp_port: 25
+      register: d_smtp
+      failed_when: false
+
+    - name: E. Protection group with subtype GENERIC
+      fjacquet.ppdm.api:
+        method: POST
+        path: /api/v2/protection-groups
+        body:
+          name: zz-probe-pg
+          type: STORAGE_DIRECT_APPLICATION
+          subtype: GENERIC
+          memberAssetType: POWERSTORE_BLOCK
+      register: e_pg
+      failed_when: false
+
+    - name: F. User create (password never printed)
+      fjacquet.ppdm.user:
+        name: zz-probe-user
+        first_name: Lab
+        last_name: Probe
+        email: zz-probe@lab.example.com
+        user_password: "{{ lab_user_password }}"
+        role: readonly
+      register: f_user
+      failed_when: false
+      no_log: true
+
+    - name: Save the probe results
+      ansible.builtin.copy:
+        content: >-
+          {{ {'a_patch': a_patch, 'b1': b1, 'b2': b2, 'rules_back': rules_back, 'c_noid': c_noid | default({}),
+          'd_smtp': d_smtp, 'e_pg': e_pg,
+          'f_user': {'changed': f_user.changed | default(none), 'status': f_user.status | default(none),
+          'msg': f_user.msg | default(none)}} | to_nice_json }}
+        dest: "{{ results_dir }}/probe.json"
+        mode: "0600"
