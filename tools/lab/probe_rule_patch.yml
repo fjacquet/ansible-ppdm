@@ -1,0 +1,76 @@
+---
+# Live-lab probe 4: PATCH semantics of a v3 rule (id in body? occVersion?). Raw results: .ansible/lab-results/probe4.json.
+- name: Probe 4
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/fjacquet.ppdm.ppdm:
+      ca_path: "{{ lookup('ansible.builtin.env', 'LAB_CA_PATH') }}"
+      tls_server_name: "{{ lookup('ansible.builtin.env', 'LAB_TLS_SERVER_NAME') }}"
+  vars:
+    results_dir: "{{ playbook_dir }}/../../.ansible/lab-results"
+  tasks:
+    - name: Resource group
+      fjacquet.ppdm.resource_group: {name: zz-probe-rg}
+      register: rg
+
+    - name: Create the rule (POWERSTORE_BLOCK is the only enabled type)
+      fjacquet.ppdm.api:
+        method: POST
+        path: /api/v3/rules
+        body:
+          name: zz-probe-rule
+          action:
+            name: ASSIGN_RESOURCE_GROUP
+            args: [{name: RESOURCE_GROUP_ID, values: ["{{ rg.resource_group.id }}"]}]
+          filterTemplate:
+            name: ALL_ASSETS_BY_TYPE
+            objectSubtype: POWERSTORE_BLOCK
+            args: [{name: ASSET_TYPE, values: [POWERSTORE_BLOCK]}]
+      register: created
+
+    - name: Read it back
+      fjacquet.ppdm.protection_rule_info: {name: zz-probe-rule}
+      register: back1
+
+    - name: P1. PATCH description, no id in the body
+      fjacquet.ppdm.api:
+        method: PATCH
+        path: "/api/v3/rules/{{ back1.protection_rules[0].id }}"
+        body: {description: patch 1 no id}
+      register: p1
+      failed_when: false
+
+    - name: P2. PATCH description with the id in the body
+      fjacquet.ppdm.api:
+        method: PATCH
+        path: "/api/v3/rules/{{ back1.protection_rules[0].id }}"
+        body: {id: "{{ back1.protection_rules[0].id }}", description: patch 2 with id}
+      register: p2
+      failed_when: false
+
+    - name: Read back after P2
+      fjacquet.ppdm.protection_rule_info: {name: zz-probe-rule}
+      register: back2
+
+    - name: P3. PATCH with a stale occVersion
+      fjacquet.ppdm.api:
+        method: PATCH
+        path: "/api/v3/rules/{{ back1.protection_rules[0].id }}"
+        body: {id: "{{ back1.protection_rules[0].id }}", description: patch 3 stale occ, occVersion: 0}
+      register: p3
+      failed_when: false
+
+    - name: Cleanup
+      fjacquet.ppdm.protection_rule: {name: zz-probe-rule, state: absent}
+      failed_when: false
+    - name: Cleanup group
+      fjacquet.ppdm.resource_group: {name: zz-probe-rg, state: absent}
+      failed_when: false
+
+    - name: Save
+      ansible.builtin.copy:
+        content: "{{ {'created': created, 'back1': back1, 'p1': p1, 'p2': p2, 'back2': back2, 'p3': p3} | to_nice_json }}"
+        dest: "{{ results_dir }}/probe4.json"
+        mode: "0600"

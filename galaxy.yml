@@ -36,6 +36,7 @@ build_ignore:
   - CLAUDE.md
   - docs/openapi
   - docs/superpowers
+  - docs/validation
   - pyproject.toml
   - tests
   - tools

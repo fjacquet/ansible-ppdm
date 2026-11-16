@@ -28,6 +28,29 @@ documented enums.
 | protection_group create | **BUG**: server requires `subtype` (spec says optional); creates fine with `subtype: GENERIC` |
 | user create | password policy: min 9 chars with lower, upper, digit and special character; probe password was too weak (not a module bug) |
 
+### Probe 3 results (rules and users)
+
+- Only `POWERSTORE_BLOCK` is an enabled asset type in this lab; a rule for any other type is rejected with "The asset
+  type X is not enabled".
+- `POST /api/v3/rules` with `filterTemplate` (`ALL_ASSETS_BY_TYPE`, `objectSubtype`, `args: [{ASSET_TYPE, values}]`),
+  `action` `ASSIGN_RESOURCE_GROUP` with `RESOURCE_GROUP_ID`, and no `priority` or `filters`: **201**.
+- The server generated `filters` in the shape the validator already enforces: filter, then one logical condition, then
+  relational conditions with `fieldName: type`, `operator: EQUALS`, `fieldData: {type: STRING, values: [...]}`,
+  `displayValues: null`, `displayOrder` set. Stored rule also has `filter`, `filterTemplate`, `occVersion`, and
+  `priority`, `variant`, `scopes`, `categories` all null.
+- User create with a compliant password (>= 9 chars, lower, upper, digit, special): PASS, and the re-run is unchanged
+  (`update_password: on_create`).
+
+### Probe 4 results (rule PATCH)
+
+- PATCH without `id` in the body: **400** "A parameter / property / argument value is not valid."
+- PATCH with `id` only: **200**, `occVersion` moves 4.7 to 4.8. No `occVersion` needed in the request.
+- PATCH with a stale `occVersion` (0): **412** "OCC version mismatch. provided=0 current=4.8". The server enforces
+  optimistic concurrency only when the client sends `occVersion`.
+- Conclusion: the fix is `id` in the PATCH body, nothing more. `occVersion` stays read-only and is stripped.
+- A new rule starts `status: CREATING`, then becomes `ACTIVE` with `lastRunAt` set within seconds (the server runs it
+  on creation).
+
 ## To fix (0.4.1)
 
 1. PATCH body must carry the object `id` (all `ensure` PATCH paths: resource group, rule, protection group, restore plan).
@@ -35,6 +58,7 @@ documented enums.
 3. `protection_group`: default `subtype` to `GENERIC`.
 4. Add `tls_server_name` (done, `feat/tls-server-name`).
 5. Document the user password policy.
+6. Add `docs/validation` to `build_ignore` (done in `galaxy.yml`, uncommitted).
 
 ## Still to validate
 
