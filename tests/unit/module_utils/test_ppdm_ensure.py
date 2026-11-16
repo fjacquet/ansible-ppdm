@@ -292,11 +292,12 @@ def test_await_activity_warns(status):
     assert len(c.await_activity("a", 10)["warnings"]) == 1
 
 
-def test_await_activity_canceled_raises_with_body():
-    c, _unused, _unused = mk(done("CANCELED"))
-    with pytest.raises(PpdmError, match="CANCELED") as e:
+@pytest.mark.parametrize("status", ["FAILED", "CANCELED", "SKIPPED", "RETRIED", None])
+def test_await_activity_failing_status_raises_with_body(status):
+    c, _unused, _unused = mk(done(status))
+    with pytest.raises(PpdmError, match=str(status)) as e:
         c.await_activity("a", 10)
-    assert e.value.body["result"]["status"] == "CANCELED"
+    assert e.value.body["result"]["status"] == status
 
 
 SMTP = {"id": "s1", "server": "mail", "port": 25}
@@ -346,3 +347,11 @@ def test_remove_singleton_none_is_noop():
     c, op, _unused = mk(page([], 1, 0))
     assert c.remove("smtp", None, None)["changed"] is False
     assert writes(op) == []
+
+
+def test_await_activity_failure_message_falls_back_to_issues():
+    c, _unused, _unused = mk(
+        Resp({"id": "a", "state": "COMPLETED", "result": {"status": "FAILED", "issues": "disk full"}})
+    )
+    with pytest.raises(PpdmError, match="disk full"):
+        c.await_activity("a", 10)

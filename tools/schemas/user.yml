@@ -50,7 +50,7 @@ options:
     choices: [on_create, always]
     default: on_create
     description:
-      - C(on_create) never compares the password and never causes a change by itself; it is sent on create and whenever an update is sent for another difference.
+      - C(on_create) sends the password only when the user is created; an existing user's password is never compared, sent or changed.
       - C(always) forces an update on every run (always reports changed) and sends the password, because PPDM never returns it.
   force_password_change:
     type: bool

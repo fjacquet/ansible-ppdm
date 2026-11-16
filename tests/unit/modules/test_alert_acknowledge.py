@@ -71,3 +71,9 @@ def test_empty_ids_fails(monkeypatch):
     op = FakeOpener()
     out = run(monkeypatch, op, ids=[])
     assert out["failed"] and op.calls == []
+
+
+def test_fewer_acknowledged_than_sent_fails(monkeypatch):
+    op = FakeOpener(alert("a"), alert("b"), alert("c"), Resp({"acknowledgementCount": 1, "bulkResults": []}, 207))
+    out = run(monkeypatch, op, ids=["a", "b", "c"])
+    assert out["failed"] and "1 of 3" in out["msg"]

@@ -9,9 +9,13 @@ MODULES = sorted(
 )
 
 
+def test_modules_found():
+    assert MODULES
+
+
 @pytest.mark.parametrize("name", MODULES)
 def test_module_options_do_not_collide_with_connection_options(name):
     mod = importlib.import_module("ansible_collections.fjacquet.ppdm.plugins.modules." + name)
     spec = getattr(mod, "ARGUMENT_SPEC", None)
-    if spec is not None:
-        assert set(spec) & set(connection_argument_spec()) == set()
+    assert spec is not None
+    assert set(spec) & set(connection_argument_spec()) == set()

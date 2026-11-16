@@ -52,7 +52,7 @@ return: |
     type: list
     elements: str
   results:
-    description: C(bulkResults) of the PPDM answer, one per alert.
+    description: C(bulkResults) of the PPDM answer, failures only, one per alert that PPDM could not update.
     returned: when the request was sent
     type: list
     elements: dict

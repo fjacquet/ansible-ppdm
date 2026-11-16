@@ -1,5 +1,5 @@
 ---
-# Find assets by name and type, and hosts by name (read-only). Leave find_asset_name and find_asset_type unset to list all.
+# Find assets by name and type, and hosts by name (read-only). Set find_asset_name and find_asset_type to an empty value (null) in your extra vars to list all.
 # Environment: PPDM_HOSTNAME, PPDM_USERNAME, PPDM_PASSWORD, PPDM_PORT (optional).
 - name: Find assets and hosts
   hosts: "{{ target | default('localhost') }}"
@@ -16,8 +16,8 @@
   tasks:
     - name: Find the assets
       fjacquet.ppdm.asset_info:
-        name: "{{ find_asset_name | default(omit) }}"
-        asset_type: "{{ find_asset_type | default(omit) }}"
+        name: "{{ find_asset_name | default(omit, true) }}"
+        asset_type: "{{ find_asset_type | default(omit, true) }}"
       register: ppdm_assets
 
     - name: Find the hosts

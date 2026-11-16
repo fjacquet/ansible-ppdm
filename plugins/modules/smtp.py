@@ -163,6 +163,7 @@ def main():
     )
     p = module.params
     client = client_from_module(module)
+    client.add_secret(p["smtp_password"])
     try:
         if p["state"] == "absent":
             res = client.remove("smtp", None, None, check_mode=module.check_mode, secret_keys=("password",))

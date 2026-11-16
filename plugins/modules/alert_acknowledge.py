@@ -75,7 +75,7 @@ updated_ids:
   type: list
   elements: str
 results:
-  description: C(bulkResults) of the PPDM answer, one per alert.
+  description: C(bulkResults) of the PPDM answer, failures only, one per alert that PPDM could not update.
   returned: when the request was sent
   type: list
   elements: dict
@@ -142,6 +142,9 @@ def main():
             ]
             if errors:
                 module.fail_json(msg="acknowledge failed for " + "; ".join(errors), **out)
+            count = resp.get("acknowledgementCount") if isinstance(resp, dict) else None
+            if isinstance(count, int) and count < len(todo):
+                module.fail_json(msg="PPDM acknowledged %d of %d alerts" % (count, len(todo)), **out)
     except PpdmError as err:
         fail_from(module, err)
     module.exit_json(changed=True, **out)

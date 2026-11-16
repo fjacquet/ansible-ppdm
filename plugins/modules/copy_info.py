@@ -26,8 +26,9 @@ notes:
 options:
   id:
     description:
-    - Return only the copy with this ID. A 404 or an empty answer gives an empty list. Mutually exclusive
-      with I(asset_id) and I(latest_asset_ids).
+    - Return only the copy with this ID. An empty answer gives an empty list; PPDM documents no 404 for
+      an unknown ID, so it may fail with a 400 or 500 error instead. Mutually exclusive with I(asset_id)
+      and I(latest_asset_ids).
     type: str
   asset_id:
     description:

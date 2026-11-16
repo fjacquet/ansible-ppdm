@@ -175,7 +175,8 @@ def main():
         module.fail_json(msg="wait only works with action=precheck, the appliance restarts during %s" % p["action"])
     client = client_from_module(module)
     client.add_secret(p["lockbox_passphrase"])
-    module.no_log_values.add(p["lockbox_passphrase"] or "")
+    if p["lockbox_passphrase"]:  # never add "": remove_values would mangle every result string
+        module.no_log_values.add(p["lockbox_passphrase"])
 
     def fail(msg, **kw):
         module.fail_json(msg=client.scrub_text(msg, 1000), **kw)

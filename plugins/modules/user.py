@@ -63,8 +63,8 @@ options:
     type: str
   update_password:
     description:
-    - C(on_create) never compares the password and never causes a change by itself; it is sent on create
-      and whenever an update is sent for another difference.
+    - C(on_create) sends the password only when the user is created; an existing user's password is never
+      compared, sent or changed.
     - C(always) forces an update on every run (always reports changed) and sends the password, because
       PPDM never returns it.
     type: str
@@ -168,9 +168,10 @@ def main():
     )
     p = module.params
     client = client_from_module(module)
+    client.add_secret(p["user_password"])
     try:
         if p["state"] == "absent":
-            res = client.remove("users", "username", p["name"], check_mode=module.check_mode)
+            res = client.remove("users", "username", p["name"], check_mode=module.check_mode, secret_keys=("password",))
             module.exit_json(changed=res["changed"], diff=res["diff"])
         role_id = p["role_id"]
         if p["role"] is not None:
@@ -191,8 +192,13 @@ def main():
             p["config"],
         )
         required = ("firstName", "lastName", "emailAddress", "password")
-        if any(k not in desired for k in required) and client.find_one("users", "username", p["name"]) is None:
-            raise PpdmError("creating user %s needs first_name, last_name, email and user_password" % p["name"])
+        drop_password = "password" in desired and p["update_password"] != "always"
+        if drop_password or any(k not in desired for k in required):
+            exists = client.find_one("users", "username", p["name"]) is not None
+            if not exists and any(k not in desired for k in required):
+                raise PpdmError("creating user %s needs first_name, last_name, email and user_password" % p["name"])
+            if exists and drop_password:
+                desired.pop("password")  # on_create never touches an existing password
         res = client.ensure(
             "users",
             desired,

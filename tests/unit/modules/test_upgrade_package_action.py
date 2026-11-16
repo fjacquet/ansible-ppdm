@@ -1,6 +1,7 @@
 import json
 from urllib.parse import parse_qs, urlsplit
 
+import pytest
 from ansible_collections.fjacquet.ppdm.plugins.modules import upgrade_package_action
 from ansible_collections.fjacquet.ppdm.tests.unit.helpers import (
     FakeOpener,
@@ -189,3 +190,26 @@ def test_secrets_never_in_output(monkeypatch):
     text = json.dumps(out)
     assert PP not in text and TOK not in text
     assert out["upgrade_package"]["upgradeToken"] == "VALUE_SPECIFIED_IN_NO_LOG_PARAMETER"
+
+
+def test_no_empty_no_log_value_so_result_strings_stay_intact(monkeypatch):
+    """Real remove_values path: an empty string in no_log_values would turn every result string into garbage."""
+    from ansible.module_utils.basic import AnsibleModule
+    from ansible.module_utils.common.parameters import remove_values
+    from ansible.module_utils.testing import patch_module_args
+    from ansible_collections.fjacquet.ppdm.plugins.module_utils.ppdm import PpdmClient
+    from ansible_collections.fjacquet.ppdm.tests.unit.helpers import Exit
+
+    op = FakeOpener(pkg("INSTALLED"))
+    client = PpdmClient("h", "u", "s3cret", opener=op, sleep=lambda s: None)
+    monkeypatch.setattr(upgrade_package_action, "client_from_module", lambda module: client)
+
+    def exit_json(self, **kw):
+        raise Exit(remove_values(kw, self.no_log_values))
+
+    monkeypatch.setattr(AnsibleModule, "exit_json", exit_json)
+    args = dict(hostname="h", username="u", password="s3cret", id="u1", action="upgrade", confirm=True)
+    with patch_module_args(args), pytest.raises(Exit) as e:
+        upgrade_package_action.main()
+    assert e.value.kwargs["upgrade_package"]["state"] == "INSTALLED"
+    assert e.value.kwargs["upgrade_package"]["category"] == "ACTIVE"

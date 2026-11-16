@@ -63,6 +63,17 @@ def test_schema_choices_match_enums():
         ("protection_rule_run", "object_subtypes"): "rule_run.object_subtype",
         ("discovery", "level"): "discovery.level",
         ("asset_info", "asset_type"): "asset.type",
+        ("protection_group", "type"): "protection_group.type",
+        ("protection_group", "subtype"): "protection_group.subtype",
+        ("protection_group", "member_asset_type"): "protection_group.member_asset_type",
+        ("protection_group", "backup_strategy"): "protection_group.backup_strategy",
+        ("activity_action", "retry_options"): "activity.retry_option",
+        ("alert_acknowledge", "acknowledge_state"): "alert.acknowledge_state",
+        ("alert_info", "severity"): "alert.severity",
+        ("alert_info", "category"): "alert.category",
+        ("restore_plan", "fallback_strategy"): "restore_plan.fallback_strategy",
+        ("restore_plan_run", "execution_type"): "restore_plan_run.execution_type",
+        ("upgrade_package_info", "category"): "upgrade_package.category",
     }
     for (mod, opt), key in pairs.items():
         opts = yaml.safe_load((schemas / (mod + ".yml")).read_text())["options"]
