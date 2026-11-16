@@ -1,0 +1,58 @@
+module: copy_info
+resource: copies
+kind: info
+short_description: Get copies (backups) from PowerProtect Data Manager
+description:
+  - Read-only query of copies. Never changes anything.
+  - Exactly one of I(id), I(asset_id) or I(latest_asset_ids) selects what to read.
+  - With I(asset_id), returns every copy of that asset, all pages.
+  - With I(latest_asset_ids), returns the latest copies of those assets in one request.
+version_added: 0.4.0
+attributes:
+  check_mode:
+    support: full
+    details: Read-only, behaves the same in check mode.
+  diff_mode:
+    support: none
+notes:
+  - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
+  - Reading a copy by I(id) uses an endpoint that is restricted to the Administrator role.
+options:
+  id:
+    type: str
+    description: Return only the copy with this ID. A 404 or an empty answer gives an empty list. Mutually exclusive with I(asset_id) and I(latest_asset_ids).
+  asset_id:
+    type: str
+    description: Return the copies of the asset with this ID. Mutually exclusive with I(id) and I(latest_asset_ids).
+  latest_asset_ids:
+    type: list
+    elements: str
+    description: Return the latest copy of each of these asset IDs. Must not be empty. Mutually exclusive with I(id) and I(asset_id).
+  filter:
+    type: str
+    description: PPDM filter string, ANDed (in parentheses) with the asset selection. Only valid with I(asset_id) or I(latest_asset_ids). It is passed to PPDM unchanged and its result is not re-checked.
+examples: |
+  - name: Copies of an asset
+    fjacquet.ppdm.copy_info:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      asset_id: "{{ asset_id }}"
+    register: result
+
+  - name: Latest copy of two assets
+    fjacquet.ppdm.copy_info:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      latest_asset_ids:
+        - "{{ asset_a }}"
+        - "{{ asset_b }}"
+
+return: |
+  copies:
+    description: Matching copies, an empty list when nothing matches.
+    returned: always
+    type: list
+    elements: dict
+    sample: [{"id": "c1", "assetId": "a1", "state": "ACTIVE"}]

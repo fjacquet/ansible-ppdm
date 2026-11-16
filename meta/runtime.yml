@@ -29,4 +29,5 @@ action_groups:
     - asset_info
     - host_info
     - activity_info
+    - copy_info
     - alert_info

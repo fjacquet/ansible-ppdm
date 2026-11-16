@@ -53,10 +53,15 @@ def strip_readonly(resource: str, obj: dict, readonly: Any = None) -> dict:
     return {k: v for k, v in obj.items() if k not in drop}
 
 
-def filter_eq(key: str, value: Any) -> str:
-    """PPDM filter expression `key eq "value"` (backslash and double quote escaped)."""
+def filter_quote(value: Any) -> str:
+    """A filter string literal `"value"` (backslash and double quote escaped)."""
     # shortcut: the OpenAPI does not document filter escaping; backslash-escaping \ and " is best effort.
-    return '%s eq "%s"' % (key, str(value).replace("\\", "\\\\").replace('"', '\\"'))
+    return '"%s"' % str(value).replace("\\", "\\\\").replace('"', '\\"')
+
+
+def filter_eq(key: str, value: Any) -> str:
+    """PPDM filter expression `key eq "value"`."""
+    return "%s eq %s" % (key, filter_quote(value))
 
 
 def is_subset(want: Any, have: Any) -> bool:
