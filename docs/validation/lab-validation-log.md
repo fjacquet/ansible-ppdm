@@ -63,6 +63,28 @@ validated in probe 3 (the phase 2 user step is not a reliable signal, it reports
 PATCH `id`, `protection_rule.filter_template`, `protection_group` default `subtype`, `tls_server_name`, `docs/validation`
 in `build_ignore`. Still open: document the user password policy.
 
+## Phase 3: actions (partial PASS)
+
+| Check | Result |
+| --- | --- |
+| alert_acknowledge, check mode | PASS, nothing written |
+| alert_acknowledge, ack, re-run, restore | PASS (changed, unchanged, changed; state read back each time) |
+| protection_policy (POWERSTORE_BLOCK, SNAPSHOT objective) create, update, delete | PASS after fixes below |
+| protection_policy re-run | **BUG, fixed**: reported changed every time, PPDM stores `startTime` `...00.000Z` as `...00Z`. `is_subset` now compares ISO 8601 strings as instants |
+| protection_policy create | **Doc gap, fixed**: PPDM 20.3 needs a client-supplied UUID `id` on each new objective, operation and retention; a SNAPSHOT operation must not set `backupLevel` |
+| protection_rule ASSIGN_PROTECTION_POLICY create, re-run | PASS |
+| protection_rule_run, ASSIGN_RESOURCE_GROUP rule by `ruleId` | PASS (202), the answer echoes the request |
+| protection_rule_run, ASSIGN_PROTECTION_POLICY rule | **BUG, fixed**: HTTP 400 "The actionName ASSIGN_PROTECTION_POLICY is invalid with ruleId input" even without `actionName`. PPDM only runs every rule of that action (`actionName` alone: 202). New opt-in `all_rules_of_action` |
+| protection_rule_run `wait` | The 202 has no `activityId` on 20.3, so `wait` cannot work for rule runs; the module fails with a clear message (documented) |
+| protection_rule_run `preview` | RG rule: HTTP 400 "not supported for ASSIGN_RESOURCE_GROUP". Policy rule on POWERSTORE_BLOCK: HTTP 500 "Unable to retrieve condition config for fieldName type and objectSubtype POWERSTORE_BLOCK" (server side). Errors are relayed correctly; success path NOT validated |
+| activity_action (cancel guard, cancel, retry) | NOT validated: the lab has no activity at all (no assets, no storage target) |
+| `wait` on v3 activity statuses | NOT validated live (unit tests only), no activity to wait on |
+
+## Fixed in 0.4.1 (branch feat/lab-validation)
+
+PATCH `id`, `protection_rule.filter_template`, `protection_group` default `subtype`, `tls_server_name`, `docs/validation`
+in `build_ignore`, timestamp-aware idempotence, `protection_rule_run.all_rules_of_action`, policy docs.
+
 ## Was to fix (0.4.1)
 
 1. PATCH body must carry the object `id` (all `ensure` PATCH paths: resource group, rule, protection group, restore plan).
