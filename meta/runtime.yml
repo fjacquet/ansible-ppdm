@@ -35,3 +35,6 @@ action_groups:
     - alert_acknowledge
     - smtp
     - smtp_info
+    - user
+    - user_info
+    - role_info

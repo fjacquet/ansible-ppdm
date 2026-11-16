@@ -19,6 +19,7 @@ from ansible_collections.fjacquet.ppdm.plugins.modules import (
     protection_policy_info,
     protection_rule_info,
     resource_group_info,
+    role_info,
     storage_system_info,
 )
 from ansible_collections.fjacquet.ppdm.tests.unit.helpers import (
@@ -40,6 +41,7 @@ MODULES = [
     (resource_group_info, "/api/v2/resource-groups", "resource_groups"),
     (asset_info, "/api/v2/assets", "assets"),
     (host_info, "/api/v2/hosts", "hosts"),
+    (role_info, "/api/v2/roles", "roles"),
 ]
 ALL = pytest.mark.parametrize(
     "mod,base,key", MODULES, ids=[m.__name__.rsplit(".", 1)[1] for m, _unused, _unused in MODULES]

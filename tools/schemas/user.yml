@@ -1,0 +1,94 @@
+module: user
+resource: users
+key: username
+kind: ensure
+short_description: Manage local users of PowerProtect Data Manager
+description:
+  - Create, update or remove a local PPDM user.
+  - The password is never returned by PPDM and never shown in the result or the diff.
+version_added: 0.4.0
+attributes:
+  check_mode:
+    support: full
+  diff_mode:
+    support: full
+notes:
+  - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
+  - The users API (C(/api/v2/users)) is deprecated in the PPDM 20.3.0 specification, its replacement is C(/api/v3/identity-access-provisions). This module stays on v2.
+  - The password is write-only, it is never part of the idempotency comparison and is masked in the returned object and diff.
+  - On create, I(first_name), I(last_name), I(email) and I(user_password) are required. When one of them is missing, the module fails if the user does not exist, without any write.
+seealso:
+  - module: fjacquet.ppdm.user_info
+    description: Read users.
+  - module: fjacquet.ppdm.role_info
+    description: Read roles.
+options:
+  state:
+    type: str
+    choices: [present, absent]
+    default: present
+    description: Whether the user must exist.
+  name:
+    type: str
+    required: true
+    description: User name (the C(username) field), the key of the user.
+  first_name:
+    type: str
+    description: First name.
+  last_name:
+    type: str
+    description: Last name.
+  email:
+    type: str
+    description: Email address.
+  user_password:
+    type: str
+    no_log: true
+    description: Password of the user. This is not the PPDM login, which is the connection option C(password).
+  update_password:
+    type: str
+    choices: [on_create, always]
+    default: on_create
+    description:
+      - C(on_create) never compares the password and never causes a change by itself; it is sent on create and whenever an update is sent for another difference.
+      - C(always) forces an update on every run (always reports changed) and sends the password, because PPDM never returns it.
+  force_password_change:
+    type: bool
+    description: Whether the user must change the password at next login.
+  role:
+    type: str
+    description: Name of the role. Resolved to its ID, the module fails when no role has this name. Mutually exclusive with I(role_id).
+  role_id:
+    type: str
+    description: ID of the role. Mutually exclusive with I(role).
+  config:
+    type: dict
+    description:
+      - The module also fails when C(config) contains C(id) or C(_links), the server owns them.
+      - The module fails when C(config) contains a key that a named option sets (C(username), C(firstName), C(lastName), C(emailAddress), C(password), C(forcePasswordChange) and C(roleId)), use the option instead.
+      - Extra request body fields passed through as is.
+      - Each top-level key replaces the whole value of that field, the merge with the existing object is shallow (top-level keys only), nested values are not merged.
+      - Do not put secrets here, values are not masked in diff or return values.
+examples: |
+  - name: Create a user with a role
+    fjacquet.ppdm.user:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      name: jdoe
+      first_name: Jane
+      last_name: Doe
+      email: jdoe@example.com
+      user_password: "{{ jdoe_secret }}"
+      role: Administrator
+return: |
+  user:
+    description: The managed user, password masked. Empty with I(state=absent).
+    returned: success
+    type: dict
+    sample: {"id": "u1", "username": "jdoe", "password": "VALUE_SPECIFIED_IN_NO_LOG_PARAMETER"}
+  diff:
+    description: Before and after, password masked.
+    returned: success
+    type: dict
+    sample: {"before": {}, "after": {"username": "jdoe"}}
