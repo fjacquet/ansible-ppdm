@@ -26,6 +26,7 @@ action_groups:
     - resource_group_info
     - restore_plan
     - restore_plan_info
+    - restore_plan_run
     - protection_group
     - protection_group_info
     - asset_info

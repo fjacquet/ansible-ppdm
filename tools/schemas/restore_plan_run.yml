@@ -1,0 +1,86 @@
+module: restore_plan_run
+resource: restore-plans
+key: id
+kind: action
+short_description: Execute a restore plan on PowerProtect Data Manager
+description:
+  - Execute a restore plan now or schedule its execution, through C(POST /api/v2/restore-plans/{id}/execute).
+  - The module is not idempotent, it reports C(changed=true) when it sends the request. In check mode nothing is sent and C(changed=true) is reported.
+version_added: 0.4.0
+attributes:
+  check_mode:
+    support: full
+  diff_mode:
+    support: none
+notes:
+  - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
+  - Executing a restore plan is service-affecting, the module fails before any request or login unless I(confirm=true), also in check mode.
+  - The plan is found by name first, then by id; the module fails when several plans match.
+  - PPDM answers 201 for an immediate run and 202 for a scheduled one, with the activities started (C(activities), each with an C(activityId) and a C(restoreGroupId)). It answers 409 when the plan is already running, the module then fails with the PPDM message.
+  - With I(wait=true) every activity is polled to completion and the module fails unless each one ends C(OK) or C(SUCCESS) (the warn statuses C(OK_WITH_ERRORS), C(COMPLETED_WITH_EXCEPTIONS) only add a warning). One failure does not hide the others. An answer without activities, or an entry without C(activityId), fails the module with I(wait) and only warns without it.
+  - I(wait=true) cannot be combined with I(execution_type=SCHEDULE), the module fails before any request.
+seealso:
+  - module: fjacquet.ppdm.restore_plan
+    description: Manage restore plans.
+options:
+  plan:
+    type: str
+    required: true
+    description: Name or id of the restore plan.
+  execution_type:
+    type: str
+    default: IMMEDIATELY
+    choices: [IMMEDIATELY, SCHEDULE]
+    description: Run the plan now, or at I(schedule_time).
+  schedule_time:
+    type: str
+    description:
+      - Time to run the plan, ISO 8601 (for example C(2026-12-01T22:00:00Z)).
+      - Required with I(execution_type=SCHEDULE), refused with C(IMMEDIATELY).
+  confirm:
+    type: bool
+    default: false
+    description: Must be C(true), a safeguard against an accidental restore.
+  wait:
+    type: bool
+    default: false
+    description: Wait for every started activity to complete (see the notes).
+  wait_timeout:
+    type: int
+    default: 600
+    description: Seconds to wait for each activity when I(wait=true).
+examples: |
+  - name: Execute a restore plan now and wait for it
+    fjacquet.ppdm.restore_plan_run:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      plan: dr-web
+      confirm: true
+      wait: true
+
+  - name: Schedule a restore plan
+    fjacquet.ppdm.restore_plan_run:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      plan: dr-web
+      execution_type: SCHEDULE
+      schedule_time: "2026-12-01T22:00:00Z"
+      confirm: true
+return: |
+  result:
+    description: Answer of PPDM, C({executionType, activities}).
+    returned: when the request was sent
+    type: dict
+    sample: {"executionType": "IMMEDIATELY", "activities": [{"activityId": "a1", "restoreGroupId": "g1"}]}
+  activities:
+    description: Final activities when I(wait=true).
+    returned: when waited
+    type: list
+    elements: dict
+  warnings:
+    description: Warn-status activities, and answers or entries without activity (when not waiting).
+    returned: when any
+    type: list
+    elements: str
