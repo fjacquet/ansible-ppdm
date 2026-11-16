@@ -22,6 +22,7 @@ from ansible_collections.fjacquet.ppdm.plugins.modules import (
     restore_plan_info,
     role_info,
     storage_system_info,
+    upgrade_package_info,
 )
 from ansible_collections.fjacquet.ppdm.tests.unit.helpers import (
     Exit,
@@ -44,6 +45,7 @@ MODULES = [
     (asset_info, "/api/v2/assets", "assets"),
     (host_info, "/api/v2/hosts", "hosts"),
     (role_info, "/api/v2/roles", "roles"),
+    (upgrade_package_info, "/api/v2/upgrade-packages", "upgrade_packages"),
 ]
 ALL = pytest.mark.parametrize(
     "mod,base,key", MODULES, ids=[m.__name__.rsplit(".", 1)[1] for m, _unused, _unused in MODULES]
@@ -322,3 +324,11 @@ def test_alert_info_by_id(monkeypatch):
     out = run(monkeypatch, alert_info, op, id="abc")
     assert out["alerts"] == [{"id": "abc"}]
     assert urlsplit(op.calls[0][0]).path == "/api/v2/alerts/abc"
+
+
+def test_upgrade_package_info_drops_secrets(monkeypatch):
+    pkg = {"id": "u1", "category": "ACTIVE", "lockboxPassphrase": "pp-sentinel", "upgradeToken": "tok-sentinel"}
+    out = run(monkeypatch, upgrade_package_info, FakeOpener(page([pkg], 1, 1)), category="ACTIVE")
+    assert out["upgrade_packages"] == [{"id": "u1", "category": "ACTIVE"}]
+    out = run(monkeypatch, upgrade_package_info, FakeOpener(Resp(dict(pkg))), id="u1")
+    assert "sentinel" not in json.dumps(out)

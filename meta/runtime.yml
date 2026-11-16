@@ -41,3 +41,5 @@ action_groups:
     - user
     - user_info
     - role_info
+    - upgrade_package_info
+    - upgrade_package_action

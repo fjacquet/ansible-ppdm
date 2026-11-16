@@ -1,0 +1,105 @@
+module: upgrade_package_action
+resource: upgrade-packages
+key: id
+kind: action
+short_description: Precheck, install or revert an upgrade package on PowerProtect Data Manager
+description:
+  - Run the precheck, the upgrade or the revert of an upgrade package, through C(POST .../precheck), C(PUT .../{id}) and C(POST .../revert) under C(/api/v2/upgrade-packages).
+  - Reports C(changed=false) without any request when the package is already installed (upgrade) or reverted (revert). In check mode nothing is sent and C(changed=true) is reported otherwise.
+version_added: 0.4.0
+author:
+  - Frederic Jacquet (@fjacquet)
+extends_documentation_fragment:
+  - fjacquet.ppdm.ppdm
+  - action_common_attributes
+attributes:
+  check_mode:
+    support: full
+  diff_mode:
+    support: none
+notes:
+  - Unofficial collection, not affiliated with Dell. Written against the PowerProtect Data Manager 20.3.0 REST API.
+  - The upgrade and the revert are service-affecting, the appliance restarts. The module fails before any request or login unless I(confirm=true), for every I(action) and also in check mode.
+  - The package is read first. A precheck is refused on an installed package, an upgrade needs the state C(AVAILABLE) or C(FAILED), a revert needs C(revertSupported=true) and a C(HOTFIX) package.
+  - Only the answer 202 counts as success for the upgrade. The 200 answer of the API schema is an error message, so the module fails with it.
+  - The upgrade request always carries C(forceUpgrade) explicitly, because the API default is C(true).
+  - I(wait) works with the precheck only. The appliance restarts during an upgrade or a revert, so the module cannot poll them and fails when I(wait=true). Poll with M(fjacquet.ppdm.upgrade_package_info) once the API is back, see the C(bootstrap.wait_for_api) playbook.
+  - The passphrase is never returned, logged or sent in a message. The package returned by the module shows C(lockboxPassphrase) and C(upgradeToken) masked.
+seealso:
+  - module: fjacquet.ppdm.upgrade_package_info
+    description: Get upgrade packages.
+options:
+  action:
+    type: str
+    required: true
+    choices: [precheck, upgrade, revert]
+    description: Operation to run on the package.
+  id:
+    type: str
+    description: ID of the upgrade package. Defaults to the single package of category C(ACTIVE), the module fails when there is none or several.
+  confirm:
+    type: bool
+    default: false
+    description: Must be C(true) for every I(action), a safeguard against an accidental upgrade.
+  force:
+    type: bool
+    default: false
+    description: Sent as the query parameter C(forceUpgrade) of the upgrade, always explicit.
+  trust_certificate:
+    type: bool
+    default: false
+    description: Trust the package certificate on the upgrade (C(certificateTrustedByUser)).
+  accept_eula:
+    type: bool
+    default: false
+    description: Accept the product and telemetry EULAs on the upgrade.
+  lockbox_passphrase:
+    type: str
+    no_log: true
+    description: Lockbox passphrase, sent only when set. Needed when the package reports C(lockboxResetRequired).
+  wait:
+    type: bool
+    default: false
+    description: Wait for the precheck activity to complete. An error with C(upgrade) and C(revert), see the notes.
+  wait_timeout:
+    type: int
+    default: 600
+    description: Seconds to wait for the precheck activity when I(wait=true).
+examples: |
+  - name: Precheck the active upgrade package
+    fjacquet.ppdm.upgrade_package_action:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      action: precheck
+      confirm: true
+      wait: true
+
+  - name: Install the active upgrade package
+    fjacquet.ppdm.upgrade_package_action:
+      hostname: ppdm.example.com
+      username: admin
+      password: "{{ ppdm_password }}"
+      action: upgrade
+      trust_certificate: true
+      accept_eula: true
+      confirm: true
+return: |
+  upgrade_package:
+    description: The package as read, with C(lockboxPassphrase) and C(upgradeToken) masked.
+    returned: when the package was read
+    type: dict
+  response:
+    description: Answer of PPDM to the request, secrets masked.
+    returned: when the request was sent
+    type: dict
+    sample: {"activityId": "a1", "id": "u1"}
+  activity:
+    description: Final precheck activity when I(wait=true).
+    returned: when waited
+    type: dict
+  warnings:
+    description: Warn status of the precheck activity.
+    returned: when any
+    type: list
+    elements: str
