@@ -90,14 +90,14 @@ To share explicit values across tasks, use the `ppdm` action group:
 ### Certificate issued for another name
 
 When PPDM is reached through an address its certificate was not issued for (for example an AWS public DNS name
-while the certificate carries `ip-10-0-14-147.eu-west-1.compute.internal`), verification fails with "IP address
+while the certificate carries `ip-xx-xx-xx-xx.xx.compute.internal`), verification fails with "IP address
 mismatch". Set `tls_server_name` to verify the certificate against that name (also sent as SNI) while still connecting
 to `hostname`. Chain verification stays fully on (`validate_certs`, `ca_path`); this does not disable it.
 
 ```yaml
 - fjacquet.ppdm.storage_system_info:
-    hostname: ec2-203-0-113-10.eu-west-1.compute.amazonaws.com
-    tls_server_name: ip-10-0-14-147.eu-west-1.compute.internal
+    hostname: ip-xx-xx-xx-xx.xx.compute.amazonaws.com
+    tls_server_name: ip-xx-xx-xx-xx.xxx.compute.internal
     ca_path: /etc/ssl/ppdm-ca.pem
 ```
 
